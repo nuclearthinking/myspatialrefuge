@@ -1,0 +1,12 @@
+Sandbox_EN = {
+    Sandbox_MySpatialRefuge = "My Spatial Refuge",
+    
+    Sandbox_RefugeTeleportCooldown = "Teleport Cooldown",
+    Sandbox_RefugeTeleportCooldown_tooltip = "Seconds between refuge teleports. 0 = no cooldown.",
+    
+    Sandbox_RefugeCastTime = "Cast Time",
+    Sandbox_RefugeCastTime_tooltip = "Seconds to cast teleport (can be interrupted). 0 = instant.",
+    
+    Sandbox_RefugeCombatBlockTime = "Combat Block Time",
+    Sandbox_RefugeCombatBlockTime_tooltip = "Seconds after taking damage before you can teleport. 0 = disabled.",
+}

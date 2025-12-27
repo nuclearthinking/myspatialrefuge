@@ -1,9 +1,0 @@
-ItemName_EN = {
-    ItemName_Base.MagicalCore = "Strange Zombie Core",
-    ItemName_Base.SpatialSack = "Spatial Sack",
-    ItemName_Base.TechniqueManuscript_Metabolism = "Desert Scroll: Camel's Hump",
-    ItemName_Base.TechniqueManuscript_Absorption = "Desert Scroll: Camel's Hump",
-    ItemName_Base.TechniqueManuscript_Movement = "Worn Manuscript: Perpetual Breath",
-    ItemName_Base.TechniqueManuscript_Stabilization = "Faded Manuscript: Energy Stabilization",
-}
-

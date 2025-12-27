@@ -1,3 +1,0 @@
-RecipesEN = {
-    CraftSpatialSack = "Make Spatial Sack",
-}
