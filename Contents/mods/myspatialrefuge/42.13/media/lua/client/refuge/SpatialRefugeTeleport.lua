@@ -27,6 +27,11 @@ function SpatialRefuge.CanEnterRefuge(player)
         return false, "Cannot enter refuge while climbing or falling"
     end
     
+    -- Check if encumbered
+    if player:isEncumbered() then
+        return false, "Cannot teleport while encumbered"
+    end
+    
     -- Check cooldown (using game timestamp)
     local now = getTimestamp and getTimestamp() or 0
     local lastTeleport = SpatialRefuge.GetLastTeleportTime and SpatialRefuge.GetLastTeleportTime(player) or 0
