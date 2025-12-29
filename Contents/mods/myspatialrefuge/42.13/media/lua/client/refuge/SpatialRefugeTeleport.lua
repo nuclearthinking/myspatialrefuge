@@ -4,6 +4,7 @@
 
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeValidation"
+require "shared/SpatialRefugeShared"
 
 -- Assume dependencies are already loaded
 SpatialRefuge = SpatialRefuge or {}
@@ -196,12 +197,25 @@ local function doSingleplayerEnter(player, refugeData)
                 end
             end
 
-            -- Try to create Sacred Relic (only once) - requires loaded chunks
-            -- Pass radius so we can search entire refuge area for existing relic (prevents duplication)
             if not relicCreated and centerSquareExists and chunkLoaded and SpatialRefuge.CreateSacredRelic then
                 local relic = SpatialRefuge.CreateSacredRelic(teleportX, teleportY, teleportZ, refugeId, radius)
                 if relic then
                     relicCreated = true
+                    
+                    -- Sync position directly (avoids expensive FindRelicInRefuge search)
+                    if refugeData.relicX == nil then
+                        local relicSquare = relic:getSquare()
+                        if relicSquare then
+                            refugeData.relicX = relicSquare:getX()
+                            refugeData.relicY = relicSquare:getY()
+                            refugeData.relicZ = relicSquare:getZ()
+                        else
+                            refugeData.relicX = teleportX
+                            refugeData.relicY = teleportY
+                            refugeData.relicZ = teleportZ
+                        end
+                        SpatialRefugeData.SaveRefugeData(refugeData)
+                    end
                 end
             end
         else

@@ -203,12 +203,12 @@ function SpatialRefugeData.GetOrCreateRefugeData(player)
             centerZ = centerZ,
             tier = 0,
             radius = SpatialRefugeConfig.TIERS[0].radius,
-            -- Sacred Relic position (defaults to center, updated when moved)
             relicX = centerX,
             relicY = centerY,
             relicZ = centerZ,
             createdTime = os.time(),
-            lastExpanded = os.time()
+            lastExpanded = os.time(),
+            dataVersion = 2
         }
         
         -- Save to registry

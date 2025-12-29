@@ -1,0 +1,6 @@
+version=1
+id=3632195933
+title=My Spatial Refuge
+description=Escape the apocalypse to your personal refuge.  
+tags=Build 42;Building;Multiplayer
+visibility=public

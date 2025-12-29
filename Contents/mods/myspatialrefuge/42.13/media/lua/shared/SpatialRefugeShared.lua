@@ -121,7 +121,7 @@ function SpatialRefugeShared.ResolveRelicSprite()
     return nil
 end
 
--- Find relic on a specific square
+-- Find relic on a specific square by ModData
 function SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
     if not square then return nil end
     local objects = square:getObjects()
@@ -139,25 +139,105 @@ function SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
     return nil
 end
 
--- Search entire refuge area for an existing Sacred Relic
--- This handles cases where relic was moved from center to a corner
-function SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
-    local cell = getCell()
-    if not cell then return nil end
+-- Module-level sprite cache (resolved once per session)
+local _cachedRelicSprite = nil
+local _cachedResolvedSprite = nil
+local _spritesCached = false
+
+local function getCachedRelicSprites()
+    if not _spritesCached then
+        _cachedRelicSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+        _cachedResolvedSprite = SpatialRefugeShared.ResolveRelicSprite()
+        _spritesCached = true
+    end
+    return _cachedRelicSprite, _cachedResolvedSprite
+end
+
+-- Find relic on square by sprite (for old saves without ModData)
+local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
+    local objects = square:getObjects()
+    if not objects then return nil end
     
-    -- Search the entire refuge area (center + radius in all directions)
-    for dx = -radius, radius do
-        for dy = -radius, radius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
-                local relic = SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
-                if relic then
-                    return relic
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        if obj and obj.getSprite then
+            local sprite = obj:getSprite()
+            if sprite then
+                local spriteName = sprite:getName()
+                if spriteName == relicSprite or spriteName == resolvedSprite then
+                    return obj
                 end
             end
         end
     end
     return nil
+end
+
+-- Search refuge area for Sacred Relic (single pass: ModData first, sprite fallback)
+function SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
+    local cell = getCell()
+    if not cell then return nil end
+    
+    local relicSprite, resolvedSprite = getCachedRelicSprites()
+    
+    for dx = -radius, radius do
+        for dy = -radius, radius do
+            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
+            if square then
+                -- Try ModData first (fast, has refugeId verification)
+                local relic = SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
+                if relic then return relic end
+                
+                -- Fallback: sprite detection for old saves
+                relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
+                if relic then
+                    -- Stamp ModData for future fast detection
+                    local md = relic:getModData()
+                    md.isSacredRelic = true
+                    md.refugeId = refugeId
+                    md.isProtectedRefugeObject = true
+                    return relic
+                end
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- Sync relic position from world to ModData (for old saves without relicX/Y/Z)
+function SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
+    if not refugeData then return false end
+    if not SpatialRefugeData.CanModifyData() then return false end
+    if refugeData.relicX ~= nil then return false end
+    
+    local centerX = refugeData.centerX
+    local centerY = refugeData.centerY
+    local centerZ = refugeData.centerZ
+    local radius = refugeData.radius or 1
+    local refugeId = refugeData.refugeId
+    
+    local relic = SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
+    
+    if relic then
+        local square = relic:getSquare()
+        if square then
+            refugeData.relicX = square:getX()
+            refugeData.relicY = square:getY()
+            refugeData.relicZ = square:getZ()
+        else
+            refugeData.relicX = centerX
+            refugeData.relicY = centerY
+            refugeData.relicZ = centerZ
+        end
+    else
+        refugeData.relicX = centerX
+        refugeData.relicY = centerY
+        refugeData.relicZ = centerZ
+    end
+    
+    SpatialRefugeData.SaveRefugeData(refugeData)
+    return true
 end
 
 -- Move Sacred Relic to a new position within the refuge (server-authoritative)
@@ -998,17 +1078,15 @@ function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
     -- Generate walls
     SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
     
-    -- Generate or find Sacred Relic at stored position
-    -- Search is centered on refuge center to find relic anywhere in refuge
-    -- But creation happens at stored relicX/relicY position
     local relic = SpatialRefugeShared.CreateSacredRelicAtPosition(
-        centerX, centerY, centerZ,  -- Search center
-        relicX, relicY, relicZ,     -- Creation position (stored or default)
+        centerX, centerY, centerZ,
+        relicX, relicY, relicZ,
         refugeId, radius
     )
     
-    -- Clear any zombies (force clean for MP to handle edge cases where zombies might exist)
-    -- Pass player for MP sync of zombie removal
+    -- Sync relic position for old saves without relicX/Y/Z
+    SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
+    
     SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, centerZ, radius, true, player)
     
     if getDebug() then
@@ -1019,12 +1097,9 @@ function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
 end
 
 -----------------------------------------------------------
--- Property Repair (for objects that lose properties on map load)
+-- Property Repair (PZ map save may not preserve IsoThumpable properties)
 -----------------------------------------------------------
 
--- Re-apply protection properties to refuge walls and relic
--- Call this when player enters refuge to ensure properties are correct
--- (PZ map save may not preserve all IsoThumpable properties)
 function SpatialRefugeShared.RepairRefugeProperties(refugeData)
     if not refugeData then return 0 end
     

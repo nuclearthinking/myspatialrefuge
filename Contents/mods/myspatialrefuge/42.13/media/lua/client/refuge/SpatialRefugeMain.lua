@@ -4,6 +4,7 @@
 
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeData"
+require "shared/SpatialRefugeMigration"
 
 -- Prevent double-loading
 if SpatialRefuge and SpatialRefuge._mainLoaded then
@@ -136,16 +137,32 @@ end
 -- Global flag to track world readiness
 SpatialRefuge.worldReady = false
 
--- Initialize on game start
 local function OnGameStart()
-    -- Only initialize ModData locally in singleplayer
-    -- In MP, the server will transmit the authoritative ModData
+    -- Singleplayer only (MP: server transmits authoritative ModData)
     if not isClient() then
         SpatialRefuge.InitializeModData()
+        
+        -- Delayed migration (wait for player to load)
+        local tickCount = 0
+        local function delayedMigration()
+            tickCount = tickCount + 1
+            if tickCount < 30 then return end
+            
+            Events.OnTick.Remove(delayedMigration)
+            
+            local player = getPlayer()
+            if player and SpatialRefugeMigration.NeedsMigration(player) then
+                local success, msg = SpatialRefugeMigration.MigratePlayer(player)
+                if success then
+                    print("[SpatialRefuge] " .. msg)
+                end
+            end
+        end
+        
+        Events.OnTick.Add(delayedMigration)
     end
 end
 
--- World initialization (wait for world to be fully loaded)
 local function OnInitWorld()
     SpatialRefuge.worldReady = true
 end

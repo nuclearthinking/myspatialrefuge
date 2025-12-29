@@ -6,6 +6,7 @@ require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeShared"
 require "shared/SpatialRefugeData"
 require "shared/SpatialRefugeValidation"
+require "shared/SpatialRefugeMigration"
 
 SpatialRefugeServer = SpatialRefugeServer or {}
 
@@ -114,7 +115,10 @@ function SpatialRefugeServer.HandleModDataRequest(player, args)
         print("[SpatialRefugeServer] ModData request from " .. username)
     end
     
-    -- Get or create refuge data for this player (server is authoritative)
+    if SpatialRefugeMigration.NeedsMigration(player) then
+        SpatialRefugeMigration.MigratePlayer(player)
+    end
+    
     local refugeData = SpatialRefugeData.GetOrCreateRefugeData(player)
     if not refugeData then
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
@@ -941,24 +945,22 @@ local function OnPlayerFullyConnected(player)
     Events.OnTick.Add(delayedTransmit)
 end
 
--- Handle player connection
--- NOTE: Stranded player recovery DISABLED
--- Walls and Sacred Relic are server-authoritative IsoThumpable objects that persist in map save.
--- When server restarts, chunks load from disk with all structures intact.
--- The old "recovery" logic was incorrectly detecting missing structures before chunks loaded,
--- then regenerating on top of existing objects, causing corruption and duplicates.
+-- Stranded player recovery DISABLED: structures persist in map save
 local function OnPlayerConnect(player)
     if not player then return end
     
-    -- No recovery needed - structures persist in map save
-    -- Just log for debugging if needed
-    if getDebug() then
-        local username = player:getUsername() or "unknown"
-        print("[SpatialRefugeServer] Player connected: " .. username)
-        
-        if SpatialRefugeData.IsPlayerInRefugeCoords(player) then
-            print("[SpatialRefugeServer] Player " .. username .. " is at refuge coordinates - structures should load from map save")
+    local username = player:getUsername() or "unknown"
+    
+    if SpatialRefugeMigration.NeedsMigration(player) then
+        local success, message = SpatialRefugeMigration.MigratePlayer(player)
+        if success then
+            print("[SpatialRefugeServer] " .. username .. ": " .. message)
+            SpatialRefugeData.TransmitModData()
         end
+    end
+    
+    if getDebug() then
+        print("[SpatialRefugeServer] Player connected: " .. username)
     end
 end
 
