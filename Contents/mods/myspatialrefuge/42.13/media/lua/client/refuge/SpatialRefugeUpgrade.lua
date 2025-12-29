@@ -1,14 +1,32 @@
 -- Spatial Refuge Upgrade Mechanics
 -- Handles tier upgrades with core consumption and expansion
+-- Supports both multiplayer (server-authoritative) and singleplayer (client-side) paths
+-- Uses transaction system for safe item consumption in multiplayer
+
+require "shared/SpatialRefugeConfig"
+require "shared/SpatialRefugeTransaction"
 
 -- Dependencies are loaded by main loader - assert they exist
 SpatialRefuge = SpatialRefuge or {}
 SpatialRefugeConfig = SpatialRefugeConfig or {}
 
--- Verify required dependencies are loaded
-assert(SpatialRefuge.GetRefugeData, "[SpatialRefuge] SpatialRefugeMain not loaded")
-assert(SpatialRefuge.ExpandRefuge, "[SpatialRefuge] SpatialRefugeGeneration not loaded")
-assert(SpatialRefuge.CountCores, "[SpatialRefuge] SpatialRefugeContext not loaded")
+-----------------------------------------------------------
+-- Environment Detection (cached - cannot change during session)
+-----------------------------------------------------------
+
+local _cachedIsMPClient = nil
+
+-- Check if we're in multiplayer client mode (not host/SP) - cached for performance
+local function isMultiplayerClient()
+    if _cachedIsMPClient == nil then
+        _cachedIsMPClient = isClient() and not isServer()
+    end
+    return _cachedIsMPClient
+end
+
+-----------------------------------------------------------
+-- Helper Functions
+-----------------------------------------------------------
 
 -- Find Sacred Relic in the refuge area
 local function findSacredRelicInRefuge(refugeData)
@@ -46,7 +64,11 @@ local function findSacredRelicInRefuge(refugeData)
     return nil
 end
 
--- Perform refuge upgrade
+-----------------------------------------------------------
+-- Singleplayer Upgrade Logic
+-----------------------------------------------------------
+
+-- Perform refuge upgrade (singleplayer only)
 -- Returns: true if successful, false otherwise
 function SpatialRefuge.PerformUpgrade(player, refugeData, newTier)
     if not player or not refugeData then return false end
@@ -78,6 +100,16 @@ function SpatialRefuge.PerformUpgrade(player, refugeData, newTier)
     return true
 end
 
+-----------------------------------------------------------
+-- Transaction Type Constants
+-----------------------------------------------------------
+
+local TRANSACTION_TYPE_UPGRADE = "REFUGE_UPGRADE"
+
+-----------------------------------------------------------
+-- Main Upgrade Entry Point
+-----------------------------------------------------------
+
 -- Override the upgrade callback from context menu
 function SpatialRefuge.OnUpgradeRefuge(player)
     if not player then return end
@@ -106,32 +138,103 @@ function SpatialRefuge.OnUpgradeRefuge(player)
     local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
     local coreCost = tierConfig.cores
     
-    -- Check if player has enough cores
-    if SpatialRefuge.CountCores(playerObj) < coreCost then
+    -- Check if player has enough AVAILABLE cores (not locked in other transactions)
+    local availableCores = SpatialRefugeTransaction.GetAvailableCount(playerObj, SpatialRefugeConfig.CORE_ITEM)
+    if availableCores < coreCost then
         playerObj:Say("Not enough cores!")
         return
     end
     
-    -- Consume cores
-    if not SpatialRefuge.ConsumeCores(playerObj, coreCost) then
-        playerObj:Say("Failed to consume cores!")
-        return
-    end
-    
-    -- Perform upgrade
-    if SpatialRefuge.PerformUpgrade(playerObj, refugeData, nextTier) then
-        playerObj:Say("Refuge upgraded successfully!")
-    else
-        -- Refund cores if upgrade failed
-        local inv = playerObj:getInventory()
-        if inv then
-            for i = 1, coreCost do
-                inv:AddItem(SpatialRefugeConfig.CORE_ITEM)
-            end
+    if isMultiplayerClient() then
+        -- ========== MULTIPLAYER PATH (Transactional) ==========
+        -- Use transaction system to lock cores, send request, commit/rollback on response
+        
+        -- Begin transaction - locks cores
+        local transaction, err = SpatialRefugeTransaction.Begin(playerObj, TRANSACTION_TYPE_UPGRADE, {
+            [SpatialRefugeConfig.CORE_ITEM] = coreCost
+        })
+        
+        if not transaction then
+            playerObj:Say(err or "Failed to start upgrade")
+            return
         end
-        playerObj:Say("Upgrade failed - cores refunded")
+        
+        -- Send request to server with transaction ID
+        local args = {
+            newTier = nextTier,
+            coreCost = coreCost,
+            transactionId = transaction.id
+        }
+        
+        sendClientCommand(SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.REQUEST_UPGRADE, args)
+        playerObj:Say("Upgrading refuge...")
+        
+        if getDebug() then
+            print("[SpatialRefuge] Sent RequestUpgrade with transaction " .. transaction.id)
+        end
+        
+    else
+        -- ========== SINGLEPLAYER PATH ==========
+        -- No transaction needed - consume directly
+        
+        if SpatialRefuge.ConsumeCores and not SpatialRefuge.ConsumeCores(playerObj, coreCost) then
+            playerObj:Say("Failed to consume cores!")
+            return
+        end
+        
+        if SpatialRefuge.PerformUpgrade(playerObj, refugeData, nextTier) then
+            playerObj:Say("Refuge upgraded to " .. tierConfig.displayName .. "!")
+        else
+            -- Refund cores if upgrade failed
+            local inv = playerObj:getInventory()
+            if inv then
+                for i = 1, coreCost do
+                    inv:AddItem(SpatialRefugeConfig.CORE_ITEM)
+                end
+            end
+            playerObj:Say("Upgrade failed - cores refunded")
+        end
     end
 end
 
-return SpatialRefuge
+-----------------------------------------------------------
+-- Transaction Commit/Rollback Handlers
+-- Called from SpatialRefugeTeleport.lua OnServerCommand
+-----------------------------------------------------------
 
+-- Commit upgrade transaction (called on UpgradeComplete)
+function SpatialRefuge.CommitUpgradeTransaction(player, transactionId)
+    if not player or not transactionId then return false end
+    
+    local success = SpatialRefugeTransaction.Commit(player, transactionId)
+    
+    if getDebug() then
+        print("[SpatialRefuge] CommitUpgradeTransaction: " .. transactionId .. " = " .. tostring(success))
+    end
+    
+    return success
+end
+
+-- Rollback upgrade transaction (called on Error response)
+function SpatialRefuge.RollbackUpgradeTransaction(player, transactionId)
+    if not player then return false end
+    
+    -- Try by transaction ID first, fall back to transaction type
+    local success = false
+    if transactionId then
+        success = SpatialRefugeTransaction.Rollback(player, transactionId)
+    end
+    
+    if not success then
+        -- Fallback: rollback by type (in case ID wasn't preserved in error)
+        success = SpatialRefugeTransaction.Rollback(player, nil, TRANSACTION_TYPE_UPGRADE)
+    end
+    
+    if getDebug() then
+        print("[SpatialRefuge] RollbackUpgradeTransaction: " .. tostring(transactionId) .. " = " .. tostring(success))
+    end
+    
+    return success
+end
+
+return SpatialRefuge

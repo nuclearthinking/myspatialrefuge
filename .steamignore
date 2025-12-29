@@ -1,0 +1,15 @@
+# Files to exclude from Steam Workshop upload
+# Uses glob patterns similar to .gitignore
+
+# Documentation (not needed in game)
+*.md
+docs/
+
+# Development files
+*.bak
+*.tmp
+.git/
+
+# Changelog files (kept in repo, not needed in mod)
+CHANGELOG.*
+

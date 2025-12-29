@@ -68,6 +68,11 @@ function SpatialRefuge.CheckBoundaryViolation(player)
     -- Use cached bounds for performance
     local bounds = cachedBounds[player]
     if not bounds then
+        -- Check if ModData is available (may not be on MP client before server sync)
+        if not SpatialRefugeData or not SpatialRefugeData.HasRefugeData or not SpatialRefugeData.HasRefugeData() then
+            return false
+        end
+        
         if not SpatialRefuge.GetRefugeData then return false end
         local refugeData = SpatialRefuge.GetRefugeData(player)
         if not refugeData then return false end

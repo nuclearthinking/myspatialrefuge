@@ -1,0 +1,69 @@
+---
+alwaysApply: true
+---
+
+# GitHub Issues Tool
+
+When working with GitHub issues for this project, use the CLI tool at `utils/gh_issues.py`.
+
+## How to Run
+
+Always use `uv run` from the project root:
+
+```bash
+cd "C:\Users\onifent\Zomboid\Workshop\MySpatialRefuge"
+uv run utils/gh_issues.py <command> [options] --output json
+```
+
+## Available Commands
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `list` | `uv run utils/gh_issues.py list --output json` | List open issues |
+| `view` | `uv run utils/gh_issues.py view <N> --output json` | View issue details |
+| `create` | `uv run utils/gh_issues.py create --title "..." --body "..." --output json` | Create new issue |
+| `close` | `uv run utils/gh_issues.py close <N> --output json` | Close an issue |
+| `reopen` | `uv run utils/gh_issues.py reopen <N> --output json` | Reopen issue |
+| `comment` | `uv run utils/gh_issues.py comment <N> --body "..." --output json` | Add comment |
+| `edit` | `uv run utils/gh_issues.py edit <N> --title "..." --output json` | Edit issue |
+| `search` | `uv run utils/gh_issues.py search "query" --output json` | Search issues |
+| `labels` | `uv run utils/gh_issues.py labels --output json` | List labels |
+| `schema` | `uv run utils/gh_issues.py schema` | Get full tool schema |
+
+## Important Options
+
+- `--output json` or `-o json` — Always use for machine-readable output
+- `--state open|closed|all` — Filter issues by state
+- `--labels "bug,feature"` — Filter by labels (comma-separated)
+- `--comments` or `-c` — Include comments when viewing issue
+- `--type bug|feature|task` — Use template when creating
+
+## Examples
+
+```bash
+# List all open issues
+uv run utils/gh_issues.py list --state open --output json
+
+# View issue #42 with comments
+uv run utils/gh_issues.py view 42 --comments --output json
+
+# Create a bug report
+uv run utils/gh_issues.py create --type bug --title "Login fails" --body "Error when..." --output json
+
+# Search for multiplayer issues
+uv run utils/gh_issues.py search "multiplayer" --state open --output json
+
+# Close issue with comment
+uv run utils/gh_issues.py close 42 --comment "Fixed in commit abc123" --output json
+
+# Edit issue title and add label
+uv run utils/gh_issues.py edit 42 --title "New title" --add-labels "priority-high" --output json
+```
+
+## Best Practices
+
+1. Always use `--output json` for parsing results
+2. Run from project root: `C:\Users\onifent\Zomboid\Workshop\MySpatialRefuge`
+3. Use `schema` command if you need to check available options
+4. When creating issues, use `--type` for structured templates
+5. Check `status` first if authentication issues occur

@@ -17,7 +17,8 @@ Players can teleport to a personal "Spatial Refuge" - a small outdoor sanctuary 
 Each player gets their own isolated refuge:
 - Located at map edge (coordinates ~1000,1000) - far from any game content
 - Multiple players have separate refuges spaced 50 tiles apart
-- Persists across game sessions via ModData
+- Persists across game sessions via ModData and map save
+- Walls and Sacred Relic are server-authoritative objects that persist in the map save
 
 ### 2. Teleportation System
 
@@ -26,10 +27,12 @@ Each player gets their own isolated refuge:
 - 3-second cast time (interruptible)
 - 10-second cooldown between teleports
 - Blocked for 10 seconds after taking damage
+- Cannot teleport while: in vehicle, climbing, falling, or over-encumbered
 
 **Exit:**
 - Hold `Q` while inside refuge and choose **Exit Spatial Refuge** (or use Sacred Relic context menu)
 - Teleports back to original entry location
+- Same 10-second cooldown applies
 
 ### 3. Tier Progression System
 
@@ -53,6 +56,7 @@ Central object in the refuge:
 - Has 20-unit storage container
 - Can be moved to different corners (30s cooldown)
 - Completely indestructible
+- Position is saved in ModData and persists across sessions
 
 ### 5. Boundary Walls
 
@@ -61,13 +65,15 @@ Solid walls surround the refuge:
 - Automatically expand when tier increases
 - Completely indestructible (immune to sledgehammer)
 - Block zombie pathfinding
+- Natural terrain (grass/dirt) remains inside - no floor tiles generated
 
 ### 6. Zombie Clearing
 
 When entering the refuge:
 - All zombies within refuge area + 3 tiles are removed
 - Zombie corpses are also cleared
-- Prevents unfair zombie spawns inside the refuge
+- In multiplayer, zombie removal is synchronized to clients
+- Optimized: skips clearing in remote areas (coords < 2000) unless forced
 
 ---
 
@@ -76,18 +82,45 @@ When entering the refuge:
 ### First Time Use
 1. Kill zombies to collect Strange Zombie Cores (30% drop rate)
 2. Hold `Q` and select **Enter Spatial Refuge** to teleport to your new refuge
-3. A small 3x3 area with the Sacred Relic is generated
+3. A small 3x3 area with the Sacred Relic is generated with natural terrain
 
 ### Upgrading
 1. Collect more cores from zombies
 2. Right-click Sacred Relic -> "Upgrade Refuge"
-3. Walls expand, floor area increases
-4. Sacred Relic repositions to assigned corner (if moved)
+3. Cores are consumed, walls expand, floor area increases
+4. Sacred Relic repositions to assigned corner (if previously moved)
+
+### Moving the Sacred Relic
+1. Right-click Sacred Relic -> "Move Relic to..."
+2. Choose a corner: Up, Down, Left, Right, or Center
+3. 30-second cooldown between moves
+4. After upgrade, relic automatically moves to maintain its corner assignment
 
 ### Daily Use
 - Store items in Sacred Relic container (20 capacity)
 - Use as safe logout location
 - Return to exact exit point when leaving
+
+---
+
+## Multiplayer Support
+
+### Server-Authoritative Design
+- Server manages all refuge data (coordinates, tier, return positions)
+- Server generates walls and relic (persists in map save)
+- Server validates cooldowns (prevents client manipulation)
+- Transaction system prevents item duplication/loss during upgrades
+
+### Data Synchronization
+- ModData is transmitted to clients on connect
+- Walls/relic use `transmitAddObjectToSquare` for instant client sync
+- Zombie clearing is synchronized via online IDs
+- Upgrade transactions use commit/rollback pattern
+
+### Death in Refuge
+- Corpse is moved to original world location (where you entered)
+- Refuge data is cleared from ModData
+- Physical structures remain (can be cleaned by admin if needed)
 
 ---
 
@@ -123,31 +156,59 @@ SACRED_RELIC = "location_community_cemetary_01_11"
 
 ```
 media/lua/
-├── client/
-│   └── refuge/
-│       ├── SpatialRefugeMain.lua        # Entry point, data
-│       ├── SpatialRefugeUI.lua          # Cast bar UI
-│       ├── SpatialRefugeTeleport.lua    # Teleport logic
-│       ├── SpatialRefugeGeneration.lua  # Floor/wall/relic creation
-│       ├── SpatialRefugeContext.lua     # Context menu, protection hooks
-│       ├── SpatialRefugeRadialMenu.lua  # Social (Q) radial integration
-│       ├── SpatialRefugeCast.lua        # Timed actions setup
-│       └── ISExitRefugeAction.lua       # Exit action handler
+├── client/refuge/
+│   ├── SpatialRefugeMain.lua        # Entry point, client data access
+│   ├── SpatialRefugeUI.lua          # Cast bar UI
+│   ├── SpatialRefugeTeleport.lua    # Teleport logic, server response handlers
+│   ├── SpatialRefugeGeneration.lua  # Client-side generation (SP only)
+│   ├── SpatialRefugeContext.lua     # Context menu, protection hooks
+│   ├── SpatialRefugeRadialMenu.lua  # Social (Q) radial integration
+│   ├── SpatialRefugeCast.lua        # Timed actions setup
+│   ├── SpatialRefugeBoundary.lua    # Boundary detection
+│   ├── SpatialRefugeUpgrade.lua     # Upgrade transaction handling
+│   ├── SpatialRefugeDeath.lua       # Death handling
+│   ├── ISEnterRefugeAction.lua      # Enter action handler
+│   └── ISExitRefugeAction.lua       # Exit action handler
+├── server/refuge/
+│   └── SpatialRefugeServer.lua      # Server command handlers, generation
 └── shared/
-    └── SpatialRefugeConfig.lua          # Configuration
+    ├── SpatialRefugeConfig.lua      # Configuration, constants
+    ├── SpatialRefugeData.lua        # ModData management
+    ├── SpatialRefugeShared.lua      # Shared generation (walls, relic, zombies)
+    ├── SpatialRefugeValidation.lua  # Shared validation logic
+    └── SpatialRefugeTransaction.lua # Transaction system for upgrades
 ```
+
+---
+
+## Technical Notes
+
+### Persistence
+- Walls and Sacred Relic are `IsoThumpable` objects created by server
+- They persist in the server's map save file
+- No regeneration needed on server restart
+- ModData stores refuge metadata (coordinates, tier, relic position)
+
+### Natural Terrain
+- Floor tiles are NOT generated
+- Natural grass/dirt terrain remains
+- Walls are added to existing squares after chunks load
+
+### Protection Layers
+1. Object properties (`isThumpable=false`, `health=999999`)
+2. ModData flags (`isProtectedRefugeObject`)
+3. Action hooks (block destroy/disassemble)
+4. Property repair on enter (re-apply protection after map load)
 
 ---
 
 ## Known Limitations
 
-- **Client-side generation:** Walls/floors are created client-side after teleport. Multiplayer sync not fully implemented.
 - **Corner sprites:** Only NW and SE corner overlays exist in the wall tileset.
-- **Chunk loading:** Generation waits for chunks to load, which can take a moment.
+- **Chunk loading:** Generation waits for chunks to load, which can take a moment (~0.5-5 seconds).
+- **Menu options:** "Disassemble" option still appears but action is blocked.
+- **Container persistence:** Items in Sacred Relic container should persist, but backup important items.
 
 ---
 
 *Last Updated: December 2024*
-
-
-

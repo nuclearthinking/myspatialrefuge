@@ -1,11 +1,14 @@
 -- Spatial Refuge Context Menu
 -- Adds right-click menu options for Sacred Relic (exit and upgrade)
 
+require "shared/SpatialRefugeTransaction"
+
 -- Assume dependencies are already loaded
 SpatialRefuge = SpatialRefuge or {}
 SpatialRefugeConfig = SpatialRefugeConfig or {}
+SpatialRefugeShared = SpatialRefugeShared or {}
 
--- Count how many cores player has in inventory
+-- Count how many cores player has in inventory (total, including locked)
 function SpatialRefuge.CountCores(player)
     if not player then return 0 end
     
@@ -13,6 +16,13 @@ function SpatialRefuge.CountCores(player)
     if not inv then return 0 end
     
     return inv:getCountType(SpatialRefugeConfig.CORE_ITEM)
+end
+
+-- Count how many cores are AVAILABLE (not locked in pending transactions)
+function SpatialRefuge.CountAvailableCores(player)
+    if not player then return 0 end
+    
+    return SpatialRefugeTransaction.GetAvailableCount(player, SpatialRefugeConfig.CORE_ITEM)
 end
 
 -- Consume cores from player inventory
@@ -122,11 +132,21 @@ function SpatialRefuge.UpdateRelicMoveTime(player)
     pmd.spatialRefuge_lastRelicMove = getTimestamp()
 end
 
+-- Check if running as MP client (cached for performance)
+local _cachedIsMPClient = nil
+local function isMultiplayerClient()
+    if _cachedIsMPClient == nil then
+        _cachedIsMPClient = isClient() and not isServer()
+    end
+    return _cachedIsMPClient
+end
+
 -- Move Sacred Relic to a new position within the refuge
+-- In MP: sends command to server; In SP: moves locally
 function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, cornerName)
-    if not player or not relic or not refugeData then return false end
+    if not player or not refugeData then return false end
     
-    -- Check cooldown
+    -- Check cooldown (client-side validation, server also validates)
     local lastMove = SpatialRefuge.GetLastRelicMoveTime(player)
     local now = getTimestamp()
     local cooldown = SpatialRefugeConfig.RELIC_MOVE_COOLDOWN or 120
@@ -137,76 +157,41 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
         return false
     end
     
-    -- Calculate target position based on corner offset
-    local radius = refugeData.radius or 2
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    
-    -- Position offset: corners are at full radius from center (inside the walls)
-    -- Walls are placed at radius+1, so radius is the maximum safe position
-    local targetX = centerX + (cornerDx * radius)
-    local targetY = centerY + (cornerDy * radius)
-    local targetZ = centerZ
-    
-    -- Get target square
-    local cell = getCell()
-    if not cell then
-        player:Say("Cannot move relic - world not ready.")
-        return false
+    if isMultiplayerClient() then
+        -- ========== MULTIPLAYER PATH ==========
+        -- Send request to server, server moves the relic
+        sendClientCommand(SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.REQUEST_MOVE_RELIC, {
+            cornerDx = cornerDx,
+            cornerDy = cornerDy,
+            cornerName = cornerName
+        })
+        player:Say("Moving Sacred Relic...")
+        
+        if getDebug() then
+            print("[SpatialRefuge] Sent RequestMoveRelic to server: " .. cornerName)
+        end
+        
+        return true
+    else
+        -- ========== SINGLEPLAYER PATH ==========
+        -- Move locally using shared function
+        if not relic then return false end
+        
+        local success, message = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
+        
+        if success then
+            SpatialRefuge.UpdateRelicMoveTime(player)
+            player:Say("Sacred Relic moved to " .. cornerName .. ".")
+        else
+            player:Say(message or "Cannot move relic.")
+        end
+        
+        return success
     end
-    
-    local targetSquare = cell:getGridSquare(targetX, targetY, targetZ)
-    if not targetSquare then
-        targetSquare = cell:getOrCreateGridSquare(targetX, targetY, targetZ)
-    end
-    
-    if not targetSquare then
-        player:Say("Cannot move relic - destination unavailable.")
-        return false
-    end
-    
-    -- Check if current position is same as target
-    local currentSquare = relic:getSquare()
-    if currentSquare and currentSquare:getX() == targetX and currentSquare:getY() == targetY then
-        player:Say("Relic is already at " .. cornerName .. ".")
-        return false
-    end
-    
-    -- Check for blocking content at destination (major objects like trees, rocks, items)
-    local hasBlocking, blockReason = squareHasBlockingContent(targetSquare)
-    if hasBlocking then
-        player:Say("Cannot move relic: " .. (blockReason or "destination blocked") .. ".")
-        return false
-    end
-    
-    -- Clean vegetation from target tile (grass, flowers - isFree check already passed)
-    cleanTileForPlacement(targetSquare)
-    
-    -- Perform the move
-    if currentSquare then
-        currentSquare:transmitRemoveItemFromSquare(relic)
-    end
-    
-    relic:setSquare(targetSquare)
-    targetSquare:AddSpecialObject(relic)
-    targetSquare:RecalcAllWithNeighbours(true)
-    
-    -- Update cooldown
-    SpatialRefuge.UpdateRelicMoveTime(player)
-    
-    -- Store corner assignment in relic modData for auto-repositioning on upgrade
-    local md = relic:getModData()
-    md.assignedCorner = cornerName
-    md.assignedCornerDx = cornerDx
-    md.assignedCornerDy = cornerDy
-    
-    player:Say("Sacred Relic moved to " .. cornerName .. ".")
-    
-    return true
 end
 
 -- Reposition relic to its assigned corner (called after refuge upgrade)
+-- This is called server-side after expand, so just uses the shared function
 function SpatialRefuge.RepositionRelicToAssignedCorner(relic, refugeData)
     if not relic or not refugeData then return false end
     
@@ -220,43 +205,14 @@ function SpatialRefuge.RepositionRelicToAssignedCorner(relic, refugeData)
     local cornerDy = md.assignedCornerDy or 0
     local cornerName = md.assignedCorner
     
-    local radius = refugeData.radius or 2
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
+    -- Use shared function for the actual move
+    local success, message = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
     
-    local targetX = centerX + (cornerDx * radius)
-    local targetY = centerY + (cornerDy * radius)
-    local targetZ = centerZ
-    
-    -- Get target square
-    local cell = getCell()
-    if not cell then return false end
-    
-    local targetSquare = cell:getGridSquare(targetX, targetY, targetZ)
-    if not targetSquare then
-        targetSquare = cell:getOrCreateGridSquare(targetX, targetY, targetZ)
-    end
-    if not targetSquare then return false end
-    
-    -- Check if already at target
-    local currentSquare = relic:getSquare()
-    if currentSquare and currentSquare:getX() == targetX and currentSquare:getY() == targetY then
-        return true  -- Already there
+    if getDebug() and success then
+        print("[SpatialRefuge] Repositioned relic to " .. cornerName)
     end
     
-    -- Clean the target tile of natural objects (trees, vegetation, etc.)
-    cleanTileForPlacement(targetSquare)
-    
-    -- Perform the move
-    if currentSquare then
-        currentSquare:transmitRemoveItemFromSquare(relic)
-    end
-    relic:setSquare(targetSquare)
-    targetSquare:AddSpecialObject(relic)
-    targetSquare:RecalcAllWithNeighbours(true)
-    
-    return true
+    return success
 end
 
 -- Check if an object is a Sacred Relic by examining its ModData
@@ -365,16 +321,32 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
         local nextTier = currentTier + 1
         local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
         local coreCost = tierConfig.cores
-        local coreCount = SpatialRefuge.CountCores(playerObj)
+        -- Use available count (excludes cores locked in pending transactions)
+        local availableCores = SpatialRefuge.CountAvailableCores(playerObj)
+        local totalCores = SpatialRefuge.CountCores(playerObj)
         
         local optionText = "Upgrade Refuge (Tier " .. currentTier .. " → " .. nextTier .. ")"
         local option = context:addOption(optionText, playerObj, SpatialRefuge.OnUpgradeRefuge)
         
-        -- Disable if not enough cores
-        if coreCount < coreCost then
+        -- Check for pending upgrade transaction
+        local pendingTransaction = SpatialRefugeTransaction.GetPending(playerObj, "REFUGE_UPGRADE")
+        
+        if pendingTransaction then
+            -- Upgrade already in progress
             option.notAvailable = true
             local tooltip = ISInventoryPaneContextMenu.addToolTip()
-            tooltip:setName("Need " .. coreCost .. " cores (have " .. coreCount .. ")")
+            tooltip:setName("Upgrade in progress...")
+            option.toolTip = tooltip
+        elseif availableCores < coreCost then
+            -- Not enough available cores
+            option.notAvailable = true
+            local tooltip = ISInventoryPaneContextMenu.addToolTip()
+            local lockedCount = totalCores - availableCores
+            if lockedCount > 0 then
+                tooltip:setName("Need " .. coreCost .. " cores (have " .. availableCores .. " available, " .. lockedCount .. " locked)")
+            else
+                tooltip:setName("Need " .. coreCost .. " cores (have " .. availableCores .. ")")
+            end
             option.toolTip = tooltip
         else
             -- Show info tooltip

@@ -60,7 +60,33 @@ SpatialRefugeConfig = {
     REFUGES_KEY = "Refuges",
     
     -- Core item type
-    CORE_ITEM = "Base.MagicalCore"
+    CORE_ITEM = "Base.MagicalCore",
+    
+    -- Network command namespace (for multiplayer client-server communication)
+    COMMAND_NAMESPACE = "SpatialRefuge",
+    COMMANDS = {
+        -- Client -> Server requests
+        REQUEST_MODDATA = "RequestModData",   -- Client requests their refuge data on connect
+        REQUEST_ENTER = "RequestEnter",       -- Client wants to enter refuge
+        REQUEST_EXIT = "RequestExit",         -- Client wants to exit refuge
+        REQUEST_UPGRADE = "RequestUpgrade",   -- Client wants to upgrade refuge
+        REQUEST_MOVE_RELIC = "RequestMoveRelic", -- Client wants to move relic to corner
+        CHUNKS_READY = "ChunksReady",         -- Client confirms chunks loaded after teleport
+        
+        -- Server -> Client responses (ModData)
+        MODDATA_RESPONSE = "ModDataResponse", -- Server sends player's refuge data
+        
+        -- Server -> Client responses (Enter Flow)
+        TELEPORT_TO = "TeleportTo",           -- Phase 1: Server tells client to teleport
+        GENERATION_COMPLETE = "GenerationComplete",  -- Phase 2: Server finished creating structures
+        
+        -- Server -> Client responses (Other)
+        EXIT_READY = "ExitReady",             -- Server confirms exit, provides return coords
+        UPGRADE_COMPLETE = "UpgradeComplete", -- Server confirms upgrade done
+        MOVE_RELIC_COMPLETE = "MoveRelicComplete", -- Server confirms relic moved
+        CLEAR_ZOMBIES = "ClearZombies",       -- Server tells client to clear specific zombies by ID
+        ERROR = "Error"                       -- Server reports an error
+    }
 }
 
 return SpatialRefugeConfig

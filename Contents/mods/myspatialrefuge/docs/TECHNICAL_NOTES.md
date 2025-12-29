@@ -14,13 +14,17 @@ Players could destroy refuge walls with sledgehammer and disassemble the Sacred 
 
 Multi-layer protection approach:
 
-**Layer 1: Object Properties (SpatialRefugeGeneration.lua)**
+**Layer 1: Object Properties (SpatialRefugeShared.lua)**
 
 ```lua
-relic:setIsThumpable(false)
-relic:setIsDismantable(false)
-relic:setMaxHealth(999999)
-relic:setHealth(999999)
+wall:setMaxHealth(999999)
+wall:setHealth(999999)
+wall:setIsThumpable(false)
+wall:setIsDismantable(false)
+wall:setCanBarricade(false)
+wall:setBreakSound("none")
+wall:setCanBePlastered(false)
+wall:setIsHoppable(false)
 ```
 
 **Layer 2: ModData Flags**
@@ -29,6 +33,7 @@ relic:setHealth(999999)
 md.isSacredRelic = true
 md.isRefugeBoundary = true
 md.isProtectedRefugeObject = true
+md.canBeDisassembled = false
 ```
 
 **Layer 3: Action Hooks (SpatialRefugeContext.lua)**
@@ -37,12 +42,30 @@ md.isProtectedRefugeObject = true
 - Hook `ISMoveablesAction.isValid` - return false for protected objects
 - Hook `IsoThumpable.Thump` - block thump damage entirely
 
+**Layer 4: Property Repair on Load**
+
+PZ map save doesn't preserve all `IsoThumpable` properties. Use `RepairRefugeProperties()`:
+
+```lua
+function SpatialRefugeShared.RepairRefugeProperties(refugeData)
+    -- Scan refuge area and re-apply:
+    if obj.setIsThumpable then obj:setIsThumpable(false) end
+    if obj.setIsHoppable then obj:setIsHoppable(false) end
+    -- ... etc
+end
+```
+
+Called after:
+- `GenerationComplete` received (entering refuge)
+- Reconnecting while in refuge
+
 **Why multiple layers:**
 
 - Object properties alone aren't enough - game has multiple paths to destruction
 - `.new` hooks can't return nil (crashes action queue)
 - `.isValid` hooks run before `.start`, so show message there
 - Use `_refugeMessageShown` flag to prevent message spam
+- Properties may not survive map save/load cycle
 
 **Player Messages:**
 When blocked, player says random immersive message like "I don't want to do that..." or "Better leave it alone."
@@ -73,14 +96,33 @@ end
 
 **Applied to:**
 
-- `CreateFloorTile()` - returns false if chunk not loaded
-- `createRelicObject()` - errors if chunk not loaded (critical)
 - `createWallObject()` - returns nil if chunk not loaded
+- `createRelicObject()` - errors if chunk not loaded (critical)
+- `MoveRelic()` - checks both source and target chunks
 
-**In teleport code:**
+**In server teleport code:**
 
-- Check both `centerSquare ~= nil` AND `centerSquare:getChunk() ~= nil`
-- Wall creation checks each perimeter square's chunk before creating
+Server waits for ALL corners of refuge to be loaded (not just center):
+
+```lua
+local cornerOffsets = {
+    {0, 0},              -- Center
+    {-radius, -radius},  -- NW corner
+    {radius, -radius},   -- NE corner  
+    {-radius, radius},   -- SW corner
+    {radius, radius}     -- SE corner
+}
+
+for _, offset in ipairs(cornerOffsets) do
+    local square = cell:getGridSquare(centerX + offset[1], centerY + offset[2], centerZ)
+    if not square or not square:getChunk() then
+        allChunksLoaded = false
+        break
+    end
+end
+```
+
+This is critical because relic may be at a corner position in a different chunk than center.
 
 ---
 
@@ -140,23 +182,25 @@ Wall placement rules based on isometric grid:
 ```
 For a refuge with centerX, centerY and radius:
 
-Top edge (north-facing walls):
-  y = centerY - radius - 1
+Interior usable area: from (minX, minY) to (maxX, maxY)
+  where minX = centerX - radius
+        maxX = centerX + radius
+        minY = centerY - radius
+        maxY = centerY + radius
+
+North row (y = minY) - North-facing walls:
   x from minX to maxX
   Use WALL_NORTH sprite
 
-Bottom edge:
-  y = centerY + radius + 1
+South row (y = maxY + 1) - North-facing walls:
   x from minX to maxX
   Use WALL_NORTH sprite
 
-Left edge (west-facing walls):
-  x = centerX - radius - 1
+West column (x = minX) - West-facing walls:
   y from minY to maxY
   Use WALL_WEST sprite
 
-Right edge:
-  x = centerX + radius + 1
+East column (x = maxX + 1) - West-facing walls:
   y from minY to maxY
   Use WALL_WEST sprite
 ```
@@ -179,7 +223,7 @@ Use `Events.OnTick` with polling:
 local tickCount = 0
 local maxTicks = 300  -- ~5 seconds timeout
 
-local function doTeleport()
+local function waitForChunks()
     tickCount = tickCount + 1
     
     local centerSquare = cell:getGridSquare(x, y, z)
@@ -187,16 +231,16 @@ local function doTeleport()
     
     if centerSquare and chunk then
         -- Safe to generate
-        SpatialRefuge.EnsureRefugeFloor(...)
-        SpatialRefuge.CreateBoundaryWalls(...)
-        Events.OnTick.Remove(doTeleport)
+        SpatialRefugeShared.CreateBoundaryWalls(...)
+        SpatialRefugeShared.CreateSacredRelic(...)
+        Events.OnTick.Remove(waitForChunks)
     elseif tickCount >= maxTicks then
         player:Say("Refuge area not loaded.")
-        Events.OnTick.Remove(doTeleport)
+        Events.OnTick.Remove(waitForChunks)
     end
 end
 
-Events.OnTick.Add(doTeleport)
+Events.OnTick.Add(waitForChunks)
 ```
 
 ---
@@ -209,34 +253,40 @@ Zombies or corpses inside refuge area when player enters.
 
 ### Solution
 
-After floor is prepared, clear zombies in radius + buffer:
+After structures are generated, clear zombies in radius + buffer:
 
 ```lua
-function SpatialRefuge.ClearZombiesFromArea(centerX, centerY, z, radius)
+function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
     local BUFFER = 3  -- Extra tiles beyond refuge
     
-    for x = centerX - radius - BUFFER, centerX + radius + BUFFER do
-        for y = centerY - radius - BUFFER, centerY + radius + BUFFER do
-            local square = cell:getGridSquare(x, y, z)
-            if square then
-                -- Remove living zombies
-                local movingObjects = square:getMovingObjects()
-                for i = movingObjects:size() - 1, 0, -1 do
-                    local obj = movingObjects:get(i)
-                    if instanceof(obj, "IsoZombie") then
-                        obj:removeFromSquare()
-                        obj:removeFromWorld()
-                    end
-                end
-                
-                -- Remove corpses
-                local deadBody = square:getDeadBody()
-                if deadBody then
-                    deadBody:removeFromSquare()
-                    deadBody:removeFromWorld()
-                end
+    -- OPTIMIZATION: Skip for remote areas (coords < 2000)
+    if not forceClean and centerX < 2000 and centerY < 2000 then
+        return 0  -- No natural zombie spawns in remote areas
+    end
+    
+    local zombieList = cell:getZombieList()
+    local zombieOnlineIDs = {}  -- For MP sync
+    
+    for i = zombieList:size() - 1, 0, -1 do
+        local zombie = zombieList:get(i)
+        if isInArea(zombie, centerX, centerY, z, radius + BUFFER) then
+            -- Collect ID for client sync (MP only)
+            if isServer() and zombie.getOnlineID then
+                table.insert(zombieOnlineIDs, zombie:getOnlineID())
             end
+            zombie:removeFromSquare()
+            zombie:removeFromWorld()
         end
+    end
+    
+    -- Also remove corpses (IsoDeadBody objects)
+    -- ... scan squares and remove dead bodies
+    
+    -- MP: Send zombie IDs to client for synced removal
+    if isServer() and player and #zombieOnlineIDs > 0 then
+        sendServerCommand(player, namespace, "ClearZombies", {
+            zombieIDs = zombieOnlineIDs
+        })
     end
 end
 ```
@@ -259,14 +309,29 @@ md.assignedCornerDx = -1  -- Offset from center (-1, 0, or 1)
 md.assignedCornerDy = -1
 ```
 
-After upgrade, recalculate position:
+**Critical:** When upgrading, search for relic at OLD radius, then reposition to NEW radius:
 
 ```lua
-local targetX = centerX + (cornerDx * newRadius)
-local targetY = centerY + (cornerDy * newRadius)
-```
+-- Capture old radius BEFORE expansion
+local oldRadius = refugeData.radius
 
-Move relic to new position using `transmitRemoveItemFromSquare` and `AddSpecialObject`.
+-- Perform expansion (updates refugeData.radius)
+SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
+
+-- Find relic at OLD position
+local relic = SpatialRefugeShared.FindRelicInRefuge(
+    centerX, centerY, centerZ,
+    oldRadius,  -- Use OLD radius - relic is at old corner position
+    refugeId
+)
+
+-- Move to new position
+if relic and md.assignedCorner then
+    local targetX = centerX + (cornerDx * refugeData.radius)  -- NEW radius
+    local targetY = centerY + (cornerDy * refugeData.radius)
+    SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner)
+end
+```
 
 ---
 
@@ -290,16 +355,164 @@ This is less ideal but stable. Future improvement: find earlier hook point where
 
 ---
 
+## 9. Multiplayer Wall Cleanup After Upgrade
+
+### Problem
+
+After upgrade, old walls may persist on client due to chunk caching, even though server removed them.
+
+### Solution
+
+Two-phase client-side cleanup after receiving `UpgradeComplete`:
+
+```lua
+-- Phase 1: Immediate cleanup
+doClientCleanup("immediate")
+
+-- Phase 2: Delayed cleanup (~0.5s later)
+local function delayedCleanup()
+    if tickCount < 30 then return end
+    Events.OnTick.Remove(delayedCleanup)
+    doClientCleanup("delayed")
+end
+Events.OnTick.Add(delayedCleanup)
+```
+
+Cleanup function scans area and removes objects with `isRefugeBoundary` flag that are NOT on the new perimeter.
+
+---
+
+## 10. Transaction System for Upgrades
+
+### Problem
+
+In multiplayer, items could be consumed client-side before server confirms success, leading to item loss on failure. Or items could be duplicated if consumed after server already processed.
+
+### Solution
+
+Transactional item consumption pattern:
+
+```lua
+-- 1. Client: Lock items (can't be used elsewhere)
+local transaction = SpatialRefugeTransaction.Begin(player, "REFUGE_UPGRADE", {
+    [SpatialRefugeConfig.CORE_ITEM] = coreCost
+})
+
+-- 2. Client: Send request with transaction ID
+sendClientCommand(namespace, "RequestUpgrade", {
+    transactionId = transaction.id,
+    coreCost = coreCost
+})
+
+-- 3. On success: Commit (consume locked items)
+if command == "UpgradeComplete" then
+    SpatialRefugeTransaction.Commit(player, args.transactionId)
+end
+
+-- 4. On failure: Rollback (unlock items)
+if command == "Error" then
+    SpatialRefugeTransaction.Rollback(player, args.transactionId)
+end
+```
+
+Features:
+- Items marked as "locked" can't be used in other transactions
+- Auto-rollback after 5 second timeout (prevents permanently locked items)
+- Transaction IDs prevent duplicate processing
+- Weak table keys clean up on player disconnect
+
+---
+
+## 11. Only Use getGridSquare, Never getOrCreateGridSquare
+
+### Problem
+
+Using `getOrCreateGridSquare` in remote areas creates empty cells that replace natural terrain, resulting in void squares with no floor.
+
+### Solution
+
+Always use `getGridSquare` and check for nil:
+
+```lua
+-- CORRECT
+local square = cell:getGridSquare(x, y, z)
+if not square then
+    return nil  -- Chunk not loaded, retry later
+end
+
+-- WRONG - can destroy terrain
+local square = cell:getOrCreateGridSquare(x, y, z)
+```
+
+This is why floor generation was removed - we rely on natural terrain to already exist when chunks load.
+
+---
+
+## 12. Server-Side Cooldown Storage
+
+### Problem
+
+Client-side cooldowns in ModData could be manipulated by cheaters.
+
+### Solution
+
+Server maintains its own cooldown state in local variables (not ModData):
+
+```lua
+local serverCooldowns = {
+    teleport = {},     -- username -> timestamp
+    relicMove = {}     -- username -> timestamp
+}
+
+local function checkTeleportCooldown(username)
+    local lastTeleport = serverCooldowns.teleport[username] or 0
+    local now = getServerTimestamp()
+    local remaining = cooldown - (now - lastTeleport)
+    return remaining <= 0, math.ceil(remaining)
+end
+```
+
+Client still tracks cooldowns for UI feedback, but server is authoritative.
+
+---
+
+## 13. Player Validation with pcall
+
+### Problem
+
+During tick handlers waiting for chunks, player may disconnect, causing errors when accessing player methods.
+
+### Solution
+
+Wrap player method calls in pcall:
+
+```lua
+local function waitForServerChunks()
+    -- Check if player is still valid
+    local playerValid = false
+    if playerRef then
+        local ok, result = pcall(function() return playerRef:getUsername() end)
+        playerValid = ok and result ~= nil
+    end
+    
+    if not playerValid then
+        Events.OnTick.Remove(waitForServerChunks)
+        return
+    end
+    
+    -- Continue processing...
+end
+```
+
+---
+
 ## Future Improvements
 
 1. **Menu option removal** - Find proper hook to remove Disassemble before it's added
-2. **Multiplayer sync** - Server-side generation for wall/floor objects
-3. **Corner sprites** - Find tileset with all 4 corners, or use different wall style
-4. **Better chunk loading** - Pre-load chunks before teleport using `loadChunkAtPosition`
+2. **Corner sprites** - Find tileset with all 4 corners, or use different wall style
+3. **Better chunk pre-loading** - Investigate `loadChunkAtPosition` for faster chunk availability
+4. **Relic container persistence** - Verify container contents survive all save/load scenarios
 
 ---
 
 *Last Updated: December 2024*
-
-
-
