@@ -1,0 +1,66 @@
+---
+alwaysApply: true
+---
+
+# Kahlua Lua Engine Limitations
+
+Project Zomboid uses **Kahlua**, a Java-based Lua implementation. Many standard Lua functions are NOT available.
+
+## ❌ NOT Available in Kahlua
+
+### `next()` - Does NOT exist
+```lua
+-- ❌ WRONG - will crash with "Object tried to call nil"
+if next(myTable) == nil then
+
+-- ✅ CORRECT - use pairs() iterator
+local hasItems = false
+for _ in pairs(myTable) do
+    hasItems = true
+    break
+end
+if not hasItems then
+```
+
+### `os.time()`, `os.clock()`, `os.date()` - Do NOT exist
+```lua
+-- ❌ WRONG
+local timestamp = os.time()
+
+-- ✅ CORRECT - use PZ functions
+local timestamp = getTimestamp()           -- seconds
+local timestampMs = getTimestampMs()       -- milliseconds
+```
+
+### `table.getn()` for hash tables - Does NOT work
+```lua
+-- ❌ WRONG for hash tables
+local count = table.getn(hashTable)
+
+-- ✅ CORRECT - count manually
+local count = 0
+for _ in pairs(hashTable) do
+    count = count + 1
+end
+```
+
+### `rawget()` / `rawset()` - May not be available
+Use direct table access instead when possible.
+
+## ✅ Available in Kahlua
+
+- `pairs()`, `ipairs()` - Work normally
+- `type()` - Works normally
+- `tostring()`, `tonumber()` - Work normally
+- `pcall()` - Works normally
+- `table.insert()`, `table.remove()` - Work normally
+- `string.format()` - Works (but be careful with nil values)
+- `math.*` functions - Work normally
+- `setmetatable()`, `getmetatable()` - Work normally
+
+## Debugging Tips
+
+When you see "Object tried to call nil" error:
+1. Check if you're using a standard Lua function that doesn't exist in Kahlua
+2. Add step-by-step logging to find exactly which line fails
+3. Check this list for alternatives

@@ -36,6 +36,56 @@ SpatialRefugeTransaction.STATE = {
     ROLLED_BACK = "ROLLED_BACK"
 }
 
+-- Debug logger (silent unless getDebug() is true)
+local function logDebug(message)
+    if getDebug and getDebug() then
+        print("[SpatialRefugeTransaction] " .. tostring(message))
+    end
+end
+
+-- Safely call a player method (guards against disconnected/null IsoPlayer references)
+-- Returns the method result or nil if the call fails
+local function safePlayerCall(player, methodName)
+    if not player or not methodName then return nil end
+
+    -- Resolve numeric player index to IsoPlayer if provided
+    if type(player) == "number" and getSpecificPlayer then
+        local resolved = getSpecificPlayer(player)
+        if not resolved then return nil end
+        player = resolved
+    end
+
+    -- Safely fetch the method to avoid indexing errors on unexpected types
+    local okMethod, method = pcall(function() return player[methodName] end)
+    if not okMethod or not method then return nil end
+
+    local okCall, result = pcall(method, player)
+    if not okCall then return nil end
+    return result
+end
+
+-- Resolve a player reference to a live IsoPlayer object when possible
+local function resolvePlayer(player)
+    if not player then return nil end
+
+    if type(player) == "number" and getSpecificPlayer then
+        return getSpecificPlayer(player)
+    end
+
+    -- If we were passed an IsoPlayer, re-resolve by playerNum to avoid stale refs
+    if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum and getSpecificPlayer then
+        local ok, num = pcall(function() return player:getPlayerNum() end)
+        if ok and num ~= nil then
+            local resolved = getSpecificPlayer(num)
+            if resolved then
+                return resolved
+            end
+        end
+    end
+
+    return player
+end
+
 -----------------------------------------------------------
 -- Transaction Storage
 -- Uses weak keys so transactions are cleaned up when player disconnects
@@ -50,8 +100,8 @@ local transactionCounter = 0
 -- Generate unique transaction ID
 local function generateTransactionId(player, transactionType)
     transactionCounter = transactionCounter + 1
-    local username = player:getUsername() or "unknown"
-    local timestamp = getTimestamp and getTimestamp() or os.time()
+    local username = safePlayerCall(player, "getUsername") or "unknown"
+    local timestamp = getTimestamp and getTimestamp() or 0
     return string.format("%s_%s_%d_%d", username, transactionType, timestamp, transactionCounter)
 end
 
@@ -62,8 +112,10 @@ end
 
 -- Get locked items storage for a player
 local function getLockedItemsStorage(player)
-    if not player then return nil end
-    local pmd = player:getModData()
+    local resolvedPlayer = resolvePlayer(player)
+    if not resolvedPlayer then return nil end
+    local pmd = safePlayerCall(resolvedPlayer, "getModData")
+    if not pmd then return nil end
     if not pmd._lockedTransactionItems then
         pmd._lockedTransactionItems = {}
     end
@@ -74,12 +126,15 @@ end
 -- Returns: table of locked item references, or nil if not enough items
 local function lockItems(player, itemType, count)
     if not player or not itemType or count <= 0 then return nil end
+    player = resolvePlayer(player)
+    if not player then return nil end
     
-    local inv = player:getInventory()
+    local inv = safePlayerCall(player, "getInventory")
     if not inv then return nil end
     
     -- Get current available count (excluding already locked items)
     local lockedStorage = getLockedItemsStorage(player)
+    if not lockedStorage then return nil end
     local alreadyLockedCount = 0
     
     if lockedStorage[itemType] then
@@ -137,9 +192,11 @@ end
 -- Unlock items from a transaction (make available again)
 local function unlockItems(player, itemType, itemIds)
     if not player or not itemType or not itemIds then return end
+    player = resolvePlayer(player)
+    if not player then return end
     
     local lockedStorage = getLockedItemsStorage(player)
-    if not lockedStorage[itemType] then return end
+    if not lockedStorage or not lockedStorage[itemType] then return end
     
     -- Build set of IDs to unlock
     local unlockSet = {}
@@ -165,8 +222,10 @@ end
 -- Consume locked items (actually remove from inventory)
 local function consumeLockedItems(player, itemType, itemIds)
     if not player or not itemType or not itemIds then return false end
+    player = resolvePlayer(player)
+    if not player then return false end
     
-    local inv = player:getInventory()
+    local inv = safePlayerCall(player, "getInventory")
     if not inv then return false end
     
     -- Build set of IDs to consume
@@ -210,72 +269,65 @@ end
 -- @return: transaction object on success, nil on failure
 -- @return: error message if failed
 function SpatialRefugeTransaction.Begin(player, transactionType, itemRequirements)
-    if not player then return nil, "Invalid player" end
+    -- Validate player
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return nil, "Invalid player" end
+    
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return nil, "Player not connected" end
+    
+    -- Validate inputs
     if not transactionType then return nil, "Invalid transaction type" end
-    if not itemRequirements or next(itemRequirements) == nil then 
-        return nil, "No items specified" 
+    if not itemRequirements or type(itemRequirements) ~= "table" then
+        return nil, "No items specified"
     end
     
-    -- Check if there's already a pending transaction of this type
-    local existing = SpatialRefugeTransaction.GetPending(player, transactionType)
-    if existing then
-        return nil, "Transaction already in progress"
+    -- Check if table has any items (Kahlua doesn't have next())
+    local hasItems = false
+    for _ in pairs(itemRequirements) do
+        hasItems = true
+        break
     end
+    if not hasItems then return nil, "No items specified" end
     
-    -- Try to lock all required items
+    -- Check for existing transaction
+    local existing = SpatialRefugeTransaction.GetPending(playerObj, transactionType)
+    if existing then return nil, "Transaction already in progress" end
+    
+    -- Lock items
     local lockedItems = {}
-    local lockFailed = false
-    local failReason = nil
-    
     for itemType, count in pairs(itemRequirements) do
-        local locked = lockItems(player, itemType, count)
+        local locked = lockItems(playerObj, itemType, count)
         if not locked then
-            lockFailed = true
-            failReason = "Not enough " .. itemType
-            break
+            -- Rollback partial locks
+            for lockedType, data in pairs(lockedItems) do
+                unlockItems(playerObj, lockedType, data.itemIds)
+            end
+            return nil, "Not enough " .. itemType
         end
-        lockedItems[itemType] = {
-            count = count,
-            itemIds = locked
-        }
+        lockedItems[itemType] = { count = count, itemIds = locked }
     end
     
-    -- If any lock failed, unlock all previously locked items
-    if lockFailed then
-        for itemType, data in pairs(lockedItems) do
-            unlockItems(player, itemType, data.itemIds)
-        end
-        return nil, failReason
-    end
-    
-    -- Create transaction object
-    local transactionId = generateTransactionId(player, transactionType)
+    -- Create transaction
+    local transactionId = generateTransactionId(playerObj, transactionType)
     local transaction = {
         id = transactionId,
         type = transactionType,
         lockedItems = lockedItems,
-        createdAt = getTimestamp and getTimestamp() or os.time(),
-        createdTick = 0,  -- Will be set by timeout handler
+        createdAt = getTimestamp and getTimestamp() or 0,
         status = SpatialRefugeTransaction.STATE.PENDING
     }
     
     -- Store transaction
-    if not activeTransactions[player] then
-        activeTransactions[player] = {}
+    if not activeTransactions[playerObj] then
+        activeTransactions[playerObj] = {}
     end
-    activeTransactions[player][transactionType] = transaction
+    activeTransactions[playerObj][transactionType] = transaction
     
     -- Start timeout handler
-    SpatialRefugeTransaction._startTimeoutHandler(player, transactionType, transactionId)
+    SpatialRefugeTransaction._startTimeoutHandler(playerObj, transactionType, transactionId)
     
-    if getDebug() then
-        local itemList = {}
-        for itemType, data in pairs(lockedItems) do
-            table.insert(itemList, data.count .. "x " .. itemType)
-        end
-        print("[SpatialRefugeTransaction] BEGIN " .. transactionId .. 
-              " - Locked: " .. table.concat(itemList, ", "))
-    end
+    logDebug("BEGIN " .. transactionId .. " for " .. username)
     
     return transaction, nil
 end
@@ -285,10 +337,11 @@ end
 -- @param transactionId: The transaction ID to commit
 -- @return: true on success, false on failure
 function SpatialRefugeTransaction.Commit(player, transactionId)
-    if not player or not transactionId then return false end
+    local playerObj = resolvePlayer(player)
+    if not playerObj or not transactionId then return false end
     
     -- Find the transaction
-    local playerTransactions = activeTransactions[player]
+    local playerTransactions = activeTransactions[playerObj]
     if not playerTransactions then return false end
     
     local transaction = nil
@@ -303,23 +356,19 @@ function SpatialRefugeTransaction.Commit(player, transactionId)
     end
     
     if not transaction then
-        if getDebug() then
-            print("[SpatialRefugeTransaction] COMMIT failed - transaction not found: " .. transactionId)
-        end
+        logDebug("COMMIT failed - transaction not found: " .. tostring(transactionId))
         return false
     end
     
     if transaction.status ~= SpatialRefugeTransaction.STATE.PENDING then
-        if getDebug() then
-            print("[SpatialRefugeTransaction] COMMIT failed - transaction not pending: " .. transactionId)
-        end
+        logDebug("COMMIT failed - transaction not pending: " .. tostring(transactionId) .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
     -- Consume all locked items
     local allConsumed = true
     for itemType, data in pairs(transaction.lockedItems) do
-        if not consumeLockedItems(player, itemType, data.itemIds) then
+        if not consumeLockedItems(playerObj, itemType, data.itemIds) then
             allConsumed = false
             -- Note: This shouldn't happen in normal operation
             -- Items might have been somehow removed externally
@@ -332,10 +381,7 @@ function SpatialRefugeTransaction.Commit(player, transactionId)
     -- Remove from active transactions
     playerTransactions[transactionType] = nil
     
-    if getDebug() then
-        print("[SpatialRefugeTransaction] COMMIT " .. transactionId .. 
-              " - Items consumed: " .. tostring(allConsumed))
-    end
+    logDebug("COMMIT " .. transactionId .. " - Items consumed: " .. tostring(allConsumed))
     
     return allConsumed
 end
@@ -346,9 +392,10 @@ end
 -- @param transactionType: The transaction type (used if transactionId is nil)
 -- @return: true on success, false on failure
 function SpatialRefugeTransaction.Rollback(player, transactionId, transactionType)
-    if not player then return false end
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return false end
     
-    local playerTransactions = activeTransactions[player]
+    local playerTransactions = activeTransactions[playerObj]
     if not playerTransactions then return false end
     
     local transaction = nil
@@ -369,22 +416,18 @@ function SpatialRefugeTransaction.Rollback(player, transactionId, transactionTyp
     end
     
     if not transaction then
-        if getDebug() then
-            print("[SpatialRefugeTransaction] ROLLBACK - no transaction found")
-        end
+        logDebug("ROLLBACK - no transaction found (id=" .. tostring(transactionId) .. ", type=" .. tostring(transactionType) .. ")")
         return false
     end
     
     if transaction.status ~= SpatialRefugeTransaction.STATE.PENDING then
-        if getDebug() then
-            print("[SpatialRefugeTransaction] ROLLBACK - transaction not pending: " .. transaction.id)
-        end
+        logDebug("ROLLBACK - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
     -- Unlock all items
     for itemType, data in pairs(transaction.lockedItems) do
-        unlockItems(player, itemType, data.itemIds)
+        unlockItems(playerObj, itemType, data.itemIds)
     end
     
     -- Update transaction status
@@ -395,9 +438,7 @@ function SpatialRefugeTransaction.Rollback(player, transactionId, transactionTyp
         playerTransactions[tType] = nil
     end
     
-    if getDebug() then
-        print("[SpatialRefugeTransaction] ROLLBACK " .. transaction.id .. " - Items unlocked")
-    end
+    logDebug("ROLLBACK " .. transaction.id .. " - Items unlocked")
     
     return true
 end
@@ -407,9 +448,10 @@ end
 -- @param transactionType: The transaction type to look for
 -- @return: transaction object or nil
 function SpatialRefugeTransaction.GetPending(player, transactionType)
-    if not player or not transactionType then return nil end
+    local playerObj = resolvePlayer(player)
+    if not playerObj or not transactionType then return nil end
     
-    local playerTransactions = activeTransactions[player]
+    local playerTransactions = activeTransactions[playerObj]
     if not playerTransactions then return nil end
     
     local transaction = playerTransactions[transactionType]
@@ -425,16 +467,17 @@ end
 -- @param itemType: The item type to check
 -- @return: count of available items
 function SpatialRefugeTransaction.GetAvailableCount(player, itemType)
-    if not player or not itemType then return 0 end
+    local playerObj = resolvePlayer(player)
+    if not playerObj or not itemType then return 0 end
     
-    local inv = player:getInventory()
+    local inv = safePlayerCall(playerObj, "getInventory")
     if not inv then return 0 end
     
     local totalCount = inv:getCountType(itemType)
     
-    local lockedStorage = getLockedItemsStorage(player)
+    local lockedStorage = getLockedItemsStorage(playerObj)
     local lockedCount = 0
-    if lockedStorage[itemType] then
+    if lockedStorage and lockedStorage[itemType] then
         lockedCount = #lockedStorage[itemType]
     end
     
@@ -468,9 +511,7 @@ function SpatialRefugeTransaction._startTimeoutHandler(player, transactionType, 
         if tickCount >= TRANSACTION_TIMEOUT_TICKS then
             Events.OnTick.Remove(checkTimeout)
             
-            if getDebug() then
-                print("[SpatialRefugeTransaction] TIMEOUT - Auto-rollback: " .. idRef)
-            end
+            logDebug("TIMEOUT - Auto-rollback: " .. idRef)
             
             -- Auto-rollback
             SpatialRefugeTransaction.Rollback(playerRef, idRef)
@@ -490,28 +531,28 @@ end
 -----------------------------------------------------------
 
 local function OnPlayerDisconnect(player)
-    if not player then return end
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return end
     
     -- Rollback any pending transactions
-    local playerTransactions = activeTransactions[player]
+    local playerTransactions = activeTransactions[playerObj]
     if playerTransactions then
         for transactionType, transaction in pairs(playerTransactions) do
             if transaction.status == SpatialRefugeTransaction.STATE.PENDING then
-                SpatialRefugeTransaction.Rollback(player, transaction.id)
+                SpatialRefugeTransaction.Rollback(playerObj, transaction.id)
             end
         end
     end
     
     -- Clear transaction storage
-    activeTransactions[player] = nil
+    activeTransactions[playerObj] = nil
     
     -- Clear locked items storage
-    if player.getModData then
-        local pmd = player:getModData()
-        if pmd then
-            pmd._lockedTransactionItems = nil
-        end
+    local pmd = safePlayerCall(playerObj, "getModData")
+    if pmd then
+        pmd._lockedTransactionItems = nil
     end
+    logDebug("Disconnect cleanup for player " .. (safePlayerCall(playerObj, "getUsername") or "unknown"))
 end
 
 -- Register cleanup handlers
