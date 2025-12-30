@@ -6,6 +6,7 @@ IGUI_EN = {
     IGUI_SpatialRefuge_CastingTeleport = "Teleporting...",
     IGUI_SpatialRefuge_OnCooldown = "Teleport on cooldown",
     IGUI_SpatialRefuge_CombatBlocked = "Cannot teleport in combat",
+    IGUI_SpatialRefuge_FeatureUpgrades = "Feature Upgrades",
 }
 
 Tooltip_EN = {

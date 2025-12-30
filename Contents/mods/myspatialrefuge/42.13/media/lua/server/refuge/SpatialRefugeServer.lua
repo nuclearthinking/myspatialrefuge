@@ -7,6 +7,7 @@ require "shared/SpatialRefugeShared"
 require "shared/SpatialRefugeData"
 require "shared/SpatialRefugeValidation"
 require "shared/SpatialRefugeMigration"
+require "shared/SpatialRefugeUpgradeData"
 
 SpatialRefugeServer = SpatialRefugeServer or {}
 
@@ -660,6 +661,91 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
 end
 
 -----------------------------------------------------------
+-- Feature Upgrade Handler
+-----------------------------------------------------------
+
+-- Handle Feature Upgrade Request (new upgrade system)
+function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
+    if not player then return end
+    
+    local username = player:getUsername()
+    if not username then return end
+    
+    -- Extract args
+    local upgradeId = args and args.upgradeId
+    local targetLevel = args and args.targetLevel
+    local transactionId = args and args.transactionId
+    
+    if not upgradeId or not targetLevel then
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            transactionId = transactionId,
+            reason = "Invalid upgrade request"
+        })
+        return
+    end
+    
+    -- Get upgrade definition
+    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+    if not upgrade then
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            transactionId = transactionId,
+            reason = "Unknown upgrade: " .. tostring(upgradeId)
+        })
+        return
+    end
+    
+    -- Validate dependencies
+    if not SpatialRefugeUpgradeData.isUpgradeUnlocked(player, upgradeId) then
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            transactionId = transactionId,
+            reason = "Dependencies not met"
+        })
+        return
+    end
+    
+    -- Validate current level
+    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
+    if targetLevel <= currentLevel then
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            transactionId = transactionId,
+            reason = "Already at this level"
+        })
+        return
+    end
+    
+    if targetLevel > currentLevel + 1 then
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            transactionId = transactionId,
+            reason = "Must upgrade one level at a time"
+        })
+        return
+    end
+    
+    if targetLevel > upgrade.maxLevel then
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            transactionId = transactionId,
+            reason = "Exceeds max level"
+        })
+        return
+    end
+    
+    -- Server trusts that client has the items (transaction locked them)
+    -- Update player level in ModData
+    SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+    
+    if getDebug() then
+        print("[SpatialRefugeServer] Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
+    end
+    
+    -- Send success response
+    sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeComplete", {
+        transactionId = transactionId,
+        upgradeId = upgradeId,
+        newLevel = targetLevel
+    })
+end
+
+-----------------------------------------------------------
 -- Client Command Handler
 -----------------------------------------------------------
 
@@ -695,6 +781,8 @@ local function OnClientCommand(module, command, player, args)
         SpatialRefugeServer.HandleUpgradeRequest(player, args)
     elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_MOVE_RELIC then
         SpatialRefugeServer.HandleMoveRelicRequest(player, args)
+    elseif command == "RequestFeatureUpgrade" then
+        SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     else
         if getDebug() then
             print("[SpatialRefugeServer] Unknown command: " .. tostring(command))

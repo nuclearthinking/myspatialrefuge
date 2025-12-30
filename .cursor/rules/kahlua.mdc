@@ -47,6 +47,38 @@ end
 ### `rawget()` / `rawset()` - May not be available
 Use direct table access instead when possible.
 
+### `#` operator on Java objects - Does NOT work
+```lua
+-- ❌ WRONG - Java ArrayList doesn't support # operator
+-- Error: "__len not defined for operand"
+local mods = getActivatedMods()  -- Returns Java ArrayList
+local count = #mods              -- CRASHES!
+local first = mods[1]            -- CRASHES!
+
+-- ✅ CORRECT - use Java methods
+local mods = getActivatedMods()
+local count = mods:size()        -- Use :size() method
+for i = 0, count - 1 do          -- 0-based indexing!
+    local mod = mods:get(i)      -- Use :get(index) method
+end
+```
+
+## ⚠️ Java Objects vs Lua Tables
+
+PZ API functions often return **Java objects** (ArrayList, HashMap, etc.), NOT Lua tables:
+
+| Operation | Lua Table | Java ArrayList |
+|-----------|-----------|----------------|
+| Length | `#tbl` | `list:size()` |
+| Access | `tbl[i]` (1-based) | `list:get(i)` (0-based) |
+| Iterate | `for i, v in ipairs(tbl)` | `for i = 0, list:size() - 1 do local v = list:get(i)` |
+| Check type | `type(x) == "table"` | `instanceof(x, "ArrayList")` |
+
+Common PZ functions returning Java objects:
+- `getActivatedMods()` → Java ArrayList
+- `getPlayer():getInventory():getItems()` → Java ArrayList
+- `getCell():getObjectList()` → Java ArrayList
+
 ## ✅ Available in Kahlua
 
 - `pairs()`, `ipairs()` - Work normally
@@ -58,9 +90,42 @@ Use direct table access instead when possible.
 - `math.*` functions - Work normally
 - `setmetatable()`, `getmetatable()` - Work normally
 
+## PZ Build 42+ Specifics
+
+### Mod IDs are prefixed with backslash
+In PZ Build 42+, mod IDs returned by `getActivatedMods()` are prefixed with `\`:
+```lua
+-- Mod ID in mod.info: id=myspatialrefuge
+-- Actual ID in B42+:  \myspatialrefuge
+
+-- ✅ CORRECT - try both variants
+local modId = "myspatialrefuge"
+local modInfo = getModInfoByID(modId)
+if not modInfo then
+    modInfo = getModInfoByID("\\" .. modId)  -- Try with backslash prefix
+end
+```
+
+### File reading from mod directory
+```lua
+-- Use getModFileReader for files in mod directory
+-- Path is relative to mod's version folder (e.g., 42.13/)
+local reader = getModFileReader("myspatialrefuge", "media/lua/shared/data.txt", false)
+-- OR with B42 prefix:
+local reader = getModFileReader("\\myspatialrefuge", "media/lua/shared/data.txt", false)
+
+-- getFileReader is for Lua CACHE directory, not mod files!
+local reader = getFileReader("somefile.txt", false)  -- Reads from cache, NOT mod folder
+```
+
 ## Debugging Tips
 
 When you see "Object tried to call nil" error:
 1. Check if you're using a standard Lua function that doesn't exist in Kahlua
 2. Add step-by-step logging to find exactly which line fails
 3. Check this list for alternatives
+
+When you see "__len not defined for operand" error:
+1. You're using `#` operator on a Java object (ArrayList, etc.)
+2. Use `:size()` method instead
+3. Use `:get(i)` with 0-based indexing instead of `[i]`

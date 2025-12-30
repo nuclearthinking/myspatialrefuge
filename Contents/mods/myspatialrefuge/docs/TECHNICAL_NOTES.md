@@ -506,12 +506,121 @@ end
 
 ---
 
+## 14. Plumbing Inside Refuge
+
+### Problem
+
+Rain barrels cannot be plumbed to sinks inside the spatial refuge - no plumbing context menu options appear.
+
+### Root Cause Analysis
+
+Project Zomboid's plumbing system has multiple requirements:
+
+**1. Building-Based Context Checks**
+```java
+// Vanilla/mods check this before showing water options
+if object:getSquare():getBuilding() ~= playerObj:getBuilding() then
+    return  -- No options shown
+end
+```
+- `getBuilding()` returns nil for player-built structures
+- Only map-defined buildings have `IsoBuilding` objects
+- However, if BOTH player and object return nil, check passes (`nil ~= nil` = false)
+
+**2. Z+1 Water Source Requirement**
+```lua
+-- getPlumbedSources() scans one floor UP
+for ix = -1, 1 do
+    for iy = -1, 1 do
+        local topSq = cell:getGridSquare(x + ix, y + iy, z + 1)  -- z+1 only!
+        -- Check for water containers on that square
+    end
+end
+```
+- Vanilla plumbing only looks for rain barrels at z+1 (directly above)
+- Flat layouts (sink and barrel at same z) are NOT supported
+
+**3. Room Recognition via IsoWorldRegion**
+```java
+// IsoGridSquare.java
+public boolean isInARoom() {
+    return this.getRoom() != null ||  // Map-defined room
+           (this.getIsoWorldRegion() != null && 
+            this.getIsoWorldRegion().isPlayerRoom());  // Player-built
+}
+
+// IsoWorldRegion.java
+public boolean isPlayerRoom() {
+    return isEnclosed() && isFullyRoofed();  // Walls + ceiling required
+}
+```
+
+### Solution: Build Enclosed Rooms
+
+**Tested and confirmed working:**
+1. Build walls on all sides (complete enclosure, no gaps)
+2. Build ceiling (floor tiles at z+1)
+3. Place rain barrel on ceiling (z+1)
+4. Place sink inside the room (z=0)
+5. Vanilla plumbing recognizes this and works normally
+
+The game's `IsoWorldRegion` system detects enclosed player-built structures as "player rooms" when they have complete walls AND a roof.
+
+### Workaround Attempts (Not Recommended)
+
+Several approaches were attempted but had issues:
+
+**1. Hook `getPlumbedSources()` for same-floor scanning**
+- Load order issues with other plumbing mods
+- Creates fallback functions if original not found
+- Doesn't integrate smoothly with vanilla context menus
+
+**2. Override context menu functions**
+- Bypasses building checks for refuge squares
+- Works but feels "clunky" - custom callbacks needed
+- Player walks to wrong object (barrel instead of sink)
+
+**3. Custom timed actions**
+- Created `ISRefugeTakeWaterAction` that faces sink but uses barrel water
+- Complex, lots of duplicated vanilla code
+- Maintenance burden when game updates
+
+### Recommended Approach
+
+For feature #7 (Spatial Water Vessel), consider:
+
+**Option A: Large Rain Barrel**
+- Create vessel as IsoThumpable with 10,000 unit capacity
+- Player places on z+1 (ceiling/roof of their built room)
+- Uses vanilla plumbing mechanics - no custom code needed
+
+**Option B: Virtual Z+1 Injection**
+- Hook `getPlumbedSources()` to inject vessel as if it were at z+1
+- Vessel can be placed anywhere in refuge
+- More complex but allows flat layouts
+
+**Option C: Document Player Requirements**
+- Clearly explain that plumbing requires enclosed rooms
+- Provide building guide in mod description
+- Zero additional code complexity
+
+### Key Takeaway
+
+The simplest solution is to work WITH vanilla mechanics rather than against them. Players can build 2x2 enclosed rooms with ceilings, and vanilla plumbing works perfectly. The Spatial Water Vessel (#7) should focus on being a better rain barrel (higher capacity, rain collection) rather than trying to bypass vanilla plumbing mechanics.
+
+### Related Issues
+- #12 - Original bug report
+- #7 - Planned Spatial Water Vessel feature
+
+---
+
 ## Future Improvements
 
 1. **Menu option removal** - Find proper hook to remove Disassemble before it's added
 2. **Corner sprites** - Find tileset with all 4 corners, or use different wall style
 3. **Better chunk pre-loading** - Investigate `loadChunkAtPosition` for faster chunk availability
 4. **Relic container persistence** - Verify container contents survive all save/load scenarios
+5. **Plumbing guide** - Add in-game tips about building enclosed rooms for plumbing
 
 ---
 

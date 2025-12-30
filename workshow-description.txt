@@ -1,0 +1,78 @@
+[h1]My Spatial Refuge[/h1]
+
+Escape the apocalypse to your own personal, upgradeable spatial refuge! Build your ultimate survival space using Zombie Cores.
+
+[h2]Multiplayer & Co-op Ready[/h2]
+[b]Full multiplayer and co-op support![/b] Each player gets their own private refuge that persists across sessions. Tested on dedicated servers.
+
+[h2]Features[/h2]
+
+[b]Personal Refuge[/b]
+[list]
+[*] Every player gets their own private dimensional space
+[*] Completely safe from zombies
+[*] Persistent across sessions
+[*] Each player has their own separate refuge in multiplayer
+[/list]
+
+[b]Upgradeable Space[/b]
+[list]
+[*] Start small and grow huge
+[*] Multiple upgrade tiers
+[*] Spend Zombie Cores to expand your refuge
+[*] Build and customize as you expand
+[/list]
+
+[b]Save Compatibility[/b]
+[list]
+[*] Safe to add to existing saves
+[*] Existing saves from older mod versions are automatically upgraded
+[/list]
+
+[b]How to Use[/b]
+[list]
+[*] Hold [b]Q[/b] (social menu button) to open the Refuge menu
+[*] Select "Enter Refuge" to teleport in
+[*] Use the same menu to exit back to where you entered
+[*] Kill zombies to collect Zombie Cores
+[*] Spend cores to upgrade your refuge size
+[/list]
+
+[h2]Dependencies[/h2]
+[b]REQUIRED:[/b]
+[list]
+[*] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3632175278]My Spatial Core[/url] - Core library mod (subscribe to this first!)
+[/list]
+
+[h2]Installation[/h2]
+[olist]
+[*] Subscribe to [b]My Spatial Core[/b] (required dependency)
+[*] Subscribe to this mod
+[*] Launch the game
+[*] Hold Q in-game to access your refuge!
+[/olist]
+
+[h2]Compatibility[/h2]
+[list]
+[*] [b]Game Version:[/b] 42.13 or higher
+[*] [b]Multiplayer:[/b] Fully compatible (each player has own refuge)
+[*] [b]Co-op:[/b] Fully compatible
+[*] [b]Singleplayer:[/b] Compatible
+[*] [b]Existing Saves:[/b] Safe to add mid-game
+[/list]
+
+[h2]MySpatial Mod Series[/h2]
+Part of the MySpatial mod collection:
+[list]
+[*] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3632175278][b]My Spatial Core[/b][/url] - Core library (required)
+[*] [b]My Spatial Refuge[/b] - This mod
+[/list]
+
+[h2]Support[/h2]
+[list]
+[*] [url=https://steamcommunity.com/workshop/filedetails/discussion/3632195933/691997051773307715/]Bug Reports[/url]
+[*] [url=https://steamcommunity.com/workshop/filedetails/discussion/3632195933/691997051773307769/]Feature Requests[/url]
+[/list]
+
+[h2]Enjoy Your Refuge![/h2]
+Thanks for trying My Spatial Refuge. May your refuge be ever expanding!

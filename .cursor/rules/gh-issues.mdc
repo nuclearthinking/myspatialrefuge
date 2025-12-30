@@ -37,6 +37,27 @@ uv run utils/gh_issues.py <command> [options] --output json
 - `--labels "bug,feature"` — Filter by labels (comma-separated)
 - `--comments` or `-c` — Include comments when viewing issue
 - `--type bug|feature|task` — Use template when creating
+- `--body-file` or `-f` — Read body from file (preserves backticks, recommended for code)
+- `--stdin` — Read body from stdin (comment command only)
+
+## Handling Code Blocks and Backticks
+
+**Problem:** PowerShell uses backticks (`) as escape characters, which breaks inline code formatting.
+
+**Solution:** Use `--body-file` to read content from a file:
+
+```bash
+# Create a temp file with proper markdown
+# Then use --body-file to preserve backticks
+
+uv run utils/gh_issues.py comment 42 --body-file comment.md --output json
+uv run utils/gh_issues.py create --title "Bug" --body-file body.md --output json
+uv run utils/gh_issues.py edit 42 --body-file updated_body.md --output json
+```
+
+This bypasses shell escaping and preserves all markdown formatting including:
+- Inline code: `` `functionName()` ``
+- Code blocks: ` ```java ... ``` `
 
 ## Examples
 
@@ -67,3 +88,101 @@ uv run utils/gh_issues.py edit 42 --title "New title" --add-labels "priority-hig
 3. Use `schema` command if you need to check available options
 4. When creating issues, use `--type` for structured templates
 5. Check `status` first if authentication issues occur
+
+## How to Properly Report Issues
+
+### Issue Structure
+
+**Good Title Format:**
+- Bug: `"[Bug] Player can't plumb rain barrels in spatial refuge"`
+- Feature: `"[Feature] Add custom water storage system"`
+- Task: `"[Task] Implement IsoBuilding for refuge area"`
+
+**Body Structure:**
+Use proper markdown sections with actual newlines (not `\n` escape sequences):
+
+```bash
+uv run utils/gh_issues.py create \
+  --type bug \
+  --title "Cannot plumb sinks in refuge" \
+  --body "## Description
+
+The plumbing context menu does not appear for sinks inside the spatial refuge.
+
+## Steps to Reproduce
+
+1. Enter spatial refuge
+2. Place a sink and rain barrel
+3. Right-click on sink
+4. Plumbing option is missing
+
+## Expected Behavior
+
+Should see plumbing options like in normal buildings.
+
+## Technical Details
+
+- Game version: 41.78.16
+- Mod version: 1.0.0
+- Multiplayer: Yes/No" \
+  --output json
+```
+
+### Formatting Tips
+
+**✅ DO:**
+- Use actual newlines in body text (multiline strings in shell)
+- Include clear sections: Description, Steps to Reproduce, Expected Behavior
+- Add technical context (versions, multiplayer, related code files)
+- Reference related issues with `#number`
+- Use markdown formatting (headers, lists, code blocks)
+- Add evidence (error logs, screenshots, code snippets)
+
+**❌ DON'T:**
+- Don't use `\n` escape sequences - they render as literal text
+- Don't create vague titles like "Bug" or "Fix this"
+- Don't skip reproduction steps for bugs
+- Don't forget to specify priority/impact for critical issues
+
+### For Bug Reports
+
+Include:
+1. **Clear description** of what's broken
+2. **Steps to reproduce** (numbered list)
+3. **Expected vs actual behavior**
+4. **Root cause** if known (especially for technical users)
+5. **Workarounds** if any exist
+6. **Impact on players** (critical/high/medium/low)
+
+### For Feature Requests
+
+Include:
+1. **Problem statement** - what need does this address?
+2. **Proposed solution** - how should it work?
+3. **Implementation approach** - technical details
+4. **Benefits** - why is this valuable?
+5. **Complexity estimate** - rough development time
+
+### For Technical Issues
+
+Include:
+1. **Root cause analysis** - what's causing the problem?
+2. **Affected systems** - what code/features are impacted?
+3. **Solution options** - multiple approaches with pros/cons
+4. **Recommended approach** - which solution is best and why?
+5. **Related issues** - link to dependencies or blockers
+
+### Editing Issues
+
+If formatting is broken after creation, fix it with `edit`:
+
+```bash
+uv run utils/gh_issues.py edit 12 --body "## Properly Formatted
+
+This text has actual newlines and renders correctly on GitHub.
+
+### Sections Work
+
+- Lists work
+- Code formatting works" --output json
+```

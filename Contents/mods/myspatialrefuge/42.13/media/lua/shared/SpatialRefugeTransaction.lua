@@ -560,6 +560,163 @@ if Events.OnPlayerDeath then
     Events.OnPlayerDeath.Add(OnPlayerDisconnect)
 end
 
+-----------------------------------------------------------
+-- Multi-Source Item Support (for Upgrade System)
+-- Extends transaction to work with multiple item containers
+-----------------------------------------------------------
+
+-- Get all item sources for a player (inventory + Sacred Relic storage)
+-- @param player: The player
+-- @return: Array of ItemContainer objects
+function SpatialRefugeTransaction.GetItemSources(player)
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return {} end
+    
+    local sources = {}
+    
+    -- Player inventory
+    local inv = safePlayerCall(playerObj, "getInventory")
+    if inv then
+        table.insert(sources, inv)
+    end
+    
+    -- Sacred Relic storage (if player is in refuge and has access)
+    -- This requires SpatialRefuge module to be loaded
+    if SpatialRefuge and SpatialRefuge.GetRelicContainer then
+        local relicContainer = SpatialRefuge.GetRelicContainer(playerObj)
+        if relicContainer then
+            table.insert(sources, relicContainer)
+        end
+    end
+    
+    return sources
+end
+
+-- Count items across all sources
+-- @param player: The player
+-- @param itemType: The item type to count
+-- @return: Total count across all sources
+function SpatialRefugeTransaction.GetMultiSourceCount(player, itemType)
+    local playerObj = resolvePlayer(player)
+    if not playerObj or not itemType then return 0 end
+    
+    local sources = SpatialRefugeTransaction.GetItemSources(playerObj)
+    local totalCount = 0
+    
+    for _, container in ipairs(sources) do
+        if container and container.getCountType then
+            totalCount = totalCount + container:getCountType(itemType)
+        end
+    end
+    
+    -- Subtract locked items
+    local lockedStorage = getLockedItemsStorage(playerObj)
+    local lockedCount = 0
+    if lockedStorage and lockedStorage[itemType] then
+        lockedCount = #lockedStorage[itemType]
+    end
+    
+    return math.max(0, totalCount - lockedCount)
+end
+
+-- Count items with substitutions across all sources
+-- @param player: The player
+-- @param requirement: Requirement table with type and substitutes
+-- @return: Total count of matching items, table of {itemType = count}
+function SpatialRefugeTransaction.GetSubstitutionCount(player, requirement)
+    local playerObj = resolvePlayer(player)
+    if not playerObj or not requirement then return 0, {} end
+    
+    local counts = {}
+    local total = 0
+    
+    -- Primary type
+    local primaryCount = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, requirement.type)
+    if primaryCount > 0 then
+        counts[requirement.type] = primaryCount
+        total = total + primaryCount
+    end
+    
+    -- Substitutes
+    if requirement.substitutes then
+        for _, subType in ipairs(requirement.substitutes) do
+            local subCount = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, subType)
+            if subCount > 0 then
+                counts[subType] = subCount
+                total = total + subCount
+            end
+        end
+    end
+    
+    return total, counts
+end
+
+-- Resolve substitutions to specific item types that will be consumed
+-- @param player: The player
+-- @param requirements: Array of requirement tables
+-- @return: Table of {itemType = count} for transaction, or nil if not enough items
+function SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
+    local playerObj = resolvePlayer(player)
+    if not playerObj or not requirements then return nil end
+    
+    local resolved = {}
+    
+    for _, req in ipairs(requirements) do
+        local needed = req.count or 1
+        local remaining = needed
+        
+        -- Get all available items for this requirement
+        local _, counts = SpatialRefugeTransaction.GetSubstitutionCount(playerObj, req)
+        
+        -- Try primary type first
+        if counts[req.type] and counts[req.type] > 0 then
+            local toUse = math.min(remaining, counts[req.type])
+            resolved[req.type] = (resolved[req.type] or 0) + toUse
+            remaining = remaining - toUse
+        end
+        
+        -- Try substitutes if needed
+        if remaining > 0 and req.substitutes then
+            for _, subType in ipairs(req.substitutes) do
+                if counts[subType] and counts[subType] > 0 then
+                    local available = counts[subType] - (resolved[subType] or 0)
+                    local toUse = math.min(remaining, available)
+                    if toUse > 0 then
+                        resolved[subType] = (resolved[subType] or 0) + toUse
+                        remaining = remaining - toUse
+                    end
+                end
+                if remaining <= 0 then break end
+            end
+        end
+        
+        -- Check if we have enough
+        if remaining > 0 then
+            local itemName = req.type:match("%.(.+)$") or req.type
+            return nil, "Not enough " .. itemName
+        end
+    end
+    
+    return resolved
+end
+
+-- Begin a transaction with substitution support
+-- @param player: The player
+-- @param transactionType: Transaction type string
+-- @param requirements: Array of requirement tables (with type, count, substitutes)
+-- @return: transaction object on success, nil on failure
+-- @return: error message if failed
+function SpatialRefugeTransaction.BeginWithSubstitutions(player, transactionType, requirements)
+    -- Resolve substitutions first
+    local resolved, err = SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
+    if not resolved then
+        return nil, err
+    end
+    
+    -- Use standard Begin with resolved items
+    return SpatialRefugeTransaction.Begin(player, transactionType, resolved)
+end
+
 return SpatialRefugeTransaction
 
 

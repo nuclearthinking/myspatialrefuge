@@ -315,6 +315,18 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
         moveSubmenu:addOption(corner.name, playerObj, moveToCorner)
     end
     
+    -- Show feature upgrades option
+    local function openFeatureUpgrades()
+        local SpatialRefugeUpgradeWindow = require "refuge/SpatialRefugeUpgradeWindow"
+        SpatialRefugeUpgradeWindow.Open(playerObj)
+    end
+    
+    local featureUpgradeOption = context:addOption("Feature Upgrades", playerObj, openFeatureUpgrades)
+    local featureTooltip = ISInventoryPaneContextMenu.addToolTip()
+    featureTooltip:setName("Refuge Feature Upgrades")
+    featureTooltip:setDescription("Unlock and upgrade special features for your refuge")
+    featureUpgradeOption.toolTip = featureTooltip
+    
     -- Show upgrade option if not at max tier
     if refugeData.tier < SpatialRefugeConfig.MAX_TIER then
         local currentTier = refugeData.tier

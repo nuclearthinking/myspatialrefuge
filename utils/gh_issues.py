@@ -163,11 +163,12 @@ TOOL_SCHEMA = {
             "options": {
                 "--title/-t": "Issue title (required)",
                 "--body/-b": "Issue body (markdown)",
+                "--body-file/-f": "Read body from file (preserves backticks)",
                 "--type": "bug|feature|task|custom",
                 "--labels/-l": "Labels (comma-separated)",
                 "--output/-o": "human|json",
             },
-            "example": "uv run gh_issues.py create --title 'Fix bug' --body 'Details' --output json",
+            "example": "uv run gh_issues.py create --title 'Fix bug' --body-file body.md --output json",
         },
         "close": {
             "description": "Close an issue",
@@ -183,10 +184,12 @@ TOOL_SCHEMA = {
             "description": "Add comment to issue",
             "args": {"ISSUE_NUMBER": "Issue number (required)"},
             "options": {
-                "--body/-b": "Comment body (required)",
+                "--body/-b": "Comment body",
+                "--body-file/-f": "Read body from file (preserves backticks)",
+                "--stdin": "Read body from stdin",
                 "--output/-o": "human|json",
             },
-            "example": "uv run gh_issues.py comment 42 --body 'Working on it' --output json",
+            "example": "uv run gh_issues.py comment 42 --body-file comment.md --output json",
         },
         "edit": {
             "description": "Edit an issue",
@@ -194,11 +197,12 @@ TOOL_SCHEMA = {
             "options": {
                 "--title/-t": "New title",
                 "--body/-b": "New body",
+                "--body-file/-f": "Read body from file (preserves backticks)",
                 "--add-labels": "Labels to add",
                 "--remove-labels": "Labels to remove",
                 "--output/-o": "human|json",
             },
-            "example": "uv run gh_issues.py edit 42 --title 'New title' --output json",
+            "example": "uv run gh_issues.py edit 42 --body-file body.md --output json",
         },
         "search": {
             "description": "Search issues",
@@ -348,17 +352,27 @@ def view(
 def create(
     title: Annotated[str, typer.Option("--title", "-t", help="Issue title")],
     body: Annotated[Optional[str], typer.Option("--body", "-b")] = None,
+    body_file: Annotated[Optional[str], typer.Option("--body-file", "-f", help="Read body from file")] = None,
     issue_type: Annotated[Optional[IssueType], typer.Option("--type")] = None,
     labels: Annotated[Optional[str], typer.Option("--labels", "-l")] = None,
     assignee: Annotated[Optional[str], typer.Option("--assignee", "-a")] = None,
     output_fmt: Annotated[OutputFormat, typer.Option("--output", "-o")] = OutputFormat.human,
 ):
-    """Create new issue. Returns: success, issue_number, url."""
+    """Create new issue. Use --body-file for complex markdown with backticks."""
     ensure_auth()
 
     final_title = title
-    final_body = body or ""
     final_labels = labels.split(",") if labels else []
+
+    # Determine body content
+    final_body = body or ""
+    if body_file:
+        try:
+            with open(body_file, 'r', encoding='utf-8') as f:
+                final_body = f.read()
+        except FileNotFoundError:
+            output({"error": f"File not found: {body_file}"}, output_fmt)
+            raise typer.Exit(code=1)
 
     if issue_type and issue_type != IssueType.custom:
         template = TEMPLATES.get(issue_type.value, {})
@@ -427,13 +441,31 @@ def reopen(
 @app.command()
 def comment(
     issue_number: Annotated[int, typer.Argument(help="Issue number")],
-    body: Annotated[str, typer.Option("--body", "-b", help="Comment body")],
+    body: Annotated[Optional[str], typer.Option("--body", "-b", help="Comment body")] = None,
+    body_file: Annotated[Optional[str], typer.Option("--body-file", "-f", help="Read body from file")] = None,
+    body_stdin: Annotated[bool, typer.Option("--stdin", help="Read body from stdin")] = False,
     output_fmt: Annotated[OutputFormat, typer.Option("--output", "-o")] = OutputFormat.human,
 ):
-    """Add comment to issue."""
+    """Add comment to issue. Use --body-file or --stdin for complex markdown with backticks."""
     ensure_auth()
 
-    result = run_gh(["issue", "comment", str(issue_number), "--body", body], check=False)
+    # Determine body content
+    final_body = body
+    if body_stdin:
+        final_body = sys.stdin.read()
+    elif body_file:
+        try:
+            with open(body_file, 'r', encoding='utf-8') as f:
+                final_body = f.read()
+        except FileNotFoundError:
+            output({"error": f"File not found: {body_file}"}, output_fmt)
+            raise typer.Exit(code=1)
+    
+    if not final_body:
+        output({"error": "No body provided. Use --body, --body-file, or --stdin"}, output_fmt)
+        raise typer.Exit(code=1)
+
+    result = run_gh(["issue", "comment", str(issue_number), "--body", final_body], check=False)
     if result.returncode != 0:
         output({"error": f"Failed to comment on #{issue_number}"}, output_fmt)
         raise typer.Exit(code=1)
@@ -446,19 +478,30 @@ def edit(
     issue_number: Annotated[int, typer.Argument(help="Issue number")],
     title: Annotated[Optional[str], typer.Option("--title", "-t")] = None,
     body: Annotated[Optional[str], typer.Option("--body", "-b")] = None,
+    body_file: Annotated[Optional[str], typer.Option("--body-file", "-f", help="Read body from file")] = None,
     add_labels: Annotated[Optional[str], typer.Option("--add-labels")] = None,
     remove_labels: Annotated[Optional[str], typer.Option("--remove-labels")] = None,
     add_assignee: Annotated[Optional[str], typer.Option("--add-assignee")] = None,
     output_fmt: Annotated[OutputFormat, typer.Option("--output", "-o")] = OutputFormat.human,
 ):
-    """Edit an issue."""
+    """Edit an issue. Use --body-file for complex markdown with backticks."""
     ensure_auth()
+
+    # Determine body content
+    final_body = body
+    if body_file:
+        try:
+            with open(body_file, 'r', encoding='utf-8') as f:
+                final_body = f.read()
+        except FileNotFoundError:
+            output({"error": f"File not found: {body_file}"}, output_fmt)
+            raise typer.Exit(code=1)
 
     args = ["issue", "edit", str(issue_number)]
     if title:
         args.extend(["--title", title])
-    if body:
-        args.extend(["--body", body])
+    if final_body:
+        args.extend(["--body", final_body])
     if add_labels:
         args.extend(["--add-label", add_labels])
     if remove_labels:

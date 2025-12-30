@@ -797,6 +797,29 @@ local function OnServerCommand(module, command, args)
             end
         end
         
+    elseif command == "FeatureUpgradeComplete" then
+        -- Server confirmed feature upgrade
+        if args then
+            local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
+            SpatialRefugeUpgradeLogic.onUpgradeComplete(
+                player,
+                args.upgradeId,
+                args.newLevel,
+                args.transactionId
+            )
+        end
+        
+    elseif command == "FeatureUpgradeError" then
+        -- Server reported feature upgrade error
+        if args then
+            local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
+            SpatialRefugeUpgradeLogic.onUpgradeError(
+                player,
+                args.transactionId,
+                args.reason
+            )
+        end
+        
     elseif command == SpatialRefugeConfig.COMMANDS.ERROR then
         -- Server reported an error
         local message = args and args.message or "Refuge error"
