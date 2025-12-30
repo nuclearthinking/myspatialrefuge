@@ -24,6 +24,35 @@ local function isMultiplayerClient()
     return _cachedIsMPClient
 end
 
+-- Resolve a player argument to a live IsoPlayer instance
+-- Accepts player index, IsoPlayer, or nil; re-resolves by playerNum to avoid stale references
+local function resolvePlayer(playerArg)
+    if not playerArg then return nil end
+    if type(playerArg) == "number" then
+        return getSpecificPlayer(playerArg)
+    end
+    if playerArg.getPlayerNum then
+        local ok, num = pcall(function() return playerArg:getPlayerNum() end)
+        if ok and num ~= nil then
+            local resolved = getSpecificPlayer(num)
+            if resolved then
+                return resolved
+            end
+        end
+    end
+    return playerArg
+end
+
+-- Safely read username (guards against null IsoPlayer references)
+local function getSafeUsername(player)
+    if not player or not player.getUsername then return nil end
+    local ok, username = pcall(function() return player:getUsername() end)
+    if not ok or not username or username == "" then
+        return nil
+    end
+    return username
+end
+
 -----------------------------------------------------------
 -- Helper Functions
 -----------------------------------------------------------
@@ -114,19 +143,19 @@ local TRANSACTION_TYPE_UPGRADE = "REFUGE_UPGRADE"
 function SpatialRefuge.OnUpgradeRefuge(player)
     if not player then return end
     
-    -- Handle player index vs player object
-    local playerObj = player
-    if type(player) == "number" then
-        playerObj = getSpecificPlayer(player)
-    end
+    -- Resolve and validate player
+    local playerObj = resolvePlayer(player)
     if not playerObj then return end
+    if not getSafeUsername(playerObj) then return end
     
+    -- Get refuge data
     local refugeData = SpatialRefuge.GetRefugeData(playerObj)
     if not refugeData then
         playerObj:Say("Refuge data not found!")
         return
     end
     
+    -- Calculate upgrade
     local currentTier = refugeData.tier
     local nextTier = currentTier + 1
     
@@ -136,22 +165,27 @@ function SpatialRefuge.OnUpgradeRefuge(player)
     end
     
     local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
+    if not tierConfig then return end
     local coreCost = tierConfig.cores
     
-    -- Check if player has enough AVAILABLE cores (not locked in other transactions)
-    local availableCores = SpatialRefugeTransaction.GetAvailableCount(playerObj, SpatialRefugeConfig.CORE_ITEM)
+    -- Get core item type
+    local coreItemType = SpatialRefugeConfig.CORE_ITEM
+    if not coreItemType then
+        playerObj:Say("Upgrade failed - configuration error")
+        return
+    end
+    
+    -- Check available cores
+    local availableCores = SpatialRefugeTransaction.GetAvailableCount(playerObj, coreItemType)
     if availableCores < coreCost then
         playerObj:Say("Not enough cores!")
         return
     end
     
     if isMultiplayerClient() then
-        -- ========== MULTIPLAYER PATH (Transactional) ==========
-        -- Use transaction system to lock cores, send request, commit/rollback on response
-        
-        -- Begin transaction - locks cores
+        -- ========== MULTIPLAYER PATH ==========
         local transaction, err = SpatialRefugeTransaction.Begin(playerObj, TRANSACTION_TYPE_UPGRADE, {
-            [SpatialRefugeConfig.CORE_ITEM] = coreCost
+            [coreItemType] = coreCost
         })
         
         if not transaction then
@@ -159,7 +193,7 @@ function SpatialRefuge.OnUpgradeRefuge(player)
             return
         end
         
-        -- Send request to server with transaction ID
+        -- Send to server
         local args = {
             newTier = nextTier,
             coreCost = coreCost,
@@ -168,10 +202,6 @@ function SpatialRefuge.OnUpgradeRefuge(player)
         
         sendClientCommand(SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.REQUEST_UPGRADE, args)
         playerObj:Say("Upgrading refuge...")
-        
-        if getDebug() then
-            print("[SpatialRefuge] Sent RequestUpgrade with transaction " .. transaction.id)
-        end
         
     else
         -- ========== SINGLEPLAYER PATH ==========
@@ -189,7 +219,7 @@ function SpatialRefuge.OnUpgradeRefuge(player)
             local inv = playerObj:getInventory()
             if inv then
                 for i = 1, coreCost do
-                    inv:AddItem(SpatialRefugeConfig.CORE_ITEM)
+                    inv:AddItem(coreItemType)
                 end
             end
             playerObj:Say("Upgrade failed - cores refunded")

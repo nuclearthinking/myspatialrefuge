@@ -1,12 +1,14 @@
 -- Spatial Refuge System Configuration
 -- Defines tier progression, coordinates, and gameplay constants
 
--- Prevent double-loading
-if SpatialRefugeConfig then
+-- Prevent double-loading (check for _loaded flag, not just table existence)
+-- This prevents issues if another file creates an empty SpatialRefugeConfig table
+if SpatialRefugeConfig and SpatialRefugeConfig._loaded then
     return SpatialRefugeConfig
 end
 
 SpatialRefugeConfig = {
+    _loaded = true,  -- Mark as fully loaded
     -- Global refuge coordinate space (far edge of world, isolated from all map content)
     -- PZ main areas: Muldraugh ~10500,9500 | West Point ~12000,7000 | Riverside ~6000,5500
     -- Using far northwest corner - well away from any mapped areas or expansion mods
