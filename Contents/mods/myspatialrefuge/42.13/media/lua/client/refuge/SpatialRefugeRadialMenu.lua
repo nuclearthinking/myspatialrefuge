@@ -11,6 +11,7 @@ SpatialRefugeConfig = SpatialRefugeConfig or {}
 -- Custom refuge icons (fallback to vanilla emote icons if missing)
 local ENTER_ICON = getTexture("media/ui/emotes/enter_refuge_51x96.png") or getTexture("media/ui/emotes/gears.png")
 local EXIT_ICON = getTexture("media/ui/emotes/exit_refuge_60x96.png") or getTexture("media/ui/emotes/back.png")
+local UPGRADE_ICON = getTexture("media/ui/upgrades/feature_upgrades.png") or getTexture("media/ui/emotes/gears.png")
 
 local function getTextOrDefault(key, fallback)
     if getText then
@@ -54,6 +55,16 @@ local function tryExitRefuge(player)
     end
 end
 
+local function openFeatureUpgrades(player)
+    if not player then return end
+    
+    local rm = getPlayerRadialMenu(player:getPlayerNum())
+    if rm then rm:undisplay() end
+    
+    local SpatialRefugeUpgradeWindow = require "refuge/SpatialRefugeUpgradeWindow"
+    SpatialRefugeUpgradeWindow.Open(player)
+end
+
 -- Chain the emote radial menu construction to add our slices
 if not SpatialRefuge._originalEmoteFillMenu then
     SpatialRefuge._originalEmoteFillMenu = ISEmoteRadialMenu.fillMenu
@@ -71,12 +82,18 @@ function ISEmoteRadialMenu:fillMenu(submenu)
     local menu = getPlayerRadialMenu(self.playerNum)
     if not menu then return end
 
-    -- Exit slice when already inside refuge
+    -- Inside refuge - show exit and feature upgrades
     if SpatialRefuge.IsPlayerInRefuge and SpatialRefuge.IsPlayerInRefuge(player) then
         menu:addSlice(
             getTextOrDefault("IGUI_SpatialRefuge_Exit", "Exit Spatial Refuge"),
             EXIT_ICON,
             tryExitRefuge,
+            player
+        )
+        menu:addSlice(
+            getTextOrDefault("IGUI_SpatialRefuge_FeatureUpgrades", "Feature Upgrades"),
+            UPGRADE_ICON,
+            openFeatureUpgrades,
             player
         )
         return

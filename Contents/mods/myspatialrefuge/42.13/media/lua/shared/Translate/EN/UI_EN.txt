@@ -1,0 +1,114 @@
+UI_EN = {
+    -- Upgrade Window
+    UI_RefugeUpgrade_Title = "Upgrade Spatial Refuge",
+    UI_RefugeUpgrade_Upgrade = "UPGRADE",
+    UI_RefugeUpgrade_SelectUpgrade = "Select an upgrade",
+    UI_RefugeUpgrade_RequiredItems = "Required Items",
+    UI_RefugeUpgrade_NoRequirements = "No items required",
+    UI_RefugeUpgrade_AvailableIngredients = "Available Ingredients",
+    UI_RefugeUpgrade_NoIngredients = "No items available",
+    UI_RefugeUpgrade_Effects = "Effects:",
+    
+    -- Categories
+    UI_RefugeUpgrade_Category_shelter = "Shelter",
+    UI_RefugeUpgrade_Category_crafting = "Crafting",
+    UI_RefugeUpgrade_Category_survival = "Survival",
+    UI_RefugeUpgrade_Category_mystical = "Mystical",
+    UI_RefugeUpgrade_Category_general = "General",
+    UI_RefugeUpgrade_Category_test = "Test",
+    
+    -- Upgrade Names - Test Upgrades
+    UI_Upgrade_TestUpgrade = "Test Upgrade",
+    UI_Upgrade_TestUpgrade_L1 = "A simple test upgrade. Level 1 - costs 1 core.",
+    UI_Upgrade_TestUpgrade_L2 = "A simple test upgrade. Level 2 - costs 2 cores.",
+    UI_Upgrade_TestUpgrade_L3 = "A simple test upgrade. Level 3 - costs 3 cores.",
+    
+    UI_Upgrade_TestExpensive = "Expensive Test",
+    UI_Upgrade_TestExpensive_L1 = "An expensive upgrade requiring 50 cores. Good luck!",
+    UI_Upgrade_TestExpensive_L2 = "Even more expensive - 100 cores needed.",
+    
+    UI_Upgrade_TestMulti = "Multi-Item Test",
+    UI_Upgrade_TestMulti_L1 = "Requires multiple different items including cores, planks, nails, and an axe.",
+    
+    UI_Upgrade_TestLocked = "Locked Upgrade",
+    UI_Upgrade_TestLocked_L1 = "This upgrade is locked until you max out Test Upgrade first.",
+    
+    UI_Upgrade_TestRare = "Rare Items Test",
+    UI_Upgrade_TestRare_L1 = "Requires rare items: generators, propane tanks, and a sledgehammer.",
+    
+    UI_Upgrade_TestFree = "Free Upgrade",
+    UI_Upgrade_TestFree_L1 = "This upgrade is completely free! No items required.",
+    
+    UI_Upgrade_ReinforcedWalls = "Reinforced Walls",
+    UI_Upgrade_ReinforcedWalls_L1 = "Strengthen refuge walls with wooden planks.",
+    UI_Upgrade_ReinforcedWalls_L2 = "Add metal reinforcement to walls.",
+    UI_Upgrade_ReinforcedWalls_L3 = "Fully reinforce with metal plating.",
+    
+    UI_Upgrade_ExpandedStorage = "Expanded Storage",
+    UI_Upgrade_ExpandedStorage_L1 = "Build basic storage shelves.",
+    UI_Upgrade_ExpandedStorage_L2 = "Add more shelving units.",
+    UI_Upgrade_ExpandedStorage_L3 = "Install cabinet storage.",
+    UI_Upgrade_ExpandedStorage_L4 = "Build metal storage racks.",
+    UI_Upgrade_ExpandedStorage_L5 = "Maximum storage capacity.",
+    
+    UI_Upgrade_Workbench = "Workbench",
+    UI_Upgrade_Workbench_L1 = "Build a basic crafting workbench.",
+    UI_Upgrade_Workbench_L2 = "Upgrade workbench with better tools.",
+    UI_Upgrade_Workbench_L3 = "Professional-grade workstation.",
+    
+    UI_Upgrade_Forge = "Forge",
+    UI_Upgrade_Forge_L1 = "Construct a basic metalworking forge.",
+    UI_Upgrade_Forge_L2 = "Improve forge with bellows.",
+    UI_Upgrade_Forge_L3 = "Industrial-grade forge setup.",
+    
+    UI_Upgrade_WaterCollection = "Water Collection",
+    UI_Upgrade_WaterCollection_L1 = "Basic rain collection system.",
+    UI_Upgrade_WaterCollection_L2 = "Improved water storage.",
+    UI_Upgrade_WaterCollection_L3 = "Water purification system.",
+    
+    UI_Upgrade_GardenPlot = "Garden Plot",
+    UI_Upgrade_GardenPlot_L1 = "Small indoor garden area.",
+    UI_Upgrade_GardenPlot_L2 = "Expanded garden with fertilization.",
+    UI_Upgrade_GardenPlot_L3 = "Full greenhouse with irrigation.",
+    
+    UI_Upgrade_SpiritConduit = "Spirit Conduit",
+    UI_Upgrade_SpiritConduit_L1 = "Channel spiritual energy.",
+    UI_Upgrade_SpiritConduit_L2 = "Enhanced spirit connection.",
+    UI_Upgrade_SpiritConduit_L3 = "Master-level conduit.",
+    
+    UI_Upgrade_TeleportAnchor = "Teleport Anchor",
+    UI_Upgrade_TeleportAnchor_L1 = "Reduce teleport cooldown.",
+    UI_Upgrade_TeleportAnchor_L2 = "Instant teleportation.",
+    
+    UI_Upgrade_MeditationCircle = "Meditation Circle",
+    UI_Upgrade_MeditationCircle_L1 = "Basic meditation space.",
+    UI_Upgrade_MeditationCircle_L2 = "Enhanced meditation area.",
+    UI_Upgrade_MeditationCircle_L3 = "Tranquil sanctuary.",
+    
+    -- Effect Names
+    UI_Effect_testBonus = "Test Bonus",
+    UI_Effect_expensiveBonus = "Expensive Bonus",
+    UI_Effect_multiBonus = "Multi Bonus",
+    UI_Effect_lockedBonus = "Locked Bonus",
+    UI_Effect_rareBonus = "Rare Bonus",
+    UI_Effect_freeBonus = "Free Bonus",
+    UI_Effect_refugeDefense = "Defense Bonus",
+    UI_Effect_relicStorageBonus = "Storage Capacity",
+    UI_Effect_craftSpeed = "Crafting Speed",
+    UI_Effect_metalworkBonus = "Metalwork Bonus",
+    UI_Effect_unlockForge = "Unlocks Forge",
+    UI_Effect_waterGeneration = "Water Generation",
+    UI_Effect_waterPurification = "Water Purification",
+    UI_Effect_unlockWaterCollection = "Unlocks Water Collection",
+    UI_Effect_farmingSlots = "Farming Slots",
+    UI_Effect_farmingSpeed = "Farming Speed",
+    UI_Effect_unlockGardening = "Unlocks Gardening",
+    UI_Effect_coreDropBonus = "Core Drop Bonus",
+    UI_Effect_coreDoubleChance = "Core Double Chance",
+    UI_Effect_teleportCooldownReduction = "Teleport Cooldown Reduction",
+    UI_Effect_instantTeleport = "Instant Teleport",
+    UI_Effect_stressReduction = "Stress Reduction",
+    UI_Effect_fatigueRecovery = "Fatigue Recovery",
+    UI_Effect_moodBoost = "Mood Boost",
+}
+
