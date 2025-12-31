@@ -659,26 +659,26 @@ function SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj or not requirements then return nil end
     
-    -- First pass: gather all unique item types and their available counts
+    -- First pass: gather all unique item types and their initial available counts
     -- This ensures we don't double-count items when multiple requirements share types
-    local availableCounts = {}
+    local initialCounts = {}
     
     for _, req in ipairs(requirements) do
         -- Track primary type
-        if req.type and not availableCounts[req.type] then
-            availableCounts[req.type] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, req.type)
+        if req.type and not initialCounts[req.type] then
+            initialCounts[req.type] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, req.type)
         end
         -- Track substitutes
         if req.substitutes then
             for _, subType in ipairs(req.substitutes) do
-                if not availableCounts[subType] then
-                    availableCounts[subType] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, subType)
+                if not initialCounts[subType] then
+                    initialCounts[subType] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, subType)
                 end
             end
         end
     end
     
-    -- Second pass: allocate items to requirements, tracking remaining available
+    -- Second pass: allocate items to requirements, tracking what's been resolved
     local resolved = {}
     
     for _, req in ipairs(requirements) do
@@ -686,22 +686,32 @@ function SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
         local remaining = needed
         
         -- Try primary type first
-        if availableCounts[req.type] and availableCounts[req.type] > 0 then
-            local toUse = math.min(remaining, availableCounts[req.type])
-            resolved[req.type] = (resolved[req.type] or 0) + toUse
-            availableCounts[req.type] = availableCounts[req.type] - toUse
-            remaining = remaining - toUse
+        -- Calculate available count: initial count minus what's already been resolved
+        -- This ensures we don't over-count when this type was used as a substitute earlier
+        if initialCounts[req.type] then
+            local alreadyResolved = resolved[req.type] or 0
+            local actuallyAvailable = initialCounts[req.type] - alreadyResolved
+            if actuallyAvailable > 0 then
+                local toUse = math.min(remaining, actuallyAvailable)
+                resolved[req.type] = alreadyResolved + toUse
+                remaining = remaining - toUse
+            end
         end
         
         -- Try substitutes if needed
+        -- Calculate available count: initial count minus what's already been resolved
+        -- This ensures we don't over-count when this substitute was used as a primary type earlier
         if remaining > 0 and req.substitutes then
             for _, subType in ipairs(req.substitutes) do
-                if availableCounts[subType] and availableCounts[subType] > 0 then
-                    local toUse = math.min(remaining, availableCounts[subType])
-                    if toUse > 0 then
-                        resolved[subType] = (resolved[subType] or 0) + toUse
-                        availableCounts[subType] = availableCounts[subType] - toUse
-                        remaining = remaining - toUse
+                if initialCounts[subType] then
+                    local alreadyResolved = resolved[subType] or 0
+                    local actuallyAvailable = initialCounts[subType] - alreadyResolved
+                    if actuallyAvailable > 0 then
+                        local toUse = math.min(remaining, actuallyAvailable)
+                        if toUse > 0 then
+                            resolved[subType] = alreadyResolved + toUse
+                            remaining = remaining - toUse
+                        end
                     end
                 end
                 if remaining <= 0 then break end
