@@ -95,6 +95,9 @@ end
 -- Buffer tiles around refuge to clear zombies
 local ZOMBIE_CLEAR_BUFFER = 3
 
+-- Buffer tiles beyond refuge radius to clear trees (catches foliage extending into refuge)
+local TREE_CLEAR_BUFFER = 4
+
 -----------------------------------------------------------
 -- Utility Functions
 -----------------------------------------------------------
@@ -1031,6 +1034,81 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
 end
 
 -----------------------------------------------------------
+-- Tree Clearing
+-----------------------------------------------------------
+
+-- Clear all trees from an area (including buffer for foliage)
+-- Tree branches and leaves extend 2-4 tiles beyond their trunk base tile,
+-- so we need a buffer zone to prevent foliage from clipping through refuge walls.
+-- @param centerX, centerY, z: Refuge center coordinates
+-- @param radius: Current refuge radius
+-- @param dropLoot: If true, trees drop logs/branches (default: false for clean removal)
+-- NOTE: In multiplayer, this MUST run on server only for proper sync
+function SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
+    local cell = getCell()
+    if not cell then return 0 end
+    
+    -- In multiplayer, only server should modify world state
+    -- Clients will receive sync updates automatically
+    local isMP = isClient() or isServer()
+    if isMP and not getCachedIsServer() then
+        if getDebug() then
+            print("[SpatialRefugeShared] ClearTreesFromArea: Skipping on client (server-only operation)")
+        end
+        return 0
+    end
+    
+    local cleared = 0
+    local totalRadius = radius + TREE_CLEAR_BUFFER
+    
+    for dx = -totalRadius, totalRadius do
+        for dy = -totalRadius, totalRadius do
+            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
+            if square then
+                local tree = square:getTree()
+                if tree then
+                    if dropLoot then
+                        -- Topple tree (drops logs, branches, etc.)
+                        -- toppleTree() automatically syncs in MP when called on server
+                        if tree.toppleTree then
+                            tree:toppleTree()
+                        end
+                    else
+                        -- Clean removal (no loot, less clutter)
+                        -- Use transmit method for MP sync (server only)
+                        if getCachedIsServer() then
+                            -- Server: transmitRemoveItemFromSquare handles local removal AND broadcasts to clients
+                            -- This ensures all clients see the tree removal
+                            square:transmitRemoveItemFromSquare(tree)
+                        else
+                            -- Singleplayer: Use direct removal methods
+                            if square.RemoveWorldObject then
+                                pcall(function() square:RemoveWorldObject(tree) end)
+                            end
+                            if tree.removeFromSquare then
+                                pcall(function() tree:removeFromSquare() end)
+                            end
+                            if tree.removeFromWorld then
+                                pcall(function() tree:removeFromWorld() end)
+                            end
+                        end
+                        -- Force recalculation for proper rendering (syncs to clients automatically)
+                        square:RecalcAllWithNeighbours(true)
+                    end
+                    cleared = cleared + 1
+                end
+            end
+        end
+    end
+    
+    if getDebug() and cleared > 0 then
+        print("[SpatialRefugeShared] Cleared " .. cleared .. " trees from refuge area" .. (isMP and " (MP server)" or " (SP)"))
+    end
+    
+    return cleared
+end
+
+-----------------------------------------------------------
 -- Refuge Expansion
 -----------------------------------------------------------
 
@@ -1074,6 +1152,13 @@ function SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
     if getDebug() then
         print("[SpatialRefugeShared] ExpandRefuge: created " .. wallsCreated .. " new walls")
     end
+    
+    -- Clear trees from the expanded area (prevents foliage clipping through walls)
+    -- Clears trees in the entire new area (newRadius + 4 tile buffer) to ensure:
+    -- 1. No trees in the newly expanded ring
+    -- 2. No trees outside walls that could have foliage clipping through
+    -- 3. Complete cleanup after expansion
+    SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, centerZ, newRadius, false)
     
     -- Update refuge data (caller should save this)
     refugeData.tier = newTier
@@ -1119,6 +1204,9 @@ function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
     
     -- Generate walls
     SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
+    
+    -- Clear trees from the refuge area (prevents foliage clipping through walls)
+    SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
     
     local relic = SpatialRefugeShared.CreateSacredRelicAtPosition(
         centerX, centerY, centerZ,
