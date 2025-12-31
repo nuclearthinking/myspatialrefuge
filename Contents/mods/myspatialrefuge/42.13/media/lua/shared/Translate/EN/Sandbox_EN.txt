@@ -1,12 +1,12 @@
 Sandbox_EN = {
-    Sandbox_MySpatialRefuge = "My Spatial Refuge",
+    Sandbox_MySpatialRefuge = "My Spatial Refuge", -- 1.5/31.12.2025
     
-    Sandbox_RefugeTeleportCooldown = "Teleport Cooldown",
-    Sandbox_RefugeTeleportCooldown_tooltip = "Seconds between refuge teleports. 0 = no cooldown.",
+    Sandbox_RefugeTeleportCooldown = "Teleport Cooldown", -- 1.5/31.12.2025
+    Sandbox_RefugeTeleportCooldown_tooltip = "Seconds between refuge teleports. 0 = no cooldown.", -- 1.5/31.12.2025
     
-    Sandbox_RefugeCastTime = "Cast Time",
-    Sandbox_RefugeCastTime_tooltip = "Seconds to cast teleport (can be interrupted). 0 = instant.",
+    Sandbox_RefugeCastTime = "Cast Time", -- 1.5/31.12.2025
+    Sandbox_RefugeCastTime_tooltip = "Seconds to cast teleport (can be interrupted). 0 = instant.", -- 1.5/31.12.2025
     
-    Sandbox_RefugeCombatBlockTime = "Combat Block Time",
-    Sandbox_RefugeCombatBlockTime_tooltip = "Seconds after taking damage before you can teleport. 0 = disabled.",
+    Sandbox_RefugeCombatBlockTime = "Combat Block Time", -- 1.5/31.12.2025
+    Sandbox_RefugeCombatBlockTime_tooltip = "Seconds after taking damage before you can teleport. 0 = disabled.", -- 1.5/31.12.2025
 }

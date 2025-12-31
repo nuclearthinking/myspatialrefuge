@@ -1,0 +1,12 @@
+Sandbox_ES = {
+    Sandbox_MySpatialRefuge = "Mi Refugio Espacial", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeTeleportCooldown = "Enfriamiento del teletransporte", -- 1.5/31.12.2025
+    Sandbox_RefugeTeleportCooldown_tooltip = "Segundos entre teletransportes. 0 = sin enfriamiento.", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCastTime = "Tiempo de canalización", -- 1.5/31.12.2025
+    Sandbox_RefugeCastTime_tooltip = "Segundos para canalizar el teletransporte (puede interrumpirse). 0 = instantáneo.", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCombatBlockTime = "Tiempo de bloqueo en combate", -- 1.5/31.12.2025
+    Sandbox_RefugeCombatBlockTime_tooltip = "Segundos después de recibir daño antes de poder teletransportarse. 0 = desactivado.", -- 1.5/31.12.2025
+}

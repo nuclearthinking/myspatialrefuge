@@ -27,11 +27,13 @@ SpatialRefugeConfig = {
         [3] = { radius = 4, size = 9, cores = 20, displayName = "9x9" },
         [4] = { radius = 5, size = 11, cores = 35, displayName = "11x11" },
         [5] = { radius = 6, size = 13, cores = 50, displayName = "13x13" },
-        [6] = { radius = 7, size = 15, cores = 75, displayName = "15x15" }
+        [6] = { radius = 7, size = 15, cores = 75, displayName = "15x15" },
+        [7] = { radius = 8, size = 17, cores = 100, displayName = "17x17" },
+        [8] = { radius = 9, size = 19, cores = 150, displayName = "19x19" }
     },
     
     -- Maximum tier (for validation)
-    MAX_TIER = 6,
+    MAX_TIER = 8,
     
     -- Gameplay settings
     TELEPORT_COOLDOWN = 10,  -- seconds between teleports
@@ -45,7 +47,9 @@ SpatialRefugeConfig = {
         WALL_NORTH = "walls_exterior_house_01_1", -- North wall
         WALL_CORNER_NW = "walls_exterior_house_01_2",
         WALL_CORNER_SE = "walls_exterior_house_01_3",
-        SACRED_RELIC = "location_community_cemetary_01_11"  -- Angel Gravestone (Sacred Relic) - note: game uses "cemetary" typo
+        -- Custom tileset sprite (created with TileZed, loaded via mod.info pack= and tiledef=)
+        SACRED_RELIC = "myspatialrefuge_0",
+        SACRED_RELIC_FALLBACK = "location_community_cemetary_01_11",  -- Fallback: Angel Gravestone
     },
     
     -- Sacred Relic storage capacity (for future item teleportation feature)

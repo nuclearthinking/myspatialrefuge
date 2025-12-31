@@ -2,9 +2,11 @@
 -- Alembic-like pattern: MIGRATIONS[version] = migrationFunction
 -- Version 1: per-player ModData (spatialRefuge_* fields)
 -- Version 2: global ModData (MySpatialRefuge.Refuges[username])
+-- Version 3: Custom relic sprite (myspatialrefuge_0)
 
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeData"
+require "shared/SpatialRefugeEnv"
 
 -- Prevent double-loading
 if SpatialRefugeMigration and SpatialRefugeMigration._loaded then
@@ -14,39 +16,22 @@ end
 SpatialRefugeMigration = SpatialRefugeMigration or {}
 SpatialRefugeMigration._loaded = true
 
-SpatialRefugeMigration.CURRENT_VERSION = 2
+SpatialRefugeMigration.CURRENT_VERSION = 3
 
 -----------------------------------------------------------
--- Environment Helpers
+-- Environment Helpers (delegated to SpatialRefugeEnv)
 -----------------------------------------------------------
-
-local _cachedIsServer = nil
-local _cachedIsClient = nil
-local _cachedCanModify = nil
 
 local function getCachedIsServer()
-    if _cachedIsServer == nil then
-        _cachedIsServer = isServer()
-    end
-    return _cachedIsServer
-end
-
-local function getCachedIsClient()
-    if _cachedIsClient == nil then
-        _cachedIsClient = isClient()
-    end
-    return _cachedIsClient
+    return SpatialRefugeEnv.isServer()
 end
 
 local function canModifyData()
-    if _cachedCanModify == nil then
-        _cachedCanModify = getCachedIsServer() or (not getCachedIsClient())
-    end
-    return _cachedCanModify
+    return SpatialRefugeEnv.canModifyData()
 end
 
 -----------------------------------------------------------
--- Migration: v1 → v2
+-- Migration: v1 -> v2
 -- Old: per-player ModData (spatialRefuge_* fields)
 -- New: global ModData (MySpatialRefuge.Refuges[username])
 -----------------------------------------------------------
@@ -115,11 +100,109 @@ local function migrate_1_to_2(player)
     end
     
     clearLegacyFields(pmd)
-    return true, "Migrated v1 → v2"
+    return true, "Migrated v1 -> v2"
+end
+
+-----------------------------------------------------------
+-- Migration: v2 -> v3
+-- Update Sacred Relic sprite from angel gravestone to custom sprite
+-----------------------------------------------------------
+
+local function migrate_2_to_3(player)
+    local username = player:getUsername()
+    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+    
+    -- Get the new sprite name from config
+    local newSpriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+    local oldSpriteName = "location_community_cemetary_01_11"  -- Old angel gravestone
+    
+    -- Find the relic at the refuge center
+    local centerX = refugeData.centerX
+    local centerY = refugeData.centerY
+    local centerZ = refugeData.centerZ or 0
+    
+    if not centerX or not centerY then
+        return true, "No center coordinates - skipping sprite migration"
+    end
+    
+    -- Try to find the square and relic
+    local cell = getCell()
+    if not cell then
+        -- Cell not loaded yet - mark for later migration
+        refugeData.pendingSpriteMigration = true
+        refugeData.dataVersion = 3
+        SpatialRefugeData.SaveRefugeData(refugeData)
+        return true, "Cell not loaded - marked for deferred sprite migration"
+    end
+    
+    local square = cell:getGridSquare(centerX, centerY, centerZ)
+    if not square then
+        -- Square not loaded - mark for later
+        refugeData.pendingSpriteMigration = true
+        refugeData.dataVersion = 3
+        SpatialRefugeData.SaveRefugeData(refugeData)
+        return true, "Square not loaded - marked for deferred sprite migration"
+    end
+    
+    -- Find the relic on this square
+    local objects = square:getObjects()
+    local relicFound = false
+    
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        if obj then
+            local md = obj:getModData()
+            if md and md.isSacredRelic then
+                -- Found the relic - update its sprite
+                local currentSprite = obj:getSpriteName()
+                
+                if currentSprite == oldSpriteName or currentSprite ~= newSpriteName then
+                    -- Update to new sprite
+                    local newSprite = getSprite(newSpriteName)
+                    if newSprite then
+                        obj:setSprite(newSpriteName)
+                        md.relicSprite = newSpriteName
+                        
+                        -- Transmit changes in MP
+                        if getCachedIsServer() and obj.transmitModData then
+                            obj:transmitModData()
+                        end
+                        if getCachedIsServer() and obj.transmitUpdatedSpriteToClients then
+                            obj:transmitUpdatedSpriteToClients()
+                        end
+                        
+                        print("[Migration] Updated relic sprite for " .. username .. ": " .. tostring(currentSprite) .. " -> " .. newSpriteName)
+                    else
+                        print("[Migration] Warning: New sprite '" .. newSpriteName .. "' not found - keeping old sprite")
+                    end
+                end
+                
+                relicFound = true
+                break
+            end
+        end
+    end
+    
+    if not relicFound then
+        -- Relic might not exist yet or be on a different square
+        refugeData.pendingSpriteMigration = true
+    end
+    
+    -- Update data version
+    refugeData.dataVersion = 3
+    refugeData.pendingSpriteMigration = nil  -- Clear if we found and updated
+    SpatialRefugeData.SaveRefugeData(refugeData)
+    
+    return true, relicFound and "Updated relic sprite" or "Relic not found - will update on next load"
 end
 
 local MIGRATIONS = {
-    [1] = migrate_1_to_2
+    [1] = migrate_1_to_2,
+    [2] = migrate_2_to_3
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)
@@ -191,8 +274,52 @@ function SpatialRefugeMigration.MigratePlayer(player)
         version = version + 1
     end
     
-    print("[Migration] " .. username .. ": v" .. startVersion .. " → v" .. version)
-    return true, "Migrated v" .. startVersion .. " → v" .. version
+    print("[Migration] " .. username .. ": v" .. startVersion .. " -> v" .. version)
+    return true, "Migrated v" .. startVersion .. " -> v" .. version
+end
+
+-- Check and apply pending sprite migration when relic becomes accessible
+-- Call this when player enters refuge or when relic is loaded
+function SpatialRefugeMigration.CheckPendingSpriteMigration(username, square)
+    if not username or not square then return false end
+    
+    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    if not refugeData or not refugeData.pendingSpriteMigration then
+        return false  -- No pending migration
+    end
+    
+    local newSpriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+    local objects = square:getObjects()
+    
+    for i = 0, objects:size() - 1 do
+        local obj = objects:get(i)
+        if obj then
+            local md = obj:getModData()
+            if md and md.isSacredRelic then
+                local newSprite = getSprite(newSpriteName)
+                if newSprite then
+                    obj:setSprite(newSpriteName)
+                    md.relicSprite = newSpriteName
+                    
+                    if getCachedIsServer() and obj.transmitModData then
+                        obj:transmitModData()
+                    end
+                    if getCachedIsServer() and obj.transmitUpdatedSpriteToClients then
+                        obj:transmitUpdatedSpriteToClients()
+                    end
+                    
+                    -- Clear pending flag
+                    refugeData.pendingSpriteMigration = nil
+                    SpatialRefugeData.SaveRefugeData(refugeData)
+                    
+                    print("[Migration] Deferred sprite update completed for " .. username)
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
 end
 
 function SpatialRefugeMigration.DebugPrintState(player)

@@ -1,0 +1,10 @@
+IGUI_PTBR = {
+    -- Spatial Refuge UI
+    IGUI_SpatialRefuge_Enter = "Entrar no Refúgio Espacial", -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_Exit = "Sair do Refúgio Espacial", -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_OnCooldown = "Teletransporte em recarga", -- 1.5/31.12.2025
+}
+
+Tooltip_PTBR = {
+    Tooltip_SacredRelic = "Uma relíquia misteriosa que pode criar uma dimensão de bolso. <LINE> Clique com o botão direito para entrar no seu Refúgio Espacial.", -- 1.5/31.12.2025
+}

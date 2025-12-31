@@ -430,30 +430,51 @@ function SRU_UpgradeSlot:render()
     end
     
     -- Check if max level reached
-    local isMaxLevel = self.playerLevel and self.upgrade.maxLevel and self.playerLevel >= self.upgrade.maxLevel
+    local maxLvl = self.upgrade.maxLevel or 1
+    local isMaxLevel = self.playerLevel and self.playerLevel >= maxLvl
     
-    -- Draw level badge or max level checkmark (scaled to slot size)
+    -- Debug: uncomment to see values
+    -- if self.playerLevel and self.playerLevel > 0 then
+    --     print("[SRU_UpgradeSlot] " .. tostring(self.upgrade.id) .. " playerLevel=" .. tostring(self.playerLevel) .. " maxLevel=" .. tostring(maxLvl) .. " isMax=" .. tostring(isMaxLevel))
+    -- end
+    
+    -- Draw level badge or max level indicator (scaled to slot size)
     if isMaxLevel then
-        -- Green checkmark for max level
-        local badgeSize = math.max(12, math.floor(self.width * 0.35))
+        -- Green checkmark badge for max level
+        local badgeSize = math.max(16, math.floor(self.width * 0.4))
         local badgeX = self.width - badgeSize - 1
         local badgeY = 1
         
-        -- Badge background (green)
-        self:drawRect(badgeX, badgeY, badgeSize, badgeSize, 0.9, 0.15, 0.5, 0.15)
+        -- Badge background (bright green)
+        self:drawRect(badgeX, badgeY, badgeSize, badgeSize, 0.95, 0.15, 0.55, 0.15)
+        self:drawRectBorder(badgeX, badgeY, badgeSize, badgeSize, 0.9, 0.4, 0.9, 0.4)
         
-        -- Checkmark symbol
-        local checkText = "✓"
-        local font = UIFont.Small
-        local textW = getTextManager():MeasureStringX(font, checkText)
-        local textH = getTextManager():getFontHeight(font)
-        self:drawText(
-            checkText,
-            badgeX + (badgeSize - textW) / 2,
-            badgeY + (badgeSize - textH) / 2,
-            0.8, 1, 0.8, 1,
-            font
-        )
+        -- Draw checkmark icon
+        local checkmarkTexture = getTexture("media/textures/checkmark_16x16.png")
+        if checkmarkTexture then
+            local iconPad = 2
+            self:drawTextureScaledAspect(
+                checkmarkTexture, 
+                badgeX + iconPad, 
+                badgeY + iconPad, 
+                badgeSize - iconPad * 2, 
+                badgeSize - iconPad * 2, 
+                1, 1, 1, 1
+            )
+        else
+            -- Fallback to "M" text if texture not found
+            local checkText = "M"
+            local font = UIFont.Small
+            local textW = getTextManager():MeasureStringX(font, checkText)
+            local textH = getTextManager():getFontHeight(font)
+            self:drawText(
+                checkText,
+                badgeX + (badgeSize - textW) / 2,
+                badgeY + (badgeSize - textH) / 2,
+                1, 1, 1, 1,
+                font
+            )
+        end
     elseif self.playerLevel and self.playerLevel > 0 then
         -- Regular level badge
         local badgeSize = math.max(10, math.floor(self.width * 0.35))
@@ -479,29 +500,44 @@ function SRU_UpgradeSlot:render()
     
     -- Draw lock overlay if locked
     if self.isLocked then
-        -- Semi-transparent dark overlay on entire slot
-        self:drawRect(0, 0, self.width, self.height, 0.6, 0.0, 0.0, 0.0)
+        -- Semi-transparent dark overlay on entire slot (subtle, not alarming)
+        self:drawRect(0, 0, self.width, self.height, 0.5, 0.0, 0.0, 0.0)
         
         -- Lock icon in corner (bottom-left)
-        local lockBadgeSize = math.max(14, math.floor(self.width * 0.35))
+        local lockBadgeSize = math.max(16, math.floor(self.width * 0.4))
         local lockX = 2
         local lockY = self.height - lockBadgeSize - 2
         
-        -- Lock badge background (red-ish)
-        self:drawRect(lockX, lockY, lockBadgeSize, lockBadgeSize, 0.85, 0.4, 0.15, 0.15)
+        -- Lock badge background (neutral dark gray)
+        self:drawRect(lockX, lockY, lockBadgeSize, lockBadgeSize, 0.85, 0.18, 0.18, 0.20)
+        self:drawRectBorder(lockX, lockY, lockBadgeSize, lockBadgeSize, 0.7, 0.35, 0.35, 0.38)
         
-        -- Draw "X" or lock symbol
-        local lockText = "X"
-        local font = UIFont.Small
-        local textW = getTextManager():MeasureStringX(font, lockText)
-        local textH = getTextManager():getFontHeight(font)
-        self:drawText(
-            lockText,
-            lockX + (lockBadgeSize - textW) / 2,
-            lockY + (lockBadgeSize - textH) / 2,
-            1, 0.6, 0.6, 1,
-            font
-        )
+        -- Draw gray cross icon
+        local crossTexture = getTexture("media/textures/lock_gray_16x16.png")
+        if crossTexture then
+            local iconPad = 2
+            self:drawTextureScaledAspect(
+                crossTexture,
+                lockX + iconPad,
+                lockY + iconPad,
+                lockBadgeSize - iconPad * 2,
+                lockBadgeSize - iconPad * 2,
+                1, 1, 1, 1
+            )
+        else
+            -- Fallback to "X" text if texture not found
+            local lockText = "X"
+            local font = UIFont.Small
+            local textW = getTextManager():MeasureStringX(font, lockText)
+            local textH = getTextManager():getFontHeight(font)
+            self:drawText(
+                lockText,
+                lockX + (lockBadgeSize - textW) / 2,
+                lockY + (lockBadgeSize - textH) / 2,
+                0.6, 0.6, 0.6, 1,
+                font
+            )
+        end
     end
 end
 

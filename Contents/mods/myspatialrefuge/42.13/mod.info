@@ -1,6 +1,6 @@
 name=My Spatial Refuge
 id=myspatialrefuge
-modversion=1.3
+modversion=1.5
 icon=icon.png
 poster=poster.png
 description=Escape the apocalypse to your personal refuge. <LINE><LINE>
@@ -11,3 +11,5 @@ description=- Personal instance: Every player gets their own private refuge <LIN
 description=<RGB:1,0.9,0.5>Kill zombies, collect Zombie Cores, and build your ultimate safe space!
 require=\MySpatialCore,
 versionMin=42.0
+pack=myspatialrefuge
+tiledef=myspatialrefuge 500

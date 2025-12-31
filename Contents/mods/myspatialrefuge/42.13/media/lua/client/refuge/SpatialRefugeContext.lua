@@ -252,43 +252,6 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     
     if not sacredRelic then return end
     
-    -- Always show exit option (with cast time)
-    context:addOption("Exit Refuge", playerObj, SpatialRefuge.BeginExitCast, sacredRelic)
-    
-    -- Show storage access if relic has a container
-    local relicObj = sacredRelic
-    -- Handle world item wrapper (get the actual IsoObject)
-    if sacredRelic.getItem then
-        local item = sacredRelic:getItem()
-        if item and item.getWorldItem then
-            relicObj = item:getWorldItem() or sacredRelic
-        end
-    end
-    
-    if relicObj and relicObj.getContainer then
-        local container = relicObj:getContainer()
-        if container then
-            -- Create callback function that captures playerObj properly
-            local function openRelicStorage()
-                local lootWindow = getPlayerLoot(playerObj:getPlayerNum())
-                if lootWindow then
-                    lootWindow.inventoryPane.lastinventory = container
-                    lootWindow:refreshBackpacks()
-                end
-            end
-            
-            local storageOption = context:addOption("Sacred Relic Storage", playerObj, openRelicStorage)
-            
-            -- Add tooltip showing current storage usage
-            local tooltip = ISInventoryPaneContextMenu.addToolTip()
-            local itemCount = container:getItems() and container:getItems():size() or 0
-            local capacity = container:getCapacity() or 20
-            tooltip:setName("Sacred Relic Storage")
-            tooltip:setDescription("Items: " .. itemCount .. "\nCapacity: " .. capacity)
-            storageOption.toolTip = tooltip
-        end
-    end
-    
     -- Get player's refuge data
     local refugeData = SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(playerObj)
     if not refugeData then return end
@@ -315,63 +278,25 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
         moveSubmenu:addOption(corner.name, playerObj, moveToCorner)
     end
     
-    -- Show feature upgrades option
-    local function openFeatureUpgrades()
+    -- Show Upgrade Refuge option (opens the upgrade window)
+    local function openUpgradeWindow()
         local SpatialRefugeUpgradeWindow = require "refuge/SpatialRefugeUpgradeWindow"
         SpatialRefugeUpgradeWindow.Open(playerObj)
     end
     
-    local featureUpgradeOption = context:addOption("Feature Upgrades", playerObj, openFeatureUpgrades)
-    local featureTooltip = ISInventoryPaneContextMenu.addToolTip()
-    featureTooltip:setName("Refuge Feature Upgrades")
-    featureTooltip:setDescription("Unlock and upgrade special features for your refuge")
-    featureUpgradeOption.toolTip = featureTooltip
+    local upgradeOption = context:addOption("Upgrade Refuge", playerObj, openUpgradeWindow)
     
-    -- Show upgrade option if not at max tier
-    if refugeData.tier < SpatialRefugeConfig.MAX_TIER then
-        local currentTier = refugeData.tier
-        local nextTier = currentTier + 1
-        local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
-        local coreCost = tierConfig.cores
-        -- Use available count (excludes cores locked in pending transactions)
-        local availableCores = SpatialRefuge.CountAvailableCores(playerObj)
-        local totalCores = SpatialRefuge.CountCores(playerObj)
-        
-        local optionText = "Upgrade Refuge (Tier " .. currentTier .. " → " .. nextTier .. ")"
-        local option = context:addOption(optionText, playerObj, SpatialRefuge.OnUpgradeRefuge)
-        
-        -- Check for pending upgrade transaction
-        local pendingTransaction = SpatialRefugeTransaction.GetPending(playerObj, "REFUGE_UPGRADE")
-        
-        if pendingTransaction then
-            -- Upgrade already in progress
-            option.notAvailable = true
-            local tooltip = ISInventoryPaneContextMenu.addToolTip()
-            tooltip:setName("Upgrade in progress...")
-            option.toolTip = tooltip
-        elseif availableCores < coreCost then
-            -- Not enough available cores
-            option.notAvailable = true
-            local tooltip = ISInventoryPaneContextMenu.addToolTip()
-            local lockedCount = totalCores - availableCores
-            if lockedCount > 0 then
-                tooltip:setName("Need " .. coreCost .. " cores (have " .. availableCores .. " available, " .. lockedCount .. " locked)")
-            else
-                tooltip:setName("Need " .. coreCost .. " cores (have " .. availableCores .. ")")
-            end
-            option.toolTip = tooltip
-        else
-            -- Show info tooltip
-            local tooltip = ISInventoryPaneContextMenu.addToolTip()
-            tooltip:setName("Costs " .. coreCost .. " cores")
-            tooltip:setDescription("New size: " .. tierConfig.displayName)
-            option.toolTip = tooltip
-        end
-    else
-        -- At max tier
-        local option = context:addOption("Max Tier Reached", playerObj, nil)
-        option.notAvailable = true
+    -- Add icon to the option
+    local upgradeIcon = getTexture("media/textures/upgrade_spatial_refuge_64x64.png")
+    if upgradeIcon then
+        upgradeOption.iconTexture = upgradeIcon
     end
+    
+    -- Add tooltip
+    local upgradeTooltip = ISInventoryPaneContextMenu.addToolTip()
+    upgradeTooltip:setName("Upgrade Refuge")
+    upgradeTooltip:setDescription("Expand your refuge and unlock new features")
+    upgradeOption.toolTip = upgradeTooltip
 end
 
 -- Register context menu hook

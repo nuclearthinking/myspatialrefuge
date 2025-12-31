@@ -1,0 +1,95 @@
+# PZ Icons Tool
+
+Use the `pzicons` CLI tool to convert SVG icons to PZ mod-ready PNG textures.
+
+## Installation
+
+```powershell
+uv tool install C:\Users\onifent\Documents\projects\mod_utils\icons
+```
+
+## Converting Icons
+
+```powershell
+# Basic conversion (generates 16, 24, 32, 48, 64 px icons)
+pzicons convert icon.svg
+
+# With PZ-specific colors
+pzicons convert checkmark.svg -c pz-green    # Level up, success
+pzicons convert lock.svg -c pz-red           # Locked, damage
+
+# Custom hex color
+pzicons convert icon.svg -c "#4CAF50"
+
+# Specific sizes only
+pzicons convert icon.svg -s 32,64
+
+# Custom output directory and filename
+pzicons convert check.svg -o ./media/textures -n upgrade_complete -c pz-green
+
+# Batch convert multiple SVGs
+pzicons batch *.svg -c pz-green -o ./textures
+```
+
+## Output Location
+
+Place generated PNGs in:
+```
+MySpatialRefuge/Contents/mods/myspatialrefuge/42.13/media/textures/
+```
+
+## Using in Lua Code
+
+```lua
+-- Load texture
+local icon = getTexture("media/textures/checkbox_32x32.png")
+
+-- Draw in UI panel render()
+if icon then
+    self:drawTextureScaledAspect(icon, x, y, 32, 32, 1, 1, 1, 1)
+end
+
+-- With color tint (r, g, b values 0-1)
+self:drawTextureScaledAspect(icon, x, y, 32, 32, 1, 0.5, 1, 0.5)
+```
+
+## Named Colors
+
+| Name | RGB | Use Case |
+|------|-----|----------|
+| `pz-green` | (137, 232, 148) | Level up, success, upgrades complete |
+| `pz-red` | (255, 105, 97) | Damage, locked, unavailable |
+| `pz-good` | (100, 200, 100) | Positive effects |
+| `pz-bad` | (200, 100, 100) | Negative effects |
+| `white` | (255, 255, 255) | For tinting in-game |
+
+## Recommended Icon Sizes
+
+| Size | Use |
+|------|-----|
+| 16x16 | Small badges, indicators |
+| 24x24 | List items, small buttons |
+| 32x32 | Standard icons, grid items |
+| 48x48 | Large buttons, headers |
+| 64x64 | Window icons, main elements |
+
+## SVG Requirements
+
+- Use **filled shapes** (not strokes) for best results
+- Use **black/dark colors** - they'll be replaced with target color
+- White/light backgrounds are automatically made transparent
+- Recommended source: [Lucide](https://lucide.dev), [Heroicons](https://heroicons.com)
+
+## Helper Commands
+
+```powershell
+# List all available named colors
+pzicons colors
+
+# Show recommended sizes
+pzicons sizes
+
+# Get help
+pzicons --help
+pzicons convert --help
+```

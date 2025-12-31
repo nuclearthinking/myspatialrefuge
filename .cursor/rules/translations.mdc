@@ -1,0 +1,174 @@
+---
+alwaysApply: true
+---
+
+# Translation Validation Tool
+
+Use the `pztranslate` CLI tool to validate and manage translations for this mod.
+
+## Installation
+
+```bash
+uv tool install "c:\Users\onifent\Documents\projects\mod_utils\translate"
+```
+
+## Translation Directory
+
+```
+Contents/mods/myspatialrefuge/42.13/media/lua/shared/Translate/
+├── EN/           # Source of truth
+│   ├── IG_UI_EN.txt
+│   ├── UI_EN.txt
+│   ├── Sandbox_EN.txt
+│   └── ItemName_EN.txt
+├── RU/           # Russian
+├── CN/           # Chinese Simplified
+├── ES/           # Spanish
+└── PTBR/         # Portuguese Brazilian
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `pztranslate status <dir>` | Show translation completeness summary |
+| `pztranslate check <dir>` | Report missing/outdated/extra translations |
+| `pztranslate check <dir> -o json` | JSON output for programmatic use |
+| `pztranslate diff <dir>` | LLM-friendly structured output |
+| `pztranslate languages` | List target languages |
+
+## Quick Check
+
+```bash
+pztranslate status "C:\Users\onifent\Zomboid\Workshop\MySpatialRefuge\Contents\mods\myspatialrefuge\42.13\media\lua\shared\Translate"
+```
+
+## Translation File Format
+
+Project Zomboid uses Lua table syntax for translations:
+
+```lua
+TableName_LANG = {
+    Key = "Value",  -- version/date
+}
+```
+
+### Version Tags
+
+Add version tags as Lua comments to track when translations were added/updated:
+
+```lua
+IGUI_EN = {
+    IGUI_SpatialRefuge_Enter = "Enter Spatial Refuge",  -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_Exit = "Exit Spatial Refuge",  -- 1.5/31.12.2025 # context menu
+    IGUI_SpatialRefuge_OnCooldown = "Teleport on cooldown",  -- 1.5/31.12.2025 # shown when action blocked
+}
+```
+
+**Format:** `-- {version}/{DD.MM.YYYY}` or `-- {version}/{DD.MM.YYYY} # optional comment`
+
+- `version` - mod version when translation was added/updated (e.g., `1.5`)
+- `date` - date in DD.MM.YYYY format (e.g., `31.12.2025`)
+- `# comment` - optional context about where/how the translation is used
+
+### When to Update Tags
+
+1. **New translation** - add tag with current version and date
+2. **Changed EN text** - update EN tag, then update all target languages and their tags
+3. **Tool reports OUTDATED** - translation exists but tag differs from EN, needs review
+4. **Tool reports UNTAGGED** - add version tag to the entry
+
+## Issue Types
+
+| Type | Meaning | Action |
+|------|---------|--------|
+| MISSING | Key in EN but not in target | Add translation |
+| OUTDATED | Key exists but version tag differs | Review and update translation |
+| EXTRA | Key in target but not in EN | Remove from target |
+| UNTAGGED | Key has no version tag | Add version tag `-- version/date` |
+
+## Adding New Translations
+
+1. **Add to EN file first** with version tag:
+   ```lua
+   IGUI_NewKey = "New English text",  -- 1.6/15.01.2026
+   ```
+
+2. **Run check to see what's missing:**
+   ```bash
+   pztranslate check <dir>
+   ```
+
+3. **Add translations to each target language** with same version tag:
+   ```lua
+   -- RU
+   IGUI_NewKey = "Новый русский текст",  -- 1.6/15.01.2026
+   
+   -- CN
+   IGUI_NewKey = "新的中文文本",  -- 1.6/15.01.2026
+   
+   -- ES
+   IGUI_NewKey = "Nuevo texto en español",  -- 1.6/15.01.2026
+   
+   -- PTBR
+   IGUI_NewKey = "Novo texto em português",  -- 1.6/15.01.2026
+   ```
+
+4. **Verify all complete:**
+   ```bash
+   pztranslate status <dir>
+   ```
+
+## Target Languages
+
+| Code | Language | Native |
+|------|----------|--------|
+| RU | Russian | Русский |
+| CN | Chinese Simplified | 简体中文 |
+| ES | Spanish | Español |
+| PTBR | Portuguese Brazilian | Português do Brasil |
+
+## Localization Guidelines
+
+### DO Translate
+- UI text (buttons, labels, tooltips)
+- Descriptions and instructions
+- Game mechanic names
+- Mod name: "Spatial Refuge" → localized equivalent
+
+### DO NOT Translate
+- Item IDs and script names
+- Lua variable names
+- Technical identifiers
+
+### Localized Mod Names
+
+| Language | "Spatial Refuge" | "My Spatial Refuge" |
+|----------|------------------|---------------------|
+| EN | Spatial Refuge | My Spatial Refuge |
+| RU | Пространственное Убежище | Моё Пространственное Убежище |
+| CN | 空间避难所 | 我的空间避难所 |
+| ES | Refugio Espacial | Mi Refugio Espacial |
+| PTBR | Refúgio Espacial | Meu Refúgio Espacial |
+
+## File Naming Convention
+
+Translation files follow the pattern: `{BaseName}_{LANG}.txt`
+
+| Base | EN | RU | CN | ES | PTBR |
+|------|----|----|----|----|------|
+| IG_UI | IG_UI_EN.txt | IG_UI_RU.txt | IG_UI_CN.txt | IG_UI_ES.txt | IG_UI_PTBR.txt |
+| UI | UI_EN.txt | UI_RU.txt | UI_CN.txt | UI_ES.txt | UI_PTBR.txt |
+| Sandbox | Sandbox_EN.txt | Sandbox_RU.txt | Sandbox_CN.txt | Sandbox_ES.txt | Sandbox_PTBR.txt |
+| ItemName | ItemName_EN.txt | ItemName_RU.txt | ItemName_CN.txt | ItemName_ES.txt | ItemName_PTBR.txt |
+
+## Section Names
+
+Section names must match between EN and target, with language suffix swapped:
+
+| EN Section | RU Section | CN Section | ES Section | PTBR Section |
+|------------|------------|------------|------------|--------------|
+| IGUI_EN | IGUI_RU | IGUI_CN | IGUI_ES | IGUI_PTBR |
+| UI_EN | UI_RU | UI_CN | UI_ES | UI_PTBR |
+| Tooltip_EN | Tooltip_RU | Tooltip_CN | Tooltip_ES | Tooltip_PTBR |
+| Sandbox_EN | Sandbox_RU | Sandbox_CN | Sandbox_ES | Sandbox_PTBR |

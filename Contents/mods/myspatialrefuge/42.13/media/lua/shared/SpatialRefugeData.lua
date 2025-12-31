@@ -3,6 +3,7 @@
 -- This ensures consistent data access in multiplayer
 
 require "shared/SpatialRefugeConfig"
+require "shared/SpatialRefugeEnv"
 
 -- Prevent double-loading
 if SpatialRefugeData and SpatialRefugeData._loaded then
@@ -13,47 +14,23 @@ SpatialRefugeData = SpatialRefugeData or {}
 SpatialRefugeData._loaded = true
 
 -----------------------------------------------------------
--- Cached Environment Flags
+-- Environment Helpers (delegated to SpatialRefugeEnv)
 -----------------------------------------------------------
--- These cannot change during a session, so we cache them on first access
 
-local _cachedIsServer = nil
-local _cachedIsClient = nil
-local _cachedCanModify = nil
-local _cachedIsMPClient = nil
-
--- Get cached isServer() result
 local function getCachedIsServer()
-    if _cachedIsServer == nil then
-        _cachedIsServer = isServer()
-    end
-    return _cachedIsServer
+    return SpatialRefugeEnv.isServer()
 end
 
--- Get cached isClient() result
 local function getCachedIsClient()
-    if _cachedIsClient == nil then
-        _cachedIsClient = isClient()
-    end
-    return _cachedIsClient
+    return SpatialRefugeEnv.isClient()
 end
 
--- Check if current context can modify server data (server or singleplayer)
--- Cached for performance
 local function canModifyData()
-    if _cachedCanModify == nil then
-        _cachedCanModify = getCachedIsServer() or (not getCachedIsClient())
-    end
-    return _cachedCanModify
+    return SpatialRefugeEnv.canModifyData()
 end
 
--- Check if running as MP client (not host/SP)
--- Cached for performance
 local function isMultiplayerClient()
-    if _cachedIsMPClient == nil then
-        _cachedIsMPClient = getCachedIsClient() and not getCachedIsServer()
-    end
-    return _cachedIsMPClient
+    return SpatialRefugeEnv.isClient() and not SpatialRefugeEnv.isServer()
 end
 
 -- Expose for other modules to use

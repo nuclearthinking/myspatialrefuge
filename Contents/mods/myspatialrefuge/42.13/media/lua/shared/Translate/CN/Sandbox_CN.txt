@@ -1,0 +1,12 @@
+Sandbox_CN = {
+    Sandbox_MySpatialRefuge = "我的空间避难所", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeTeleportCooldown = "传送冷却时间", -- 1.5/31.12.2025
+    Sandbox_RefugeTeleportCooldown_tooltip = "两次传送之间的秒数。0 = 无冷却。", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCastTime = "施法时间", -- 1.5/31.12.2025
+    Sandbox_RefugeCastTime_tooltip = "传送施法秒数（可被打断）。0 = 瞬间。", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCombatBlockTime = "战斗阻止时间", -- 1.5/31.12.2025
+    Sandbox_RefugeCombatBlockTime_tooltip = "受到伤害后多少秒内无法传送。0 = 禁用。", -- 1.5/31.12.2025
+}

@@ -3,6 +3,7 @@
 -- Tries YAML first, falls back to Lua definitions
 
 require "shared/CUI_YamlParser"
+require "shared/SpatialRefugeData"
 
 -- Prevent double-loading
 if SpatialRefugeUpgradeData and SpatialRefugeUpgradeData._loaded then
@@ -22,140 +23,70 @@ SpatialRefugeUpgradeData = {
 -----------------------------------------------------------
 
 local UPGRADE_DEFINITIONS = {
-    -- TEST UPGRADE - Simple test with zombie cores
-    test_upgrade = {
-        id = "test_upgrade",
-        name = "UI_Upgrade_TestUpgrade",
-        icon = "media/textures/sacred_core.png",
-        category = "test",
-        maxLevel = 3,
+    -- EXPAND REFUGE AREA - Increases refuge size (synced with refuge tier)
+    expand_refuge = {
+        id = "expand_refuge",
+        name = "UI_Upgrade_ExpandRefuge",
+        icon = "media/textures/expand_refuge_64x64.png",
+        category = "shelter",
+        maxLevel = 8,
         dependencies = {},
         levels = {
             [1] = {
-                description = "UI_Upgrade_TestUpgrade_L1",
-                effects = { testBonus = 0.1 },
+                description = "UI_Upgrade_ExpandRefuge_L1",
+                effects = { refugeSize = 5 },
                 requirements = {
-                    { type = "Base.MagicalCore", count = 1 }
+                    { type = "Base.MagicalCore", count = 5 }
                 }
             },
             [2] = {
-                description = "UI_Upgrade_TestUpgrade_L2",
-                effects = { testBonus = 0.2 },
+                description = "UI_Upgrade_ExpandRefuge_L2",
+                effects = { refugeSize = 7 },
                 requirements = {
-                    { type = "Base.MagicalCore", count = 2 }
+                    { type = "Base.MagicalCore", count = 10 }
                 }
             },
             [3] = {
-                description = "UI_Upgrade_TestUpgrade_L3",
-                effects = { testBonus = 0.3 },
+                description = "UI_Upgrade_ExpandRefuge_L3",
+                effects = { refugeSize = 9 },
                 requirements = {
-                    { type = "Base.MagicalCore", count = 3 }
+                    { type = "Base.MagicalCore", count = 20 }
                 }
-            }
-        }
-    },
-    
-    -- EXPENSIVE TEST - Requires many cores
-    test_expensive = {
-        id = "test_expensive",
-        name = "UI_Upgrade_TestExpensive",
-        icon = "media/textures/sacred_core.png",
-        category = "test",
-        maxLevel = 2,
-        dependencies = {},
-        levels = {
-            [1] = {
-                description = "UI_Upgrade_TestExpensive_L1",
-                effects = { expensiveBonus = 0.5 },
+            },
+            [4] = {
+                description = "UI_Upgrade_ExpandRefuge_L4",
+                effects = { refugeSize = 11 },
+                requirements = {
+                    { type = "Base.MagicalCore", count = 35 }
+                }
+            },
+            [5] = {
+                description = "UI_Upgrade_ExpandRefuge_L5",
+                effects = { refugeSize = 13 },
                 requirements = {
                     { type = "Base.MagicalCore", count = 50 }
                 }
             },
-            [2] = {
-                description = "UI_Upgrade_TestExpensive_L2",
-                effects = { expensiveBonus = 1.0 },
+            [6] = {
+                description = "UI_Upgrade_ExpandRefuge_L6",
+                effects = { refugeSize = 15 },
+                requirements = {
+                    { type = "Base.MagicalCore", count = 75 }
+                }
+            },
+            [7] = {
+                description = "UI_Upgrade_ExpandRefuge_L7",
+                effects = { refugeSize = 17 },
                 requirements = {
                     { type = "Base.MagicalCore", count = 100 }
                 }
-            }
-        }
-    },
-    
-    -- MULTI-ITEM TEST - Requires various items
-    test_multi = {
-        id = "test_multi",
-        name = "UI_Upgrade_TestMulti",
-        icon = "media/textures/sacred_core.png",
-        category = "test",
-        maxLevel = 1,
-        dependencies = {},
-        levels = {
-            [1] = {
-                description = "UI_Upgrade_TestMulti_L1",
-                effects = { multiBonus = 0.25 },
+            },
+            [8] = {
+                description = "UI_Upgrade_ExpandRefuge_L8",
+                effects = { refugeSize = 19 },
                 requirements = {
-                    { type = "Base.MagicalCore", count = 5 },
-                    { type = "Base.Plank", count = 20 },
-                    { type = "Base.Nails", count = 50 },
-                    { type = "Base.Axe", count = 1, substitutes = { "Base.HandAxe", "Base.WoodAxe" } }
+                    { type = "Base.MagicalCore", count = 150 }
                 }
-            }
-        }
-    },
-    
-    -- LOCKED TEST - Requires test_upgrade to be maxed first
-    test_locked = {
-        id = "test_locked",
-        name = "UI_Upgrade_TestLocked",
-        icon = "media/textures/sacred_core.png",
-        category = "test",
-        maxLevel = 1,
-        dependencies = { "test_upgrade" },
-        levels = {
-            [1] = {
-                description = "UI_Upgrade_TestLocked_L1",
-                effects = { lockedBonus = 1.0 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 10 }
-                }
-            }
-        }
-    },
-    
-    -- RARE ITEMS TEST - Requires rare/hard to find items
-    test_rare = {
-        id = "test_rare",
-        name = "UI_Upgrade_TestRare",
-        icon = "media/textures/sacred_core.png",
-        category = "test",
-        maxLevel = 1,
-        dependencies = {},
-        levels = {
-            [1] = {
-                description = "UI_Upgrade_TestRare_L1",
-                effects = { rareBonus = 0.5 },
-                requirements = {
-                    { type = "Base.Generator", count = 2 },
-                    { type = "Base.PropaneTank", count = 5 },
-                    { type = "Base.Sledgehammer", count = 1, substitutes = { "Base.Sledgehammer2" } }
-                }
-            }
-        }
-    },
-    
-    -- FREE TEST - No requirements
-    test_free = {
-        id = "test_free",
-        name = "UI_Upgrade_TestFree",
-        icon = "media/textures/sacred_core.png",
-        category = "test",
-        maxLevel = 1,
-        dependencies = {},
-        levels = {
-            [1] = {
-                description = "UI_Upgrade_TestFree_L1",
-                effects = { freeBonus = 0.1 },
-                requirements = {}
             }
         }
     },
@@ -165,18 +96,40 @@ local UPGRADE_DEFINITIONS = {
 -- Helper Functions
 -----------------------------------------------------------
 
--- Get player's upgrade data from ModData
-local function getPlayerUpgradeData(player)
-    if not player or not player.getModData then return nil end
+-- Get refuge upgrade data from GlobalModData (refugeData.upgrades)
+-- This stores upgrades per-refuge, not per-player, enabling future cooperative play
+-- @param player: IsoPlayer or player index
+-- @return: upgrades table from refugeData, or nil if not available
+local function getRefugeUpgradeData(player)
+    if not player then return nil, nil end
     
-    local ok, pmd = pcall(function() return player:getModData() end)
-    if not ok or not pmd then return nil end
-    
-    if not pmd.SpatialRefugeUpgrades then
-        pmd.SpatialRefugeUpgrades = {}
+    -- Get username
+    local username = nil
+    if type(player) == "userdata" or type(player) == "table" then
+        if player.getUsername then
+            local ok, name = pcall(function() return player:getUsername() end)
+            if ok and name then
+                username = name
+            end
+        end
     end
     
-    return pmd.SpatialRefugeUpgrades
+    if not username then return nil, nil end
+    
+    -- Get refugeData from GlobalModData
+    local refugeData = nil
+    if SpatialRefugeData and SpatialRefugeData.GetRefugeDataByUsername then
+        refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    end
+    
+    if not refugeData then return nil, nil end
+    
+    -- Ensure upgrades table exists
+    if not refugeData.upgrades then
+        refugeData.upgrades = {}
+    end
+    
+    return refugeData.upgrades, refugeData
 end
 
 -- Resolve player reference (handle player index or IsoPlayer)
@@ -205,7 +158,40 @@ end
 -- Initialization
 -----------------------------------------------------------
 
--- Load upgrades from Lua definitions
+-- Helper to process and register an upgrade
+local function processUpgrade(id, upgrade, source)
+    -- Ensure ID is set
+    upgrade.id = id
+    
+    -- Ensure required fields have defaults
+    upgrade.name = upgrade.name or ("Upgrade_" .. id)
+    upgrade.icon = upgrade.icon or "media/ui/upgrades/default.png"
+    upgrade.category = upgrade.category or "general"
+    upgrade.maxLevel = upgrade.maxLevel or 1
+    upgrade.dependencies = upgrade.dependencies or {}
+    upgrade.levels = upgrade.levels or {}
+    
+    -- Check if upgrade already exists (YAML overriding Lua)
+    local isOverride = SpatialRefugeUpgradeData._upgrades[id] ~= nil
+    
+    -- Store upgrade
+    SpatialRefugeUpgradeData._upgrades[id] = upgrade
+    
+    -- Index by category (only if not already indexed)
+    local cat = upgrade.category
+    if not SpatialRefugeUpgradeData._categories[cat] then
+        SpatialRefugeUpgradeData._categories[cat] = {}
+    end
+    
+    -- Check if already in category list
+    if not isOverride then
+        table.insert(SpatialRefugeUpgradeData._categories[cat], id)
+    end
+    
+    return isOverride
+end
+
+-- Load upgrades: Lua definitions first, then extend with YAML
 function SpatialRefugeUpgradeData.initialize()
     if SpatialRefugeUpgradeData._initialized then
         return true
@@ -214,98 +200,55 @@ function SpatialRefugeUpgradeData.initialize()
     print("[SpatialRefugeUpgradeData] ========================================")
     print("[SpatialRefugeUpgradeData] Initializing upgrade data...")
     
-    local data = nil
-    local source = "none"
+    local luaCount = 0
+    local yamlCount = 0
+    local yamlOverrides = 0
     
-    -- Try YAML first using CUI_YamlParser from MySpatialCore
-    print("[SpatialRefugeUpgradeData] Attempting to load YAML...")
+    -- Step 1: Load Lua definitions (primary/base upgrades)
+    print("[SpatialRefugeUpgradeData] Loading Lua definitions...")
+    for id, upgrade in pairs(UPGRADE_DEFINITIONS) do
+        processUpgrade(id, upgrade, "Lua")
+        luaCount = luaCount + 1
+        print("[SpatialRefugeUpgradeData]   Lua upgrade: " .. tostring(id))
+    end
+    print("[SpatialRefugeUpgradeData] Loaded " .. luaCount .. " upgrades from Lua")
+    
+    -- Step 2: Try to extend with YAML upgrades (optional/additional)
+    print("[SpatialRefugeUpgradeData] Attempting to load YAML extensions...")
     local yamlPath = "media/lua/shared/upgrades.yaml"
     
     local ok, result = pcall(function()
         return CUI_YamlParser.parseFile("myspatialrefuge", yamlPath)
     end)
     
-    if ok and result then
-        print("[SpatialRefugeUpgradeData] YAML parseFile returned a result")
-        if result.upgrades then
-            local count = 0
-            for k, v in pairs(result.upgrades) do
-                count = count + 1
-                print("[SpatialRefugeUpgradeData]   YAML upgrade found: " .. tostring(k))
-            end
-            if count > 0 then
-                data = result
-                source = "YAML"
-                print("[SpatialRefugeUpgradeData] SUCCESS: Loaded " .. count .. " upgrades from YAML")
+    if ok and result and result.upgrades then
+        for id, upgrade in pairs(result.upgrades) do
+            local isOverride = processUpgrade(id, upgrade, "YAML")
+            yamlCount = yamlCount + 1
+            if isOverride then
+                yamlOverrides = yamlOverrides + 1
+                print("[SpatialRefugeUpgradeData]   YAML override: " .. tostring(id))
             else
-                print("[SpatialRefugeUpgradeData] YAML parsed but no upgrades found in result")
-            end
-        else
-            print("[SpatialRefugeUpgradeData] YAML parsed but 'upgrades' key is nil")
-            -- Debug: print what keys are in result
-            for k, v in pairs(result) do
-                print("[SpatialRefugeUpgradeData]   YAML has key: " .. tostring(k) .. " = " .. type(v))
+                print("[SpatialRefugeUpgradeData]   YAML extension: " .. tostring(id))
             end
         end
+        print("[SpatialRefugeUpgradeData] Loaded " .. yamlCount .. " upgrades from YAML (" .. yamlOverrides .. " overrides)")
     else
-        print("[SpatialRefugeUpgradeData] YAML parse failed: " .. tostring(result))
-    end
-    
-    -- Fall back to Lua definitions
-    if not data then
-        print("[SpatialRefugeUpgradeData] Falling back to Lua definitions...")
-        local luaCount = 0
-        for k, v in pairs(UPGRADE_DEFINITIONS) do
-            luaCount = luaCount + 1
-        end
-        print("[SpatialRefugeUpgradeData] Lua has " .. luaCount .. " upgrade definitions")
-        data = { upgrades = UPGRADE_DEFINITIONS }
-        source = "Lua"
-    end
-    
-    if not data or not data.upgrades then
-        print("[SpatialRefugeUpgradeData] ERROR: No upgrade data available")
-        SpatialRefugeUpgradeData._upgrades = {}
-        SpatialRefugeUpgradeData._categories = {}
-        SpatialRefugeUpgradeData._initialized = true
-        return false
-    end
-    
-    print("[SpatialRefugeUpgradeData] Using " .. source .. " as data source")
-    
-    -- Process upgrades
-    if data.upgrades then
-        for id, upgrade in pairs(data.upgrades) do
-            -- Ensure ID is set
-            upgrade.id = id
-            
-            -- Ensure required fields have defaults
-            upgrade.name = upgrade.name or ("Upgrade_" .. id)
-            upgrade.icon = upgrade.icon or "media/ui/upgrades/default.png"
-            upgrade.category = upgrade.category or "general"
-            upgrade.maxLevel = upgrade.maxLevel or 1
-            upgrade.dependencies = upgrade.dependencies or {}
-            upgrade.levels = upgrade.levels or {}
-            
-            -- Store upgrade
-            SpatialRefugeUpgradeData._upgrades[id] = upgrade
-            
-            -- Index by category
-            local cat = upgrade.category
-            if not SpatialRefugeUpgradeData._categories[cat] then
-                SpatialRefugeUpgradeData._categories[cat] = {}
-            end
-            table.insert(SpatialRefugeUpgradeData._categories[cat], id)
+        if ok then
+            print("[SpatialRefugeUpgradeData] No YAML upgrades found (file missing or empty)")
+        else
+            print("[SpatialRefugeUpgradeData] YAML parse failed: " .. tostring(result))
         end
     end
     
     SpatialRefugeUpgradeData._initialized = true
     
-    local count = 0
+    local totalCount = 0
     for _ in pairs(SpatialRefugeUpgradeData._upgrades) do
-        count = count + 1
+        totalCount = totalCount + 1
     end
-    print("[SpatialRefugeUpgradeData] Loaded " .. count .. " upgrades")
+    print("[SpatialRefugeUpgradeData] Total upgrades loaded: " .. totalCount)
+    print("[SpatialRefugeUpgradeData] ========================================")
     
     return true
 end
@@ -379,6 +322,8 @@ end
 
 -----------------------------------------------------------
 -- Player Progress API
+-- NOTE: Upgrade data is stored in GlobalModData (refugeData.upgrades)
+-- This enables future cooperative play where multiple players share a refuge
 -----------------------------------------------------------
 
 -- Get player's current level for an upgrade (0 = not purchased)
@@ -386,21 +331,47 @@ function SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return 0 end
     
-    local upgradeData = getPlayerUpgradeData(playerObj)
+    -- Get upgrade data from refugeData (GlobalModData)
+    local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
+    
+    -- Special case: expand_refuge level is synced with refuge tier
+    if upgradeId == "expand_refuge" then
+        if refugeData and refugeData.tier then
+            return refugeData.tier
+        end
+        return 0
+    end
+    
+    -- Standard upgrade: read from refugeData.upgrades
     if not upgradeData then return 0 end
     
     return upgradeData[upgradeId] or 0
 end
 
 -- Set player's upgrade level (used after successful purchase)
+-- NOTE: Only server/singleplayer can modify GlobalModData
 function SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    local upgradeData = getPlayerUpgradeData(playerObj)
-    if not upgradeData then return false end
+    -- expand_refuge level is determined by refuge tier, not stored separately
+    if upgradeId == "expand_refuge" then
+        -- Tier is updated by SpatialRefugeShared.ExpandRefuge, not here
+        return true
+    end
     
+    -- Get upgrade data from refugeData (GlobalModData)
+    local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
+    if not upgradeData or not refugeData then return false end
+    
+    -- Set the upgrade level
     upgradeData[upgradeId] = level
+    
+    -- Save refugeData to persist the change (only works on server/SP)
+    if SpatialRefugeData and SpatialRefugeData.SaveRefugeData then
+        SpatialRefugeData.SaveRefugeData(refugeData)
+    end
+    
     return true
 end
 

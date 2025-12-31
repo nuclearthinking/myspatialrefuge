@@ -1,0 +1,10 @@
+IGUI_CN = {
+    -- Spatial Refuge UI
+    IGUI_SpatialRefuge_Enter = "进入空间避难所", -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_Exit = "离开空间避难所", -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_OnCooldown = "传送冷却中", -- 1.5/31.12.2025
+}
+
+Tooltip_CN = {
+    Tooltip_SacredRelic = "一件神秘的遗物，可以创造一个口袋空间。<LINE>右键点击进入你的空间避难所。", -- 1.5/31.12.2025
+}

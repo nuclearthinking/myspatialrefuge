@@ -4,31 +4,44 @@ alwaysApply: true
 
 # GitHub Issues Tool
 
-When working with GitHub issues for this project, use the CLI tool at `utils/gh_issues.py`.
+When working with GitHub issues for this project, use the `githubissues` CLI tool.
+
+## Installation
+
+Install as a global tool with uv:
+
+```bash
+uv tool install "c:\Users\onifent\Documents\projects\mod_utils\github"
+```
+
+Or reinstall/update:
+
+```bash
+uv tool install --force "c:\Users\onifent\Documents\projects\mod_utils\github"
+```
 
 ## How to Run
 
-Always use `uv run` from the project root:
+The tool is installed as `githubissues` command:
 
 ```bash
-cd "C:\Users\onifent\Zomboid\Workshop\MySpatialRefuge"
-uv run utils/gh_issues.py <command> [options] --output json
+githubissues <command> [options] --output json
 ```
 
 ## Available Commands
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `list` | `uv run utils/gh_issues.py list --output json` | List open issues |
-| `view` | `uv run utils/gh_issues.py view <N> --output json` | View issue details |
-| `create` | `uv run utils/gh_issues.py create --title "..." --body "..." --output json` | Create new issue |
-| `close` | `uv run utils/gh_issues.py close <N> --output json` | Close an issue |
-| `reopen` | `uv run utils/gh_issues.py reopen <N> --output json` | Reopen issue |
-| `comment` | `uv run utils/gh_issues.py comment <N> --body "..." --output json` | Add comment |
-| `edit` | `uv run utils/gh_issues.py edit <N> --title "..." --output json` | Edit issue |
-| `search` | `uv run utils/gh_issues.py search "query" --output json` | Search issues |
-| `labels` | `uv run utils/gh_issues.py labels --output json` | List labels |
-| `schema` | `uv run utils/gh_issues.py schema` | Get full tool schema |
+| `list` | `githubissues list --output json` | List open issues |
+| `view` | `githubissues view <N> --output json` | View issue details |
+| `create` | `githubissues create --title "..." --body "..." --output json` | Create new issue |
+| `close` | `githubissues close <N> --output json` | Close an issue |
+| `reopen` | `githubissues reopen <N> --output json` | Reopen issue |
+| `comment` | `githubissues comment <N> --body "..." --output json` | Add comment |
+| `edit` | `githubissues edit <N> --title "..." --output json` | Edit issue |
+| `search` | `githubissues search "query" --output json` | Search issues |
+| `labels` | `githubissues labels --output json` | List labels |
+| `schema` | `githubissues schema` | Get full tool schema |
 
 ## Important Options
 
@@ -36,7 +49,7 @@ uv run utils/gh_issues.py <command> [options] --output json
 - `--state open|closed|all` — Filter issues by state
 - `--labels "bug,feature"` — Filter by labels (comma-separated)
 - `--comments` or `-c` — Include comments when viewing issue
-- `--type bug|feature|task` — Use template when creating
+- `--type bug|feature|task` — Use template when creating (auto-adds prefix like `[Bug]`)
 - `--body-file` or `-f` — Read body from file (preserves backticks, recommended for code)
 - `--stdin` — Read body from stdin (comment command only)
 
@@ -50,9 +63,9 @@ uv run utils/gh_issues.py <command> [options] --output json
 # Create a temp file with proper markdown
 # Then use --body-file to preserve backticks
 
-uv run utils/gh_issues.py comment 42 --body-file comment.md --output json
-uv run utils/gh_issues.py create --title "Bug" --body-file body.md --output json
-uv run utils/gh_issues.py edit 42 --body-file updated_body.md --output json
+githubissues comment 42 --body-file comment.md --output json
+githubissues create --title "Bug" --body-file body.md --output json
+githubissues edit 42 --body-file updated_body.md --output json
 ```
 
 This bypasses shell escaping and preserves all markdown formatting including:
@@ -63,46 +76,52 @@ This bypasses shell escaping and preserves all markdown formatting including:
 
 ```bash
 # List all open issues
-uv run utils/gh_issues.py list --state open --output json
+githubissues list --state open --output json
 
 # View issue #42 with comments
-uv run utils/gh_issues.py view 42 --comments --output json
+githubissues view 42 --comments --output json
 
 # Create a bug report
-uv run utils/gh_issues.py create --type bug --title "Login fails" --body "Error when..." --output json
+githubissues create --type bug --title "Login fails" --body "Error when..." --output json
 
 # Search for multiplayer issues
-uv run utils/gh_issues.py search "multiplayer" --state open --output json
+githubissues search "multiplayer" --state open --output json
 
 # Close issue with comment
-uv run utils/gh_issues.py close 42 --comment "Fixed in commit abc123" --output json
+githubissues close 42 --comment "Fixed in commit abc123" --output json
 
 # Edit issue title and add label
-uv run utils/gh_issues.py edit 42 --title "New title" --add-labels "priority-high" --output json
+githubissues edit 42 --title "New title" --add-labels "priority-high" --output json
 ```
 
 ## Best Practices
 
 1. Always use `--output json` for parsing results
-2. Run from project root: `C:\Users\onifent\Zomboid\Workshop\MySpatialRefuge`
-3. Use `schema` command if you need to check available options
-4. When creating issues, use `--type` for structured templates
-5. Check `status` first if authentication issues occur
+2. Use `schema` command if you need to check available options
+3. When creating issues, use `--type` for structured templates
+4. Check `status` first if authentication issues occur
+5. Ensure GitHub CLI (`gh`) is installed and authenticated: `gh auth login`
 
 ## How to Properly Report Issues
 
 ### Issue Structure
 
 **Good Title Format:**
-- Bug: `"[Bug] Player can't plumb rain barrels in spatial refuge"`
-- Feature: `"[Feature] Add custom water storage system"`
-- Task: `"[Task] Implement IsoBuilding for refuge area"`
+
+When using `--type`, do NOT include the prefix (it's added automatically):
+- `--type bug --title "Player can't plumb rain barrels"` → `[Bug] Player can't plumb rain barrels`
+- `--type feature --title "Add custom water storage"` → `[Feature] Add custom water storage`
+- `--type task --title "Implement IsoBuilding"` → `[Task] Implement IsoBuilding`
+
+Without `--type`, include the prefix manually:
+- `--title "[Bug] Player can't plumb rain barrels"`
 
 **Body Structure:**
 Use proper markdown sections with actual newlines (not `\n` escape sequences):
 
 ```bash
-uv run utils/gh_issues.py create \
+# Note: --type bug automatically adds [Bug] prefix, don't include it in title
+githubissues create \
   --type bug \
   --title "Cannot plumb sinks in refuge" \
   --body "## Description
@@ -177,7 +196,7 @@ Include:
 If formatting is broken after creation, fix it with `edit`:
 
 ```bash
-uv run utils/gh_issues.py edit 12 --body "## Properly Formatted
+githubissues edit 12 --body "## Properly Formatted
 
 This text has actual newlines and renders correctly on GitHub.
 

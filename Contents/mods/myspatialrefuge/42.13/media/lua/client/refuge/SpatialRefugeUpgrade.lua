@@ -100,21 +100,36 @@ end
 -- Perform refuge upgrade (singleplayer only)
 -- Returns: true if successful, false otherwise
 function SpatialRefuge.PerformUpgrade(player, refugeData, newTier)
-    if not player or not refugeData then return false end
+    print("[SpatialRefuge] PerformUpgrade: ========================================")
+    print("[SpatialRefuge] PerformUpgrade: newTier=" .. tostring(newTier))
+    
+    if not player or not refugeData then 
+        print("[SpatialRefuge] PerformUpgrade: ERROR - No player or refugeData")
+        return false 
+    end
     
     local tierConfig = SpatialRefugeConfig.TIERS[newTier]
-    if not tierConfig then return false end
+    if not tierConfig then 
+        print("[SpatialRefuge] PerformUpgrade: ERROR - No tier config for tier " .. tostring(newTier))
+        print("[SpatialRefuge] PerformUpgrade: MAX_TIER=" .. tostring(SpatialRefugeConfig.MAX_TIER))
+        return false 
+    end
+    print("[SpatialRefuge] PerformUpgrade: tierConfig found - radius=" .. tostring(tierConfig.radius) .. " size=" .. tostring(tierConfig.size))
     
     -- Find the Sacred Relic before expansion (to reposition after)
     local relic = findSacredRelicInRefuge(refugeData)
+    print("[SpatialRefuge] PerformUpgrade: relic found=" .. tostring(relic ~= nil))
     
     -- Expand the refuge (creates new floor tiles and walls)
+    print("[SpatialRefuge] PerformUpgrade: Calling ExpandRefuge...")
     local success = SpatialRefuge.ExpandRefuge(refugeData, newTier)
     
     if not success then
+        print("[SpatialRefuge] PerformUpgrade: ExpandRefuge FAILED")
         player:Say("Failed to expand refuge!")
         return false
     end
+    print("[SpatialRefuge] PerformUpgrade: ExpandRefuge SUCCESS")
     
     -- Invalidate cached boundary data so player can move in expanded area
     if SpatialRefuge.InvalidateBoundsCache then
@@ -126,6 +141,7 @@ function SpatialRefuge.PerformUpgrade(player, refugeData, newTier)
         SpatialRefuge.RepositionRelicToAssignedCorner(relic, refugeData)
     end
     
+    print("[SpatialRefuge] PerformUpgrade: Complete")
     return true
 end
 
