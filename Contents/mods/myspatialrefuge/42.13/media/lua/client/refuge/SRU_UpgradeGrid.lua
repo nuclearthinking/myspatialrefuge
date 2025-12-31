@@ -213,7 +213,7 @@ function SRU_UpgradeGrid:onMouseWheel(del)
     
     local scrollAmount = self.slotSize + self.slotSpacing
     local currentScroll = self.smoothScrollTargetY or self.scrollOffset
-    local targetScroll = currentScroll + del * scrollAmount
+    local targetScroll = currentScroll - (del * scrollAmount)
     
     targetScroll = math.max(0, math.min(targetScroll, self.maxScrollOffset))
     
