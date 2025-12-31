@@ -5,6 +5,7 @@
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeData"
 require "shared/SpatialRefugeMigration"
+require "shared/SpatialRefugeShared"
 
 -- Prevent double-loading
 if SpatialRefuge and SpatialRefuge._mainLoaded then
@@ -123,6 +124,42 @@ function SpatialRefuge.UpdateDamageTime(player)
     
     local pmd = player:getModData()
     pmd.spatialRefuge_lastDamage = getTimestamp()  -- Use game time instead of os.time()
+end
+
+-- Get Sacred Relic container for a player (for item source access)
+-- Returns: ItemContainer if found, nil otherwise
+function SpatialRefuge.GetRelicContainer(player)
+    if not player then return nil end
+    
+    -- Get player's refuge data
+    local refugeData = SpatialRefuge.GetRefugeData(player)
+    if not refugeData then return nil end
+    
+    -- Check if we have relic position
+    local relicX = refugeData.relicX
+    local relicY = refugeData.relicY
+    local relicZ = refugeData.relicZ or 0
+    
+    if not relicX or not relicY then
+        -- Fallback: use refuge center
+        relicX = refugeData.centerX
+        relicY = refugeData.centerY
+        relicZ = refugeData.centerZ or 0
+    end
+    
+    -- Find the relic object
+    local radius = refugeData.radius or 1
+    local refugeId = refugeData.refugeId
+    local relic = SpatialRefugeShared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
+    
+    if not relic then return nil end
+    
+    -- Get container from relic
+    if relic.getContainer then
+        return relic:getContainer()
+    end
+    
+    return nil
 end
 
 -----------------------------------------------------------
