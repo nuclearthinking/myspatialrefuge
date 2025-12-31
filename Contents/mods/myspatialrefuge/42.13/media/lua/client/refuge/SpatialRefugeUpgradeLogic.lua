@@ -304,27 +304,39 @@ function SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
         return false
     end
     
-    -- Get inventory
-    local inv = playerObj:getInventory()
-    if not inv then return false end
+    -- Get all item sources (inventory + relic container)
+    local sources = SpatialRefugeTransaction.GetItemSources(playerObj)
+    if not sources or #sources == 0 then return false end
     
-    -- Consume each item type
+    -- Consume each item type from all available sources
     for itemType, count in pairs(resolved) do
         local remaining = count
-        local items = inv:getItems()
         
-        for i = items:size() - 1, 0, -1 do
+        -- Try each source until we have enough items
+        for _, container in ipairs(sources) do
             if remaining <= 0 then break end
-            
-            local item = items:get(i)
-            if item and item:getFullType() == itemType then
-                inv:Remove(item)
-                remaining = remaining - 1
+            if not container then
+                -- Skip invalid container
+            else
+                local items = container:getItems()
+                if items then
+                    -- Iterate backwards to safely remove items
+                    for i = items:size() - 1, 0, -1 do
+                        if remaining <= 0 then break end
+                        
+                        local item = items:get(i)
+                        if item and item:getFullType() == itemType then
+                            container:Remove(item)
+                            remaining = remaining - 1
+                        end
+                    end
+                end
             end
         end
         
         if remaining > 0 then
             -- Failed to consume all items - should not happen if validation passed
+            print("[SpatialRefugeUpgradeLogic] consumeItems: Failed to consume " .. tostring(remaining) .. " of " .. tostring(itemType))
             return false
         end
     end

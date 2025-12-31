@@ -139,9 +139,13 @@ function SRU_UpgradeDetails:getMissingDependencies()
         local depUpgrade = SpatialRefugeUpgradeData.getUpgrade(depId)
         if depUpgrade then
             local depLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(self.player, depId)
-            if depLevel < 1 then
+            local depMaxLevel = depUpgrade.maxLevel or 1
+            -- Dependencies must be at MAX level (matching isUpgradeUnlocked logic)
+            if depLevel < depMaxLevel then
                 local depName = getText(depUpgrade.name) or depUpgrade.name or depId
-                table.insert(missing, depName)
+                -- Include current/max level info for clarity
+                local depText = string.format("%s (Level %d/%d)", depName, depLevel, depMaxLevel)
+                table.insert(missing, depText)
             end
         end
     end
