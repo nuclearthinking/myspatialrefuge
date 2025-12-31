@@ -1,0 +1,21 @@
+version = 0
+settings
+{
+    packFileName = myspatialrefuge.pack
+    outputImageSize = 1024,1024
+    scale50 = false
+    inputImageDirectory
+    {
+        path = ../
+        imagesAreTilesheets = false
+    }
+    inputImageDirectory
+    {
+        path = 2x
+        imagesAreTilesheets = true
+    }
+    tileDef
+    {
+        path = myspatialrefuge.tiles
+    }
+}

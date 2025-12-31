@@ -1,0 +1,12 @@
+Sandbox_RU = {
+    Sandbox_MySpatialRefuge = "Моё Пространственное Убежище", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeTeleportCooldown = "Перезарядка телепортации", -- 1.5/31.12.2025
+    Sandbox_RefugeTeleportCooldown_tooltip = "Секунды между телепортациями. 0 = без перезарядки.", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCastTime = "Время каста", -- 1.5/31.12.2025
+    Sandbox_RefugeCastTime_tooltip = "Секунды на телепортацию (можно прервать). 0 = мгновенно.", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCombatBlockTime = "Блокировка в бою", -- 1.5/31.12.2025
+    Sandbox_RefugeCombatBlockTime_tooltip = "Секунды после получения урона до возможности телепортации. 0 = отключено.", -- 1.5/31.12.2025
+}

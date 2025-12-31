@@ -5,35 +5,22 @@
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeValidation"
 require "shared/SpatialRefugeShared"
+require "shared/SpatialRefugeEnv"
 
 -- Assume dependencies are already loaded
 SpatialRefuge = SpatialRefuge or {}
 SpatialRefugeConfig = SpatialRefugeConfig or {}
 
 -----------------------------------------------------------
--- Environment Detection (cached - cannot change during session)
+-- Environment Detection (delegated to SpatialRefugeEnv)
 -----------------------------------------------------------
 
-local _cachedIsServer = nil
-local _cachedIsClient = nil
-local _cachedIsMPClient = nil
-
--- Check if we're in multiplayer client mode (not host/SP) - cached for performance
 local function isMultiplayerClient()
-    if _cachedIsMPClient == nil then
-        if _cachedIsClient == nil then _cachedIsClient = isClient() end
-        if _cachedIsServer == nil then _cachedIsServer = isServer() end
-        _cachedIsMPClient = _cachedIsClient and not _cachedIsServer
-    end
-    return _cachedIsMPClient
+    return SpatialRefugeEnv.isClient() and not SpatialRefugeEnv.isServer()
 end
 
--- Check if we're in singleplayer - cached for performance
 local function isSinglePlayer()
-    if _cachedIsServer == nil then _cachedIsServer = isServer() end
-    if _cachedIsClient == nil then _cachedIsClient = isClient() end
-    -- SP: isServer() true, no client connected (or host)
-    return _cachedIsServer or not _cachedIsClient
+    return SpatialRefugeEnv.isSingleplayer()
 end
 
 -----------------------------------------------------------
@@ -535,6 +522,9 @@ local function OnServerCommand(module, command, args)
     elseif command == SpatialRefugeConfig.COMMANDS.GENERATION_COMPLETE then
         -- Phase 2 complete: Server finished generating structures
         -- Confirm to player (structures should now be visible)
+        if getDebug() then
+            print("[SpatialRefuge] GENERATION_COMPLETE received")
+        end
         if args and args.centerX then
             player:Say("Entered Spatial Refuge")
             
@@ -800,6 +790,24 @@ local function OnServerCommand(module, command, args)
     elseif command == "FeatureUpgradeComplete" then
         -- Server confirmed feature upgrade
         if args then
+            -- IMPORTANT: Update local ModData FIRST, before calling onUpgradeComplete
+            -- This ensures the UI refresh sees the updated tier/data
+            if args.upgradeId == "expand_refuge" and args.refugeData then
+                local username = player:getUsername()
+                if username and args.refugeData.username == username then
+                    local modData = ModData.getOrCreate(SpatialRefugeConfig.MODDATA_KEY)
+                    if modData[SpatialRefugeConfig.REFUGES_KEY] then
+                        modData[SpatialRefugeConfig.REFUGES_KEY][username] = args.refugeData
+                        
+                        if getDebug() then
+                            print("[SpatialRefuge] FeatureUpgrade: Updated local ModData BEFORE UI refresh: tier=" .. args.refugeData.tier .. 
+                                  " radius=" .. args.refugeData.radius)
+                        end
+                    end
+                end
+            end
+            
+            -- Now call onUpgradeComplete which will refresh the UI with updated data
             local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
             SpatialRefugeUpgradeLogic.onUpgradeComplete(
                 player,
@@ -807,6 +815,137 @@ local function OnServerCommand(module, command, args)
                 args.newLevel,
                 args.transactionId
             )
+            
+            -- Special handling for expand_refuge: client-side wall cleanup
+            -- Server has removed old walls, but client may have stale cached objects
+            if args.upgradeId == "expand_refuge" and args.centerX and args.centerY and args.centerZ then
+                
+                -- Create cleanup context to avoid race conditions with multiple upgrades
+                -- Each upgrade gets its own context, so concurrent cleanups don't interfere
+                local cleanupContext = {
+                    oldRadius = args.oldRadius or 5,
+                    newRadius = args.newRadius or 3,
+                    centerX = args.centerX,
+                    centerY = args.centerY,
+                    centerZ = args.centerZ,
+                    ticks = 0,
+                    cleanupId = tostring(args.transactionId or getTimestampMs())
+                }
+                cleanupContext.scanRadius = math.max(cleanupContext.oldRadius, cleanupContext.newRadius) + 2
+                
+                -- Calculate new perimeter bounds once
+                cleanupContext.newMinX = cleanupContext.centerX - cleanupContext.newRadius
+                cleanupContext.newMaxX = cleanupContext.centerX + cleanupContext.newRadius
+                cleanupContext.newMinY = cleanupContext.centerY - cleanupContext.newRadius
+                cleanupContext.newMaxY = cleanupContext.centerY + cleanupContext.newRadius
+                
+                -- Helper function to check if position is on new perimeter
+                local function isOnNewPerimeter(ctx, x, y)
+                    -- North/South rows
+                    if y == ctx.newMinY or y == ctx.newMaxY + 1 then
+                        if x >= ctx.newMinX and x <= ctx.newMaxX + 1 then
+                            return true
+                        end
+                    end
+                    -- West/East columns
+                    if x == ctx.newMinX or x == ctx.newMaxX + 1 then
+                        if y >= ctx.newMinY and y <= ctx.newMaxY + 1 then
+                            return true
+                        end
+                    end
+                    return false
+                end
+                
+                -- Cleanup function for stale wall objects (uses context)
+                local function doFeatureUpgradeCleanup(ctx, phase)
+                    local cell = getCell()
+                    if not cell then return 0 end
+                    
+                    local removedClient = 0
+                    
+                    for dx = -ctx.scanRadius, ctx.scanRadius do
+                        for dy = -ctx.scanRadius, ctx.scanRadius do
+                            local x = ctx.centerX + dx
+                            local y = ctx.centerY + dy
+                            local square = cell:getGridSquare(x, y, ctx.centerZ)
+                            if square then
+                                local objects = square:getObjects()
+                                if objects and not isOnNewPerimeter(ctx, x, y) then
+                                    local toRemove = {}
+                                    for i = 0, objects:size() - 1 do
+                                        local obj = objects:get(i)
+                                        if obj and obj.getModData then
+                                            local md = obj:getModData()
+                                            if md and md.isRefugeBoundary then
+                                                table.insert(toRemove, obj)
+                                            end
+                                        end
+                                    end
+                                    for _, obj in ipairs(toRemove) do
+                                        if square.RemoveWorldObject then
+                                            pcall(function() square:RemoveWorldObject(obj) end)
+                                        end
+                                        if obj.removeFromSquare then
+                                            pcall(function() obj:removeFromSquare() end)
+                                        end
+                                        if obj.removeFromWorld then
+                                            pcall(function() obj:removeFromWorld() end)
+                                        end
+                                        removedClient = removedClient + 1
+                                    end
+                                end
+                                -- Force recalculation
+                                square:RecalcAllWithNeighbours(true)
+                            end
+                        end
+                    end
+                    
+                    if getDebug() then
+                        print("[SpatialRefuge] FeatureUpgrade cleanup [" .. ctx.cleanupId .. "] (" .. phase .. "): removed " .. removedClient .. " stale walls")
+                    end
+                    
+                    return removedClient
+                end
+                
+                -- PHASE 1: Immediate cleanup
+                if getDebug() then
+                    print("[SpatialRefuge] FeatureUpgrade Phase 1: Immediate client cleanup [" .. cleanupContext.cleanupId .. "]")
+                end
+                doFeatureUpgradeCleanup(cleanupContext, "immediate")
+                
+                -- PHASE 2: Delayed cleanup (fallback for any stragglers)
+                -- Capture context in closure to ensure each cleanup is independent
+                local ctx = cleanupContext
+                local function delayedFeatureCleanup()
+                    ctx.ticks = ctx.ticks + 1
+                    if ctx.ticks < 30 then return end  -- ~0.5 second delay
+                    
+                    Events.OnTick.Remove(delayedFeatureCleanup)
+                    
+                    if getDebug() then
+                        print("[SpatialRefuge] FeatureUpgrade Phase 2: Delayed client cleanup [" .. ctx.cleanupId .. "]")
+                    end
+                    local delayedRemoved = doFeatureUpgradeCleanup(ctx, "delayed")
+                    
+                    if delayedRemoved > 0 then
+                        local playerObj = getPlayer()
+                        if playerObj then
+                            playerObj:Say("Refuge walls synced")
+                        end
+                    end
+                end
+                
+                Events.OnTick.Add(delayedFeatureCleanup)
+                
+                -- Invalidate cached boundary bounds so new size is used
+                if SpatialRefuge.InvalidateBoundsCache then
+                    SpatialRefuge.InvalidateBoundsCache(player)
+                end
+                
+                if getDebug() then
+                    print("[SpatialRefuge] FeatureUpgradeComplete: expand_refuge processed, new tier: " .. tostring(args.newTier))
+                end
+            end
         end
         
     elseif command == "FeatureUpgradeError" then

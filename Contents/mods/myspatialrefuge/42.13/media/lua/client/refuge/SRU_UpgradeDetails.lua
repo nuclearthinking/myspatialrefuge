@@ -280,7 +280,7 @@ function SRU_UpgradeDetails:render()
     if currentLevel >= maxLevel then
         levelText = string.format("Level %d/%d (MAX)", currentLevel, maxLevel)
     else
-        levelText = string.format("Level %d/%d → %d", currentLevel, maxLevel, self.level or currentLevel + 1)
+        levelText = string.format("Level %d/%d -> %d", currentLevel, maxLevel, self.level or currentLevel + 1)
     end
     self:drawText(levelText, textX, textY, 0.65, 0.45, 0.85, 1, UIFont.Medium)
     textY = textY + FONT_HGT_MEDIUM + 4
@@ -300,7 +300,7 @@ function SRU_UpgradeDetails:render()
         y = y + FONT_HGT_SMALL
         
         for _, depName in ipairs(self.missingDependencies) do
-            self:drawText("  • " .. depName, self.padding, y, 0.8, 0.5, 0.5, 1, UIFont.Small)
+            self:drawText("  - " .. depName, self.padding, y, 0.8, 0.5, 0.5, 1, UIFont.Small)
             y = y + FONT_HGT_SMALL
         end
         

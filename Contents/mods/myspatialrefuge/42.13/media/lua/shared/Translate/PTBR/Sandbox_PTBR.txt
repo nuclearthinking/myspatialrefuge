@@ -1,0 +1,12 @@
+Sandbox_PTBR = {
+    Sandbox_MySpatialRefuge = "Meu Refúgio Espacial", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeTeleportCooldown = "Recarga do teletransporte", -- 1.5/31.12.2025
+    Sandbox_RefugeTeleportCooldown_tooltip = "Segundos entre teletransportes. 0 = sem recarga.", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCastTime = "Tempo de conjuração", -- 1.5/31.12.2025
+    Sandbox_RefugeCastTime_tooltip = "Segundos para conjurar o teletransporte (pode ser interrompido). 0 = instantâneo.", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeCombatBlockTime = "Tempo de bloqueio em combate", -- 1.5/31.12.2025
+    Sandbox_RefugeCombatBlockTime_tooltip = "Segundos após receber dano antes de poder se teletransportar. 0 = desativado.", -- 1.5/31.12.2025
+}

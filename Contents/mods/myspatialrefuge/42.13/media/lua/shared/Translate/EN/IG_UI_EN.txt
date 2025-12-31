@@ -1,14 +1,10 @@
 IGUI_EN = {
     -- Spatial Refuge UI
-    IGUI_SpatialRefuge_Enter = "Enter Spatial Refuge",
-    IGUI_SpatialRefuge_Exit = "Exit Spatial Refuge",
-    IGUI_SpatialRefuge_Upgrade = "Upgrade Refuge",
-    IGUI_SpatialRefuge_CastingTeleport = "Teleporting...",
-    IGUI_SpatialRefuge_OnCooldown = "Teleport on cooldown",
-    IGUI_SpatialRefuge_CombatBlocked = "Cannot teleport in combat",
-    IGUI_SpatialRefuge_FeatureUpgrades = "Feature Upgrades",
+    IGUI_SpatialRefuge_Enter = "Enter Spatial Refuge", -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_Exit = "Exit Spatial Refuge", -- 1.5/31.12.2025
+    IGUI_SpatialRefuge_OnCooldown = "Teleport on cooldown", -- 1.5/31.12.2025
 }
 
 Tooltip_EN = {
-    Tooltip_SacredRelic = "A mysterious relic that can create a pocket dimension. <LINE> Right-click to enter your Spatial Refuge.",
+    Tooltip_SacredRelic = "A mysterious relic that can create a pocket dimension. <LINE> Right-click to enter your Spatial Refuge.", -- 1.5/31.12.2025
 }

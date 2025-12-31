@@ -3,6 +3,7 @@
 -- For multiplayer persistence, server uses these functions to create objects that save to map
 
 require "shared/SpatialRefugeConfig"
+require "shared/SpatialRefugeEnv"
 
 -- Prevent double-loading
 if SpatialRefugeShared and SpatialRefugeShared._loaded then
@@ -12,18 +13,9 @@ end
 SpatialRefugeShared = SpatialRefugeShared or {}
 SpatialRefugeShared._loaded = true
 
------------------------------------------------------------
--- Cached Environment Flags (cannot change during session)
------------------------------------------------------------
-
-local _cachedIsServer = nil
-
--- Cached isServer() check - only evaluated once
+-- Use shared environment helpers
 local function getCachedIsServer()
-    if _cachedIsServer == nil then
-        _cachedIsServer = isServer()
-    end
-    return _cachedIsServer
+    return SpatialRefugeEnv.isServer()
 end
 
 -----------------------------------------------------------
@@ -69,26 +61,29 @@ local function addSpecialObjectToSquare(square, obj)
 end
 
 -- Remove object from square with proper MP sync
+-- IMPORTANT: On server, only use transmitRemoveItemFromSquare - it handles BOTH
+-- local removal AND network sync. Extra removal calls can corrupt object state
+-- before the network message is processed, causing client desync.
 local function removeObjectFromSquare(square, obj)
     if not square or not obj then return false end
     
-    -- For IsoThumpable objects, we need a comprehensive removal approach
-    -- to ensure proper client sync in multiplayer
-    
-    -- Method 1: Use the standard transmit removal (broadcasts to clients)
-    square:transmitRemoveItemFromSquare(obj)
-    
-    -- Method 2: Also try RemoveWorldObject if available (some PZ versions)
-    if square.RemoveWorldObject then
-        pcall(function() square:RemoveWorldObject(obj) end)
-    end
-    
-    -- Method 3: Remove from the IsoObject's own references
-    if obj.removeFromSquare then
-        pcall(function() obj:removeFromSquare() end)
-    end
-    if obj.removeFromWorld then
-        pcall(function() obj:removeFromWorld() end)
+    if getCachedIsServer() then
+        -- Server: transmitRemoveItemFromSquare handles local removal AND broadcasts to clients
+        -- Do NOT call additional removal methods - they interfere with network sync
+        square:transmitRemoveItemFromSquare(obj)
+    else
+        -- Singleplayer/Client: Use direct removal methods
+        -- Try RemoveWorldObject first (preferred for IsoThumpable)
+        if square.RemoveWorldObject then
+            pcall(function() square:RemoveWorldObject(obj) end)
+        end
+        -- Also remove from object's own references
+        if obj.removeFromSquare then
+            pcall(function() obj:removeFromSquare() end)
+        end
+        if obj.removeFromWorld then
+            pcall(function() obj:removeFromWorld() end)
+        end
     end
     
     -- Force recalculation of square and neighbors for proper rendering
@@ -104,13 +99,16 @@ local ZOMBIE_CLEAR_BUFFER = 3
 -- Utility Functions
 -----------------------------------------------------------
 
--- Resolve the Sacred Relic sprite name (handles padding variants)
+-- Resolve the Sacred Relic sprite name (handles padding variants and fallback)
 function SpatialRefugeShared.ResolveRelicSprite()
     local spriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+    
+    -- Try primary sprite
     if getSprite and getSprite(spriteName) then
         return spriteName
     end
-    -- Try padded variants
+    
+    -- Try padded variants (myspatialrefuge_0 -> myspatialrefuge_00)
     local digits = spriteName:match("_(%d+)$")
     if digits then
         local padded2 = spriteName:gsub("_(%d+)$", "_0" .. digits)
@@ -118,6 +116,16 @@ function SpatialRefugeShared.ResolveRelicSprite()
         local padded3 = spriteName:gsub("_(%d+)$", "_00" .. digits)
         if getSprite and getSprite(padded3) then return padded3 end
     end
+    
+    -- Fallback to default gravestone if custom tileset not loaded
+    local fallback = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+    if fallback and getSprite and getSprite(fallback) then
+        if getDebug() then
+            print("[SpatialRefugeShared] Custom tileset not found, using fallback sprite: " .. fallback)
+        end
+        return fallback
+    end
+    
     return nil
 end
 
@@ -770,7 +778,7 @@ local function createRelicObject(square, refugeId)
         return nil 
     end
 
-    -- Create IsoThumpable with the gravestone sprite
+    -- Create IsoThumpable with the base tileset sprite (required for constructor)
     local relic = IsoThumpable.new(cell, square, spriteName, false, nil)
     if not relic then 
         if getDebug() then print("[SpatialRefugeShared] Failed to create IsoThumpable for Sacred Relic") end
@@ -787,6 +795,10 @@ local function createRelicObject(square, refugeId)
     relic:setIsDismantable(false)
     relic:setCanBePlastered(false)
     relic:setIsHoppable(false)
+    
+    -- Collision properties - make it solid so player can't walk through
+    relic:setCanPassThrough(false)  -- Block movement through the object
+    relic:setBlockAllTheSquare(true)  -- Block the entire tile
     
     -- Additional protection flags (if available in current PZ version)
     if relic.setDestroyed then relic:setDestroyed(false) end
@@ -848,6 +860,36 @@ function SpatialRefugeShared.CreateSacredRelicAtPosition(searchX, searchY, searc
         if getDebug() then
             print("[SpatialRefugeShared] Found existing Sacred Relic")
         end
+        
+        -- Check if sprite needs migration (v2 -> v3: angel to custom sprite)
+        local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+        local currentSprite = existing:getSpriteName()
+        
+        if currentSprite and currentSprite ~= expectedSprite then
+            local newSprite = getSprite(expectedSprite)
+            if newSprite then
+                existing:setSprite(expectedSprite)
+                local md = existing:getModData()
+                if md then
+                    md.relicSprite = expectedSprite
+                    -- Ensure isSacredRelic flag is set for old relics
+                    if not md.isSacredRelic then
+                        md.isSacredRelic = true
+                        md.refugeId = refugeId
+                    end
+                end
+                print("[SpatialRefugeShared] Migrated relic sprite: " .. tostring(currentSprite) .. " -> " .. expectedSprite)
+                
+                -- Transmit changes in MP
+                if isServer() and existing.transmitModData then
+                    existing:transmitModData()
+                end
+                if isServer() and existing.transmitUpdatedSpriteToClients then
+                    existing:transmitUpdatedSpriteToClients()
+                end
+            end
+        end
+        
         return existing 
     end
     
@@ -1112,6 +1154,10 @@ function SpatialRefugeShared.RepairRefugeProperties(refugeData)
     local radius = refugeData.radius or 1
     local repaired = 0
     
+    if getDebug() then
+        print("[SpatialRefugeShared] RepairRefugeProperties called - center: " .. tostring(centerX) .. "," .. tostring(centerY) .. " radius: " .. tostring(radius))
+    end
+    
     -- Scan the refuge area + 2 tiles buffer (for walls at maxX+1, maxY+1)
     for dx = -radius - 2, radius + 2 do
         for dy = -radius - 2, radius + 2 do
@@ -1135,10 +1181,36 @@ function SpatialRefugeShared.RepairRefugeProperties(refugeData)
                             end
                             
                             -- Re-apply relic properties
-                            if md and md.isSacredRelic then
+                            -- Check for isSacredRelic flag OR old angel gravestone sprite (for migration)
+                            local spriteName = obj:getSpriteName()
+                            local isOldRelicSprite = spriteName == "location_community_cemetary_01_11"
+                            local isRelic = (md and md.isSacredRelic) or isOldRelicSprite
+                            
+                            if isRelic then
+                                -- Ensure ModData flag is set for future checks
+                                if not md.isSacredRelic then
+                                    md.isSacredRelic = true
+                                    md.refugeId = refugeData.refugeId
+                                    print("[SpatialRefugeShared] Added isSacredRelic flag to old relic")
+                                end
                                 if obj.setIsThumpable then obj:setIsThumpable(false) end
                                 if obj.setIsHoppable then obj:setIsHoppable(false) end
                                 if obj.setIsDismantable then obj:setIsDismantable(false) end
+                                
+                                -- Check for sprite migration (v2 -> v3: angel to custom sprite)
+                                local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+                                local currentSprite = obj:getSpriteName()
+                                if currentSprite and currentSprite ~= expectedSprite then
+                                    local newSprite = getSprite(expectedSprite)
+                                    if newSprite then
+                                        obj:setSprite(expectedSprite)
+                                        md.relicSprite = expectedSprite
+                                        if getDebug() then
+                                            print("[SpatialRefugeShared] Migrated relic sprite via repair: " .. tostring(currentSprite) .. " -> " .. expectedSprite)
+                                        end
+                                    end
+                                end
+                                
                                 repaired = repaired + 1
                             end
                         end

@@ -1,0 +1,30 @@
+UI_RU = {
+    -- Upgrade Window
+    UI_RefugeUpgrade_Title = "Улучшить Пространственное Убежище", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Upgrade = "УЛУЧШИТЬ", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_SelectUpgrade = "Выберите улучшение", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiredItems = "Необходимые предметы", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_NoRequirements = "Предметы не требуются", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_AvailableIngredients = "Доступные ингредиенты", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_NoIngredients = "Нет доступных предметов", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Effects = "Эффекты:", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiresUpgrades = "Требуется:", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Locked = "ЗАБЛОКИРОВАНО", -- 1.5/31.12.2025
+    
+    -- Categories
+    UI_RefugeUpgrade_Category_shelter = "Убежище", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_general = "Общее", -- 1.5/31.12.2025
+    
+    -- Expand Refuge Area
+    UI_Upgrade_ExpandRefuge = "Расширить территорию", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L1 = "Расширить убежище до 5x5 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L2 = "Расширить убежище до 7x7 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L3 = "Расширить убежище до 9x9 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L4 = "Расширить убежище до 11x11 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L5 = "Расширить убежище до 13x13 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L6 = "Расширить убежище до 15x15 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L7 = "Расширить убежище до 17x17 клеток.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L8 = "Расширить убежище до 19x19 клеток.", -- 1.5/31.12.2025
+    
+    UI_Effect_refugeSize = "Размер убежища", -- 1.5/31.12.2025
+}

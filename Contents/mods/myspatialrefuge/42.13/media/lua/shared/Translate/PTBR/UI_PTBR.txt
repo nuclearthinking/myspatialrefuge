@@ -1,0 +1,30 @@
+UI_PTBR = {
+    -- Upgrade Window
+    UI_RefugeUpgrade_Title = "Melhorar Refúgio Espacial", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Upgrade = "MELHORAR", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_SelectUpgrade = "Selecione uma melhoria", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiredItems = "Itens necessários", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_NoRequirements = "Nenhum item necessário", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_AvailableIngredients = "Ingredientes disponíveis", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_NoIngredients = "Nenhum item disponível", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Effects = "Efeitos:", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiresUpgrades = "Requer:", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Locked = "BLOQUEADO", -- 1.5/31.12.2025
+    
+    -- Categories
+    UI_RefugeUpgrade_Category_shelter = "Abrigo", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_general = "Geral", -- 1.5/31.12.2025
+    
+    -- Expand Refuge Area
+    UI_Upgrade_ExpandRefuge = "Expandir área do refúgio", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L1 = "Expandir refúgio para 5x5 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L2 = "Expandir refúgio para 7x7 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L3 = "Expandir refúgio para 9x9 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L4 = "Expandir refúgio para 11x11 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L5 = "Expandir refúgio para 13x13 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L6 = "Expandir refúgio para 15x15 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L7 = "Expandir refúgio para 17x17 blocos.", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L8 = "Expandir refúgio para 19x19 blocos.", -- 1.5/31.12.2025
+    
+    UI_Effect_refugeSize = "Tamanho do refúgio", -- 1.5/31.12.2025
+}

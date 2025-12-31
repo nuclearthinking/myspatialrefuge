@@ -76,3 +76,6 @@ Part of the MySpatial mod collection:
 
 [h2]Enjoy Your Refuge![/h2]
 Thanks for trying My Spatial Refuge. May your refuge be ever expanding!
+
+Mod number: 3632195933
+Mod ID: myspatialrefuge

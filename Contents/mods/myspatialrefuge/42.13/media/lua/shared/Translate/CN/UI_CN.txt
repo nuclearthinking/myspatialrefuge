@@ -1,0 +1,30 @@
+UI_CN = {
+    -- Upgrade Window
+    UI_RefugeUpgrade_Title = "升级空间避难所", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Upgrade = "升级", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_SelectUpgrade = "选择一个升级", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiredItems = "所需物品", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_NoRequirements = "无需物品", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_AvailableIngredients = "可用材料", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_NoIngredients = "没有可用物品", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Effects = "效果：", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiresUpgrades = "需要：", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Locked = "已锁定", -- 1.5/31.12.2025
+    
+    -- Categories
+    UI_RefugeUpgrade_Category_shelter = "庇护所", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_general = "通用", -- 1.5/31.12.2025
+    
+    -- Expand Refuge Area
+    UI_Upgrade_ExpandRefuge = "扩展避难所区域", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L1 = "将避难所扩展至 5x5 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L2 = "将避难所扩展至 7x7 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L3 = "将避难所扩展至 9x9 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L4 = "将避难所扩展至 11x11 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L5 = "将避难所扩展至 13x13 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L6 = "将避难所扩展至 15x15 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L7 = "将避难所扩展至 17x17 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge_L8 = "将避难所扩展至 19x19 格。", -- 1.5/31.12.2025
+    
+    UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
+}

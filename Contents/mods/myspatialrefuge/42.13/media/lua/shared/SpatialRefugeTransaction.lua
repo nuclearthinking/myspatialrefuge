@@ -659,30 +659,48 @@ function SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj or not requirements then return nil end
     
+    -- First pass: gather all unique item types and their available counts
+    -- This ensures we don't double-count items when multiple requirements share types
+    local availableCounts = {}
+    
+    for _, req in ipairs(requirements) do
+        -- Track primary type
+        if req.type and not availableCounts[req.type] then
+            availableCounts[req.type] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, req.type)
+        end
+        -- Track substitutes
+        if req.substitutes then
+            for _, subType in ipairs(req.substitutes) do
+                if not availableCounts[subType] then
+                    availableCounts[subType] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, subType)
+                end
+            end
+        end
+    end
+    
+    -- Second pass: allocate items to requirements, tracking remaining available
     local resolved = {}
     
     for _, req in ipairs(requirements) do
         local needed = req.count or 1
         local remaining = needed
         
-        -- Get all available items for this requirement
-        local _, counts = SpatialRefugeTransaction.GetSubstitutionCount(playerObj, req)
-        
         -- Try primary type first
-        if counts[req.type] and counts[req.type] > 0 then
-            local toUse = math.min(remaining, counts[req.type])
+        if availableCounts[req.type] and availableCounts[req.type] > 0 then
+            local toUse = math.min(remaining, availableCounts[req.type])
             resolved[req.type] = (resolved[req.type] or 0) + toUse
+            availableCounts[req.type] = availableCounts[req.type] - toUse
             remaining = remaining - toUse
         end
         
         -- Try substitutes if needed
         if remaining > 0 and req.substitutes then
             for _, subType in ipairs(req.substitutes) do
-                if counts[subType] and counts[subType] > 0 then
-                    local available = counts[subType] - (resolved[subType] or 0)
-                    local toUse = math.min(remaining, available)
+                if availableCounts[subType] and availableCounts[subType] > 0 then
+                    local toUse = math.min(remaining, availableCounts[subType])
                     if toUse > 0 then
                         resolved[subType] = (resolved[subType] or 0) + toUse
+                        availableCounts[subType] = availableCounts[subType] - toUse
                         remaining = remaining - toUse
                     end
                 end
