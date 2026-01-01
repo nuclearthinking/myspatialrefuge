@@ -569,162 +569,15 @@ local function OnServerCommand(module, command, args)
             end
         end
         
-    elseif command == SpatialRefugeConfig.COMMANDS.UPGRADE_COMPLETE then
-        -- Server confirmed upgrade - commit transaction and update local ModData
-        if args and args.newTier then
-            -- Commit the transaction (consume locked cores)
-            if args.transactionId and SpatialRefuge.CommitUpgradeTransaction then
-                SpatialRefuge.CommitUpgradeTransaction(player, args.transactionId)
-            end
-            
-            player:Say("Refuge upgraded to " .. (args.displayName or ("Tier " .. args.newTier)))
-            
-            -- Update local ModData with new refuge data from server
-            if args.refugeData then
-                local username = player:getUsername()
-                if username and args.refugeData.username == username then
-                    local modData = ModData.getOrCreate(SpatialRefugeConfig.MODDATA_KEY)
-                    if modData[SpatialRefugeConfig.REFUGES_KEY] then
-                        modData[SpatialRefugeConfig.REFUGES_KEY][username] = args.refugeData
-                        
-                        if getDebug() then
-                            print("[SpatialRefuge] Updated local ModData: tier=" .. args.refugeData.tier .. 
-                                  " radius=" .. args.refugeData.radius)
-                        end
-                    end
-                end
-            end
-            
-            -- Force client-side visual refresh and cleanup of stale wall objects
-            -- The server has already removed old walls, but client may have cached them
-            -- Two-phase approach: immediate cleanup + delayed fallback
-            if args.centerX and args.centerY and args.centerZ then
-                local oldRadius = args.oldRadius or 5
-                local newRadius = args.newRadius or 3
-                local centerX = args.centerX
-                local centerY = args.centerY
-                local centerZ = args.centerZ
-                local scanRadius = math.max(oldRadius, newRadius) + 2
-                
-                -- Calculate new perimeter bounds once
-                local newMinX = centerX - newRadius
-                local newMaxX = centerX + newRadius
-                local newMinY = centerY - newRadius
-                local newMaxY = centerY + newRadius
-                
-                -- Helper function to check if position is on new perimeter
-                local function isOnNewPerimeter(x, y)
-                    -- North/South rows
-                    if y == newMinY or y == newMaxY + 1 then
-                        if x >= newMinX and x <= newMaxX + 1 then
-                            return true
-                        end
-                    end
-                    -- West/East columns
-                    if x == newMinX or x == newMaxX + 1 then
-                        if y >= newMinY and y <= newMaxY + 1 then
-                            return true
-                        end
-                    end
-                    return false
-                end
-                
-                -- Cleanup function (used for both immediate and delayed)
-                local function doClientCleanup(phase)
-                    local cell = getCell()
-                    if not cell then return 0 end
-                    
-                    local removedClient = 0
-                    
-                    for dx = -scanRadius, scanRadius do
-                        for dy = -scanRadius, scanRadius do
-                            local x = centerX + dx
-                            local y = centerY + dy
-                            local square = cell:getGridSquare(x, y, centerZ)
-                            if square then
-                                local objects = square:getObjects()
-                                if objects and not isOnNewPerimeter(x, y) then
-                                    local toRemove = {}
-                                    for i = 0, objects:size() - 1 do
-                                        local obj = objects:get(i)
-                                        if obj and obj.getModData then
-                                            local md = obj:getModData()
-                                            if md and md.isRefugeBoundary then
-                                                table.insert(toRemove, obj)
-                                            end
-                                        end
-                                    end
-                                    for _, obj in ipairs(toRemove) do
-                                        if square.RemoveWorldObject then
-                                            pcall(function() square:RemoveWorldObject(obj) end)
-                                        end
-                                        if obj.removeFromSquare then
-                                            pcall(function() obj:removeFromSquare() end)
-                                        end
-                                        if obj.removeFromWorld then
-                                            pcall(function() obj:removeFromWorld() end)
-                                        end
-                                        removedClient = removedClient + 1
-                                    end
-                                end
-                                -- Force recalculation
-                                square:RecalcAllWithNeighbours(true)
-                            end
-                        end
-                    end
-                    
-                    if getDebug() then
-                        print("[SpatialRefuge] Client cleanup (" .. phase .. "): removed " .. removedClient .. " stale walls")
-                    end
-                    
-                    return removedClient
-                end
-                
-                -- PHASE 1: Immediate cleanup
-                if getDebug() then
-                    print("[SpatialRefuge] Phase 1: Immediate client cleanup")
-                end
-                local immediateRemoved = doClientCleanup("immediate")
-                
-                -- PHASE 2: Delayed cleanup (fallback for any stragglers)
-                local cleanupTicks = 0
-                local function delayedCleanup()
-                    cleanupTicks = cleanupTicks + 1
-                    if cleanupTicks < 30 then return end  -- ~0.5 second delay
-                    
-                    Events.OnTick.Remove(delayedCleanup)
-                    
-                    if getDebug() then
-                        print("[SpatialRefuge] Phase 2: Delayed client cleanup")
-                    end
-                    local delayedRemoved = doClientCleanup("delayed")
-                    
-                    -- Show message if any walls were cleaned in either phase
-                    if delayedRemoved > 0 then
-                        local playerObj = getPlayer()
-                        if playerObj then
-                            playerObj:Say("Refuge walls synced")
-                        end
-                    end
-                end
-                
-                Events.OnTick.Add(delayedCleanup)
-            end
-            
-            -- Invalidate cached boundary bounds so new size is used
-            if SpatialRefuge.InvalidateBoundsCache then
-                SpatialRefuge.InvalidateBoundsCache(player)
-            end
-            
-            if getDebug() then
-                print("[SpatialRefuge] UpgradeComplete received, new tier: " .. args.newTier)
-            end
-        end
-        
     elseif command == SpatialRefugeConfig.COMMANDS.MOVE_RELIC_COMPLETE then
         -- Server confirmed relic move
         if args and args.cornerName then
             player:Say("Sacred Relic moved to " .. args.cornerName .. ".")
+            
+            -- Invalidate relic container cache (relic moved to new position)
+            if SpatialRefuge.InvalidateRelicContainerCache then
+                SpatialRefuge.InvalidateRelicContainerCache()
+            end
             
             -- Update local cooldown
             if SpatialRefuge.UpdateRelicMoveTime then
@@ -787,7 +640,7 @@ local function OnServerCommand(module, command, args)
             end
         end
         
-    elseif command == "FeatureUpgradeComplete" then
+    elseif command == SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_COMPLETE then
         -- Server confirmed feature upgrade
         if args then
             -- IMPORTANT: Update local ModData FIRST, before calling onUpgradeComplete
@@ -804,6 +657,11 @@ local function OnServerCommand(module, command, args)
                                   " radius=" .. args.refugeData.radius)
                         end
                     end
+                end
+                
+                -- Invalidate relic container cache (refuge expanded, relic may have moved)
+                if SpatialRefuge.InvalidateRelicContainerCache then
+                    SpatialRefuge.InvalidateRelicContainerCache()
                 end
             end
             
@@ -948,7 +806,7 @@ local function OnServerCommand(module, command, args)
             end
         end
         
-    elseif command == "FeatureUpgradeError" then
+    elseif command == SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR then
         -- Server reported feature upgrade error
         if args then
             local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
@@ -963,33 +821,6 @@ local function OnServerCommand(module, command, args)
         -- Server reported an error
         local message = args and args.message or "Refuge error"
         player:Say(message)
-        
-        -- Rollback any pending transaction (unlocks items)
-        -- Transaction ID may be included in error response, or we rollback by type
-        if args and args.transactionId and SpatialRefuge.RollbackUpgradeTransaction then
-            SpatialRefuge.RollbackUpgradeTransaction(player, args.transactionId)
-            if getDebug() then
-                print("[SpatialRefuge] Rolled back transaction: " .. args.transactionId)
-            end
-        elseif args and args.transactionType == "REFUGE_UPGRADE" and SpatialRefuge.RollbackUpgradeTransaction then
-            -- Fallback: rollback by type if no transaction ID
-            SpatialRefuge.RollbackUpgradeTransaction(player, nil)
-            if getDebug() then
-                print("[SpatialRefuge] Rolled back upgrade transaction by type")
-            end
-        end
-        
-        -- Legacy fallback: If error includes coreRefund and no transaction system used
-        -- (for backwards compatibility or if transaction wasn't started)
-        if args and args.coreRefund and args.coreRefund > 0 and not args.transactionId then
-            local inv = player:getInventory()
-            if inv then
-                for i = 1, args.coreRefund do
-                    inv:AddItem(SpatialRefugeConfig.CORE_ITEM)
-                end
-                player:Say("Cores refunded")
-            end
-        end
         
         if getDebug() then
             print("[SpatialRefuge] Error from server: " .. message)

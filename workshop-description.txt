@@ -2,8 +2,13 @@
 
 Escape the apocalypse to your own personal, upgradeable spatial refuge! Build your ultimate survival space using Zombie Cores.
 
+[h2]Update 1.6 — New Refuge Upgrade System[/h2]
+[b]Big changes are here, and more are coming.[/b] Spatial Refuge is an unknown entity that entered the world alongside the Knox Virus. Its intentions are unclear — it cannot speak like people do — but it offers survivors a safe shelter and strange opportunities to grow.
+
+In exchange for knowledge of your world, the Spatial Refuge offers new ways to improve your refuge and gain unique bonuses while inside.
+
 [h2]Multiplayer & Co-op Ready[/h2]
-[b]Full multiplayer and co-op support![/b] Each player gets their own private refuge that persists across sessions. Tested on dedicated servers.
+[b]Full multiplayer and co-op support![/b] Each player gets their own private refuge that persists across sessions.
 
 [h2]Features[/h2]
 

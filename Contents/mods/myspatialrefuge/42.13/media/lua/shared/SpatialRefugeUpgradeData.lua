@@ -124,9 +124,16 @@ local function getRefugeUpgradeData(player)
     
     if not refugeData then return nil, nil end
     
-    -- Ensure upgrades table exists
+    -- Ensure upgrades table exists (for existing refuges created before upgrade system)
+    -- Must explicitly save to GlobalModData as PZ doesn't track nested table additions automatically
     if not refugeData.upgrades then
+        print("[SpatialRefugeUpgradeData] Initializing missing upgrades table for " .. username)
         refugeData.upgrades = {}
+        -- Save to persist the new upgrades field to GlobalModData
+        if SpatialRefugeData and SpatialRefugeData.SaveRefugeData then
+            SpatialRefugeData.SaveRefugeData(refugeData)
+            print("[SpatialRefugeUpgradeData] Saved initialized upgrades table to GlobalModData")
+        end
     end
     
     return refugeData.upgrades, refugeData
@@ -157,7 +164,6 @@ end
 -----------------------------------------------------------
 -- Initialization
 -----------------------------------------------------------
-
 -- Helper to process and register an upgrade
 local function processUpgrade(id, upgrade, source)
     -- Ensure ID is set
@@ -218,7 +224,12 @@ function SpatialRefugeUpgradeData.initialize()
     local yamlPath = "media/lua/shared/upgrades.yaml"
     
     local ok, result = pcall(function()
-        return CUI_YamlParser.parseFile("myspatialrefuge", yamlPath)
+        -- Enable itemGroups expansion for this YAML
+        return CUI_YamlParser.parseFile("myspatialrefuge", yamlPath, {
+            expandGroups = true,
+            groupsKey = "itemGroups",
+            refPrefixes = { "$", "*" },
+        })
     end)
     
     if ok and result and result.upgrades then
@@ -352,7 +363,9 @@ end
 -- NOTE: Only server/singleplayer can modify GlobalModData
 function SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     local playerObj = resolvePlayer(player)
-    if not playerObj then return false end
+    if not playerObj then 
+        return false 
+    end
     
     -- expand_refuge level is determined by refuge tier, not stored separately
     if upgradeId == "expand_refuge" then
@@ -362,10 +375,17 @@ function SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, level
     
     -- Get upgrade data from refugeData (GlobalModData)
     local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
-    if not upgradeData or not refugeData then return false end
+    if not upgradeData or not refugeData then 
+        return false 
+    end
     
     -- Set the upgrade level
     upgradeData[upgradeId] = level
+    
+    if getDebug and getDebug() then
+        print("[SpatialRefugeUpgradeData] setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level) .. 
+              " | Current: " .. SpatialRefugeData.FormatUpgradesTable(upgradeData))
+    end
     
     -- Save refugeData to persist the change (only works on server/SP)
     if SpatialRefugeData and SpatialRefugeData.SaveRefugeData then
@@ -448,16 +468,59 @@ function SpatialRefugeUpgradeData.getPlayerActiveEffects(player)
     local playerObj = resolvePlayer(player)
     if not playerObj then return {} end
     
+    -- Effect aggregation rules:
+    -- - Most effects are additive (+) across levels.
+    -- - Some effects represent an absolute value per level (take max).
+    -- - Some effects represent a time multiplier where lower is better (take min).
+    --
+    -- NOTE: Keep this table small + explicit to avoid silently changing semantics.
+    local AGGREGATORS = {
+        refugeSize = "max",              -- expand_refuge defines absolute size per level
+        readingSpeedMultiplier = "min",  -- faster_reading defines time multiplier per level (lower = faster)
+    }
+    
+    local function applyEffect(effects, effectName, effectValue)
+        if effectName == nil or effectValue == nil then return end
+        
+        local mode = AGGREGATORS[effectName] or "add"
+        
+        if mode == "add" then
+            effects[effectName] = (effects[effectName] or 0) + effectValue
+            return
+        end
+        
+        if mode == "max" then
+            if effects[effectName] == nil then
+                effects[effectName] = effectValue
+            else
+                effects[effectName] = math.max(effects[effectName], effectValue)
+            end
+            return
+        end
+        
+        if mode == "min" then
+            if effects[effectName] == nil then
+                effects[effectName] = effectValue
+            else
+                effects[effectName] = math.min(effects[effectName], effectValue)
+            end
+            return
+        end
+        
+        -- Fallback: additive
+        effects[effectName] = (effects[effectName] or 0) + effectValue
+    end
+    
     local effects = {}
     
-    for id, upgrade in pairs(SpatialRefugeUpgradeData._upgrades) do
+    for id, _ in pairs(SpatialRefugeUpgradeData._upgrades) do
         local playerLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(playerObj, id)
         
-        -- Accumulate effects from all purchased levels
+        -- Accumulate effects from all purchased levels (with per-effect aggregation)
         for level = 1, playerLevel do
             local levelEffects = SpatialRefugeUpgradeData.getLevelEffects(id, level)
             for effectName, effectValue in pairs(levelEffects) do
-                effects[effectName] = (effects[effectName] or 0) + effectValue
+                applyEffect(effects, effectName, effectValue)
             end
         end
     end

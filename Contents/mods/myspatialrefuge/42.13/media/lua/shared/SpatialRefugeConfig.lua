@@ -65,6 +65,14 @@ SpatialRefugeConfig = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
+    -- Current data version for migrations
+    -- Increment when ModData structure changes
+    -- v1: per-player ModData (legacy)
+    -- v2: global ModData
+    -- v3: custom relic sprite
+    -- v4: added upgrades table
+    CURRENT_DATA_VERSION = 4,
+    
     -- Core item type
     CORE_ITEM = "Base.MagicalCore",
     
@@ -75,7 +83,6 @@ SpatialRefugeConfig = {
         REQUEST_MODDATA = "RequestModData",   -- Client requests their refuge data on connect
         REQUEST_ENTER = "RequestEnter",       -- Client wants to enter refuge
         REQUEST_EXIT = "RequestExit",         -- Client wants to exit refuge
-        REQUEST_UPGRADE = "RequestUpgrade",   -- Client wants to upgrade refuge
         REQUEST_MOVE_RELIC = "RequestMoveRelic", -- Client wants to move relic to corner
         CHUNKS_READY = "ChunksReady",         -- Client confirms chunks loaded after teleport
         
@@ -88,10 +95,14 @@ SpatialRefugeConfig = {
         
         -- Server -> Client responses (Other)
         EXIT_READY = "ExitReady",             -- Server confirms exit, provides return coords
-        UPGRADE_COMPLETE = "UpgradeComplete", -- Server confirms upgrade done
         MOVE_RELIC_COMPLETE = "MoveRelicComplete", -- Server confirms relic moved
         CLEAR_ZOMBIES = "ClearZombies",       -- Server tells client to clear specific zombies by ID
-        ERROR = "Error"                       -- Server reports an error
+        ERROR = "Error",                      -- Server reports an error
+        
+        -- Feature Upgrade Commands (upgrade system)
+        REQUEST_FEATURE_UPGRADE = "RequestFeatureUpgrade",  -- Client requests feature upgrade
+        FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete", -- Server confirms upgrade
+        FEATURE_UPGRADE_ERROR = "FeatureUpgradeError"       -- Server reports upgrade error
     }
 }
 

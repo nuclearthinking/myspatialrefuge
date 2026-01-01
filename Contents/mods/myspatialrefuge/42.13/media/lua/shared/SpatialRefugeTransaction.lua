@@ -124,57 +124,87 @@ end
 
 -- Lock items for a transaction (mark as unavailable)
 -- Returns: table of locked item references, or nil if not enough items
+-- NOTE: Uses all item sources (inventory + Sacred Relic container)
 local function lockItems(player, itemType, count)
     if not player or not itemType or count <= 0 then return nil end
     player = resolvePlayer(player)
     if not player then return nil end
     
-    local inv = safePlayerCall(player, "getInventory")
-    if not inv then return nil end
-    
-    -- Get current available count (excluding already locked items)
+    -- Get locked items storage
     local lockedStorage = getLockedItemsStorage(player)
     if not lockedStorage then return nil end
-    local alreadyLockedCount = 0
-    
-    if lockedStorage[itemType] then
-        alreadyLockedCount = #lockedStorage[itemType]
-    end
-    
-    local totalAvailable = inv:getCountType(itemType)
-    local availableCount = totalAvailable - alreadyLockedCount
-    
-    if availableCount < count then
-        return nil -- Not enough unlocked items
-    end
-    
-    -- Find and lock specific item instances
-    local items = inv:getItems()
-    local lockedItems = {}
-    local lockedCount = 0
     
     -- Build set of already locked item IDs for fast lookup
     local alreadyLockedIds = {}
+    local alreadyLockedCount = 0
     if lockedStorage[itemType] then
+        alreadyLockedCount = #lockedStorage[itemType]
         for _, itemId in ipairs(lockedStorage[itemType]) do
             alreadyLockedIds[itemId] = true
         end
     end
     
-    for i = 0, items:size() - 1 do
+    -- Get all item sources (inventory + relic container)
+    -- IMPORTANT: Bypass cache for transaction safety - always get fresh container reference
+    local sources = {}
+    local inv = safePlayerCall(player, "getInventory")
+    if inv then
+        table.insert(sources, inv)
+    end
+    
+    -- Add Sacred Relic container if available (bypass cache for transaction safety)
+    if SpatialRefuge and SpatialRefuge.GetRelicContainer then
+        local relicContainer = SpatialRefuge.GetRelicContainer(player, true)  -- bypassCache = true
+        if relicContainer then
+            table.insert(sources, relicContainer)
+        end
+    end
+    
+    if #sources == 0 then return nil end
+    
+    -- Count total available items across all sources
+    local totalAvailable = 0
+    for _, container in ipairs(sources) do
+        if container and container.getCountType then
+            totalAvailable = totalAvailable + container:getCountType(itemType)
+        end
+    end
+    
+    local availableCount = totalAvailable - alreadyLockedCount
+    
+    if availableCount < count then
+        logDebug("lockItems: Not enough " .. itemType .. " (need " .. count .. ", available " .. availableCount .. ")")
+        return nil -- Not enough unlocked items
+    end
+    
+    -- Find and lock specific item instances from all sources
+    local lockedItems = {}
+    local lockedCount = 0
+    
+    for _, container in ipairs(sources) do
         if lockedCount >= count then break end
-        
-        local item = items:get(i)
-        if item and item:getFullType() == itemType then
-            local itemId = item:getID()
-            if not alreadyLockedIds[itemId] then
-                table.insert(lockedItems, itemId)
-                lockedCount = lockedCount + 1
+        if container and container.getItems then
+            local items = container:getItems()
+            if items then
+                for i = 0, items:size() - 1 do
+                    if lockedCount >= count then break end
+                    
+                    local item = items:get(i)
+                    if item and item:getFullType() == itemType then
+                        local itemId = item:getID()
+                        if not alreadyLockedIds[itemId] then
+                            table.insert(lockedItems, itemId)
+                            alreadyLockedIds[itemId] = true  -- Prevent double-locking
+                            lockedCount = lockedCount + 1
+                        end
+                    end
+                end
             end
         end
     end
     
     if lockedCount < count then
+        logDebug("lockItems: Could only find " .. lockedCount .. " of " .. count .. " items")
         return nil -- Couldn't find enough items (shouldn't happen if count was correct)
     end
     
@@ -186,6 +216,7 @@ local function lockItems(player, itemType, count)
         table.insert(lockedStorage[itemType], itemId)
     end
     
+    logDebug("lockItems: Locked " .. lockedCount .. " of " .. itemType)
     return lockedItems
 end
 
@@ -219,14 +250,30 @@ local function unlockItems(player, itemType, itemIds)
     end
 end
 
--- Consume locked items (actually remove from inventory)
+-- Consume locked items (actually remove from all sources)
+-- NOTE: Uses all item sources (inventory + Sacred Relic container)
 local function consumeLockedItems(player, itemType, itemIds)
     if not player or not itemType or not itemIds then return false end
     player = resolvePlayer(player)
     if not player then return false end
     
+    -- Get all item sources (inventory + relic container)
+    -- IMPORTANT: Bypass cache for transaction safety - always get fresh container reference
+    local sources = {}
     local inv = safePlayerCall(player, "getInventory")
-    if not inv then return false end
+    if inv then
+        table.insert(sources, inv)
+    end
+    
+    -- Add Sacred Relic container if available (bypass cache for transaction safety)
+    if SpatialRefuge and SpatialRefuge.GetRelicContainer then
+        local relicContainer = SpatialRefuge.GetRelicContainer(player, true)  -- bypassCache = true
+        if relicContainer then
+            table.insert(sources, relicContainer)
+        end
+    end
+    
+    if #sources == 0 then return false end
     
     -- Build set of IDs to consume
     local consumeSet = {}
@@ -234,28 +281,39 @@ local function consumeLockedItems(player, itemType, itemIds)
         consumeSet[itemId] = true
     end
     
-    -- Find and remove items by ID
-    local items = inv:getItems()
-    local toRemove = {}
+    -- Find and remove items by ID from all sources
+    local totalRemoved = 0
     
-    for i = 0, items:size() - 1 do
-        local item = items:get(i)
-        if item and item:getFullType() == itemType then
-            if consumeSet[item:getID()] then
-                table.insert(toRemove, item)
+    for _, container in ipairs(sources) do
+        if container and container.getItems then
+            local items = container:getItems()
+            if items then
+                local toRemove = {}
+                
+                for i = 0, items:size() - 1 do
+                    local item = items:get(i)
+                    if item and item:getFullType() == itemType then
+                        if consumeSet[item:getID()] then
+                            table.insert(toRemove, item)
+                            consumeSet[item:getID()] = nil  -- Mark as found
+                        end
+                    end
+                end
+                
+                -- Remove items from this container
+                for _, item in ipairs(toRemove) do
+                    container:Remove(item)
+                    totalRemoved = totalRemoved + 1
+                end
             end
         end
-    end
-    
-    -- Remove items
-    for _, item in ipairs(toRemove) do
-        inv:Remove(item)
     end
     
     -- Clear from locked storage
     unlockItems(player, itemType, itemIds)
     
-    return #toRemove == #itemIds
+    logDebug("consumeLockedItems: Removed " .. totalRemoved .. " of " .. #itemIds .. " " .. itemType)
+    return totalRemoved == #itemIds
 end
 
 -----------------------------------------------------------
@@ -567,8 +625,9 @@ end
 
 -- Get all item sources for a player (inventory + Sacred Relic storage)
 -- @param player: The player
+-- @param bypassCache: (optional) If true, bypass container cache (for transactions)
 -- @return: Array of ItemContainer objects
-function SpatialRefugeTransaction.GetItemSources(player)
+function SpatialRefugeTransaction.GetItemSources(player, bypassCache)
     local playerObj = resolvePlayer(player)
     if not playerObj then return {} end
     
@@ -583,7 +642,7 @@ function SpatialRefugeTransaction.GetItemSources(player)
     -- Sacred Relic storage (if player is in refuge and has access)
     -- This requires SpatialRefuge module to be loaded
     if SpatialRefuge and SpatialRefuge.GetRelicContainer then
-        local relicContainer = SpatialRefuge.GetRelicContainer(playerObj)
+        local relicContainer = SpatialRefuge.GetRelicContainer(playerObj, bypassCache)
         if relicContainer then
             table.insert(sources, relicContainer)
         end

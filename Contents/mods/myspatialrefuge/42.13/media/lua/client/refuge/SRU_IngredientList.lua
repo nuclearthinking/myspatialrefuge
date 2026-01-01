@@ -41,6 +41,17 @@ function SRU_IngredientList:new(x, y, width, height, parentWindow)
     -- Scrolling
     o.scrollOffset = 0
     o.maxScroll = 0
+
+    -- Scrollbar interaction (click+drag)
+    o._sbDragging = false
+    o._sbDragOffsetY = 0
+    o._sbThumbY = 0
+    o._sbThumbH = 0
+    o._sbTrackY = 0
+    o._sbTrackH = 0
+    o._sbX = 0
+    o._sbW = 0
+    o._sbTickFn = nil
     
     return o
 end
@@ -202,6 +213,129 @@ function SRU_IngredientList:onMouseWheel(del)
     return true
 end
 
+-- Click+drag scrollbar support (not mouse wheel)
+function SRU_IngredientList:onMouseDown(x, y)
+    if not self.maxScroll or self.maxScroll <= 0 then
+        return false
+    end
+
+    -- Only if click is inside scrollbar track
+    if x >= self._sbX and x <= (self._sbX + self._sbW) and y >= self._sbTrackY and y <= (self._sbTrackY + self._sbTrackH) then
+        -- Click on thumb -> start dragging
+        if y >= self._sbThumbY and y <= (self._sbThumbY + self._sbThumbH) then
+            self._sbDragging = true
+            self._sbDragOffsetY = y - self._sbThumbY
+
+            -- Capture-style dragging: keep updating even if mouse leaves this panel.
+            -- We do this by polling global mouse position each tick while button is held.
+            if Events and Events.OnTick and not self._sbTickFn then
+                local panel = self
+                panel._sbTickFn = function()
+                    if not panel._sbDragging then
+                        Events.OnTick.Remove(panel._sbTickFn)
+                        panel._sbTickFn = nil
+                        return
+                    end
+
+                    -- If mouse button released, stop dragging.
+                    local isDown = (isMouseButtonDown and isMouseButtonDown(0)) or false
+                    if not isDown then
+                        panel._sbDragging = false
+                        Events.OnTick.Remove(panel._sbTickFn)
+                        panel._sbTickFn = nil
+                        return
+                    end
+
+                    -- Use global mouse Y so dragging continues outside the element.
+                    local gY = getMouseY and getMouseY() or nil
+                    if not gY then
+                        -- Can't read global mouse; fail-safe stop to avoid leaking OnTick
+                        panel._sbDragging = false
+                        Events.OnTick.Remove(panel._sbTickFn)
+                        panel._sbTickFn = nil
+                        return
+                    end
+
+                    local absY = panel.getAbsoluteY and panel:getAbsoluteY() or 0
+                    local localY = gY - absY
+                    panel:updateScrollFromThumbY(localY - panel._sbDragOffsetY)
+                end
+                Events.OnTick.Add(panel._sbTickFn)
+            end
+
+            return true
+        end
+
+        -- Click on track -> jump thumb toward click (page-ish)
+        local targetThumbY = y - (self._sbThumbH / 2)
+        local minThumbY = self._sbTrackY
+        local maxThumbY = self._sbTrackY + (self._sbTrackH - self._sbThumbH)
+        if targetThumbY < minThumbY then targetThumbY = minThumbY end
+        if targetThumbY > maxThumbY then targetThumbY = maxThumbY end
+
+        local denom = (self._sbTrackH - self._sbThumbH)
+        local ratio = 0
+        if denom > 0 then
+            ratio = (targetThumbY - self._sbTrackY) / denom
+        end
+        self.scrollOffset = math.max(0, math.min(self.maxScroll * ratio, self.maxScroll))
+        return true
+    end
+
+    return false
+end
+
+function SRU_IngredientList:onMouseUp(x, y)
+    if self._sbDragging then
+        self._sbDragging = false
+        if Events and Events.OnTick and self._sbTickFn then
+            Events.OnTick.Remove(self._sbTickFn)
+            self._sbTickFn = nil
+        end
+        return true
+    end
+    return false
+end
+
+function SRU_IngredientList:onMouseUpOutside(x, y)
+    if self._sbDragging then
+        self._sbDragging = false
+        if Events and Events.OnTick and self._sbTickFn then
+            Events.OnTick.Remove(self._sbTickFn)
+            self._sbTickFn = nil
+        end
+        return true
+    end
+    return false
+end
+
+function SRU_IngredientList:onMouseMove(dx, dy)
+    if not self._sbDragging then
+        return false
+    end
+
+    -- Keep old behavior when cursor is still over this element.
+    local y = self:getMouseY()
+    self:updateScrollFromThumbY(y - self._sbDragOffsetY)
+    return true
+end
+
+-- Convert a desired thumb Y (in panel coords) into scrollOffset.
+function SRU_IngredientList:updateScrollFromThumbY(targetThumbY)
+    local minThumbY = self._sbTrackY
+    local maxThumbY = self._sbTrackY + (self._sbTrackH - self._sbThumbH)
+    if targetThumbY < minThumbY then targetThumbY = minThumbY end
+    if targetThumbY > maxThumbY then targetThumbY = maxThumbY end
+
+    local denom = (self._sbTrackH - self._sbThumbH)
+    local ratio = 0
+    if denom > 0 then
+        ratio = (targetThumbY - self._sbTrackY) / denom
+    end
+
+    self.scrollOffset = math.max(0, math.min(self.maxScroll * ratio, self.maxScroll))
+end
+
 -----------------------------------------------------------
 -- Rendering
 -----------------------------------------------------------
@@ -229,6 +363,13 @@ function SRU_IngredientList:render()
     local listTop = self.headerHeight + padding
     local listHeight = self.height - listTop - padding
     local listWidth = self.width - padding * 2
+
+    -- Reserve space for scrollbar so it doesn't overlap the count column.
+    local scrollbarW = self:getScrollbarWidth()
+    local showScrollbar = self.maxScroll and self.maxScroll > 0
+    if showScrollbar then
+        listWidth = listWidth - (scrollbarW + 4)
+    end
     
     -- Draw list background
     self:drawRect(padding, listTop, listWidth, listHeight, 0.8, 0.06, 0.05, 0.08)
@@ -263,9 +404,13 @@ function SRU_IngredientList:render()
     self:clearStencilRect()
     
     -- Draw scrollbar if needed
-    if self.maxScroll > 0 then
-        self:drawScrollbar(listTop, listHeight)
+    if showScrollbar then
+        self:drawScrollbar(padding + listWidth + 4, listTop, listHeight)
     end
+end
+
+function SRU_IngredientList:getScrollbarWidth()
+    return 10
 end
 
 function SRU_IngredientList:drawIngredientItem(x, y, width, height, itemInfo, index)
@@ -333,9 +478,8 @@ function SRU_IngredientList:drawIngredientItem(x, y, width, height, itemInfo, in
     self:drawText(countText, countX, textY, countColor.r, countColor.g, countColor.b, 1, UIFont.Small)
 end
 
-function SRU_IngredientList:drawScrollbar(listTop, listHeight)
-    local scrollbarWidth = 6
-    local scrollbarX = self.width - self.padding - scrollbarWidth
+function SRU_IngredientList:drawScrollbar(scrollbarX, listTop, listHeight)
+    local scrollbarWidth = self:getScrollbarWidth()
     
     -- Track
     self:drawRect(scrollbarX, listTop, scrollbarWidth, listHeight, 0.5, 0.1, 0.1, 0.15)
@@ -349,6 +493,14 @@ function SRU_IngredientList:drawScrollbar(listTop, listHeight)
     
     -- Thumb
     self:drawRect(scrollbarX, thumbY, scrollbarWidth, thumbHeight, 0.8, 0.4, 0.35, 0.5)
+
+    -- Save geometry for mouse interaction
+    self._sbX = scrollbarX
+    self._sbW = scrollbarWidth
+    self._sbTrackY = listTop
+    self._sbTrackH = listHeight
+    self._sbThumbY = thumbY
+    self._sbThumbH = thumbHeight
 end
 
 -----------------------------------------------------------

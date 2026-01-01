@@ -1,0 +1,48 @@
+module Base
+{
+    item SRU_SkillBookTier1
+    {
+        DisplayName = Skill Book (Tier 1),
+        DisplayCategory = SkillBook,
+        ItemType = base:literature,
+        Weight = 0.1,
+        Icon = Book8,
+    }
+
+    item SRU_SkillBookTier2
+    {
+        DisplayName = Skill Book (Tier 2),
+        DisplayCategory = SkillBook,
+        ItemType = base:literature,
+        Weight = 0.1,
+        Icon = Book8,
+    }
+
+    item SRU_SkillBookTier3
+    {
+        DisplayName = Skill Book (Tier 3),
+        DisplayCategory = SkillBook,
+        ItemType = base:literature,
+        Weight = 0.1,
+        Icon = Book8,
+    }
+
+    item SRU_SkillBookTier4
+    {
+        DisplayName = Skill Book (Tier 4),
+        DisplayCategory = SkillBook,
+        ItemType = base:literature,
+        Weight = 0.1,
+        Icon = Book8,
+    }
+
+    item SRU_SkillBookTier5
+    {
+        DisplayName = Skill Book (Tier 5),
+        DisplayCategory = SkillBook,
+        ItemType = base:literature,
+        Weight = 0.1,
+        Icon = Book8,
+    }
+}
+

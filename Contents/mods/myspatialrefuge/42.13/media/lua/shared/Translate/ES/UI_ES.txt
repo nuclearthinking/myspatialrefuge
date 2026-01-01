@@ -14,9 +14,10 @@ UI_ES = {
     -- Categories
     UI_RefugeUpgrade_Category_shelter = "Refugio", -- 1.5/31.12.2025
     UI_RefugeUpgrade_Category_general = "General", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_comfort = "Comodidad", -- 1.6/15.01.2026
     
     -- Expand Refuge Area
-    UI_Upgrade_ExpandRefuge = "Expandir área del refugio", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge = "Expandir area del refugio", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L1 = "Expandir refugio a 5x5 baldosas.", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L2 = "Expandir refugio a 7x7 baldosas.", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L3 = "Expandir refugio a 9x9 baldosas.", -- 1.5/31.12.2025
@@ -26,5 +27,14 @@ UI_ES = {
     UI_Upgrade_ExpandRefuge_L7 = "Expandir refugio a 17x17 baldosas.", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L8 = "Expandir refugio a 19x19 baldosas.", -- 1.5/31.12.2025
     
-    UI_Effect_refugeSize = "Tamaño del refugio", -- 1.5/31.12.2025
+    -- Faster Reading
+    UI_Upgrade_FasterReading = "Lectura rapida", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L1 = "A cambio del conocimiento de tu mundo, el Refugio Espacial potencia tu percepcion y tu memoria, ayudandote a asimilar lo que lees mas rapido mientras estas dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L2 = "A cambio del conocimiento de tu mundo, el Refugio Espacial potencia tu percepcion y tu memoria, ayudandote a asimilar lo que lees mas rapido mientras estas dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L3 = "A cambio del conocimiento de tu mundo, el Refugio Espacial potencia tu percepcion y tu memoria, ayudandote a asimilar lo que lees mas rapido mientras estas dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L4 = "A cambio del conocimiento de tu mundo, el Refugio Espacial potencia tu percepcion y tu memoria, ayudandote a asimilar lo que lees mas rapido mientras estas dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L5 = "A cambio del conocimiento de tu mundo, el Refugio Espacial potencia tu percepcion y tu memoria, ayudandote a asimilar lo que lees mas rapido mientras estas dentro.", -- 1.6/15.01.2026
+    
+    UI_Effect_refugeSize = "Tamano del refugio", -- 1.5/31.12.2025
+    UI_Effect_readingSpeedMultiplier = "Velocidad de lectura", -- 1.6/15.01.2026
 }
