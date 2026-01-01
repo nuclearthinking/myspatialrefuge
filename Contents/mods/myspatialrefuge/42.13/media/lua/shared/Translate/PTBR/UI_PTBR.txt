@@ -14,6 +14,7 @@ UI_PTBR = {
     -- Categories
     UI_RefugeUpgrade_Category_shelter = "Abrigo", -- 1.5/31.12.2025
     UI_RefugeUpgrade_Category_general = "Geral", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_comfort = "Conforto", -- 1.6/15.01.2026
     
     -- Expand Refuge Area
     UI_Upgrade_ExpandRefuge = "Expandir área do refúgio", -- 1.5/31.12.2025
@@ -26,5 +27,14 @@ UI_PTBR = {
     UI_Upgrade_ExpandRefuge_L7 = "Expandir refúgio para 17x17 blocos.", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L8 = "Expandir refúgio para 19x19 blocos.", -- 1.5/31.12.2025
     
+    -- Faster Reading
+    UI_Upgrade_FasterReading = "Leitura rápida", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L1 = "Em troca do conhecimento do seu mundo, o Refúgio Espacial aprimora sua percepção e sua memória, ajudando você a absorver conhecimento escrito mais rápido enquanto estiver dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L2 = "Em troca do conhecimento do seu mundo, o Refúgio Espacial aprimora sua percepção e sua memória, ajudando você a absorver conhecimento escrito mais rápido enquanto estiver dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L3 = "Em troca do conhecimento do seu mundo, o Refúgio Espacial aprimora sua percepção e sua memória, ajudando você a absorver conhecimento escrito mais rápido enquanto estiver dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L4 = "Em troca do conhecimento do seu mundo, o Refúgio Espacial aprimora sua percepção e sua memória, ajudando você a absorver conhecimento escrito mais rápido enquanto estiver dentro.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L5 = "Em troca do conhecimento do seu mundo, o Refúgio Espacial aprimora sua percepção e sua memória, ajudando você a absorver conhecimento escrito mais rápido enquanto estiver dentro.", -- 1.6/15.01.2026
+    
     UI_Effect_refugeSize = "Tamanho do refúgio", -- 1.5/31.12.2025
+    UI_Effect_readingSpeedMultiplier = "Velocidade de leitura", -- 1.6/15.01.2026
 }

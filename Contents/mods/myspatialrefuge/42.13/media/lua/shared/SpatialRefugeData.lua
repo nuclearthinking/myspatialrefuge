@@ -5,13 +5,53 @@
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeEnv"
 
--- Prevent double-loading
 if SpatialRefugeData and SpatialRefugeData._loaded then
     return SpatialRefugeData
 end
 
 SpatialRefugeData = SpatialRefugeData or {}
 SpatialRefugeData._loaded = true
+
+-----------------------------------------------------------
+-- Debug Helpers
+-----------------------------------------------------------
+
+-- Format upgrades table for debug logging
+-- Returns string like "{faster_reading=3, other=1}" or "nil"
+local function formatUpgradesTable(upgrades)
+    if not upgrades then return "nil" end
+    local parts = {}
+    for k, v in pairs(upgrades) do
+        table.insert(parts, k .. "=" .. tostring(v))
+    end
+    return "{" .. table.concat(parts, ", ") .. "}"
+end
+
+function SpatialRefugeData.FormatUpgradesTable(upgrades)
+    return formatUpgradesTable(upgrades)
+end
+
+-----------------------------------------------------------
+-- RefugeData Serialization (DRY helper)
+-----------------------------------------------------------
+
+-- Use this instead of manually copying fields everywhere
+function SpatialRefugeData.SerializeRefugeData(refugeData)
+    if not refugeData then return nil end
+    return {
+        refugeId = refugeData.refugeId,
+        username = refugeData.username,
+        centerX = refugeData.centerX,
+        centerY = refugeData.centerY,
+        centerZ = refugeData.centerZ,
+        tier = refugeData.tier,
+        radius = refugeData.radius,
+        relicX = refugeData.relicX,
+        relicY = refugeData.relicY,
+        relicZ = refugeData.relicZ,
+        upgrades = refugeData.upgrades
+    }
+end
 
 -----------------------------------------------------------
 -- Environment Helpers (delegated to SpatialRefugeEnv)
@@ -33,7 +73,6 @@ local function isMultiplayerClient()
     return SpatialRefugeEnv.isClient() and not SpatialRefugeEnv.isServer()
 end
 
--- Expose for other modules to use
 function SpatialRefugeData.CanModifyData()
     return canModifyData()
 end
@@ -46,19 +85,14 @@ end
 -- ModData Initialization
 -----------------------------------------------------------
 
--- Get ModData without creating structure (for MP clients)
 function SpatialRefugeData.GetModData()
     return ModData.getOrCreate(SpatialRefugeConfig.MODDATA_KEY)
 end
 
--- Initialize ModData structure (creates tables if missing)
 -- In MP, only the server should call this to create the structure
--- Clients receive the structure via transmit from server
 function SpatialRefugeData.InitializeModData()
     local modData = ModData.getOrCreate(SpatialRefugeConfig.MODDATA_KEY)
     
-    -- Only create empty tables on server or singleplayer
-    -- MP clients should receive these from server via transmit
     local shouldCreateTables = canModifyData()
     
     if shouldCreateTables then
@@ -73,7 +107,6 @@ function SpatialRefugeData.InitializeModData()
     return modData
 end
 
--- Transmit ModData changes (for multiplayer sync)
 function SpatialRefugeData.TransmitModData()
     if ModData.transmit then
         ModData.transmit(SpatialRefugeConfig.MODDATA_KEY)
@@ -84,20 +117,16 @@ end
 -- Refuge Registry Access
 -----------------------------------------------------------
 
--- Get global refuge registry
--- Returns nil if ModData hasn't been received yet on MP clients
 function SpatialRefugeData.GetRefugeRegistry()
     local modData = SpatialRefugeData.InitializeModData()
     return modData[SpatialRefugeConfig.REFUGES_KEY]
 end
 
--- Check if ModData has been initialized (for MP clients to verify data received)
 function SpatialRefugeData.HasRefugeData()
     local modData = SpatialRefugeData.GetModData()
     return modData and modData[SpatialRefugeConfig.REFUGES_KEY] ~= nil
 end
 
--- Get refuge data for a specific player (by player object)
 function SpatialRefugeData.GetRefugeData(player)
     if not player then return nil end
     
@@ -105,23 +134,19 @@ function SpatialRefugeData.GetRefugeData(player)
     return SpatialRefugeData.GetRefugeDataByUsername(username)
 end
 
--- Get refuge data by username string
 function SpatialRefugeData.GetRefugeDataByUsername(username)
     if not username then return nil end
     
     local registry = SpatialRefugeData.GetRefugeRegistry()
-    if not registry then return nil end  -- Registry not available yet (MP client waiting for server data)
+    if not registry then return nil end
     
     return registry[username]
 end
 
--- Allocate coordinates for a new refuge
--- Returns: centerX, centerY, centerZ
--- NOTE: Should only be called on server
+-- Should only be called on server
 function SpatialRefugeData.AllocateRefugeCoordinates()
     local registry = SpatialRefugeData.GetRefugeRegistry()
     if not registry then
-        -- Fallback - should never happen on server
         return SpatialRefugeConfig.REFUGE_BASE_X, SpatialRefugeConfig.REFUGE_BASE_Y, SpatialRefugeConfig.REFUGE_BASE_Z
     end
     local baseX = SpatialRefugeConfig.REFUGE_BASE_X
@@ -129,13 +154,11 @@ function SpatialRefugeData.AllocateRefugeCoordinates()
     local baseZ = SpatialRefugeConfig.REFUGE_BASE_Z
     local spacing = SpatialRefugeConfig.REFUGE_SPACING
     
-    -- Simple allocation: count existing refuges and offset
     local count = 0
     for _ in pairs(registry) do
         count = count + 1
     end
     
-    -- Arrange refuges in a grid pattern
     local row = math.floor(count / 10)
     local col = count % 10
     
@@ -146,9 +169,7 @@ function SpatialRefugeData.AllocateRefugeCoordinates()
     return centerX, centerY, centerZ
 end
 
--- Get or create refuge data for a player
--- NOTE: Creating new refuge data is only allowed on server or singleplayer
--- MP clients must request ModData from server via REQUEST_MODDATA command
+-- Creating new refuge data is only allowed on server or singleplayer
 function SpatialRefugeData.GetOrCreateRefugeData(player)
     if not player then return nil end
     
@@ -158,8 +179,6 @@ function SpatialRefugeData.GetOrCreateRefugeData(player)
     local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
     
     if not refugeData then
-        -- Only server/singleplayer can create new refuge data
-        -- MP clients must wait for server to send data via MODDATA_RESPONSE
         local canCreate = canModifyData()
         
         if not canCreate then
@@ -169,7 +188,6 @@ function SpatialRefugeData.GetOrCreateRefugeData(player)
             return nil
         end
         
-        -- Allocate coordinates for new refuge
         local centerX, centerY, centerZ = SpatialRefugeData.AllocateRefugeCoordinates()
         
         refugeData = {
@@ -185,10 +203,10 @@ function SpatialRefugeData.GetOrCreateRefugeData(player)
             relicZ = centerZ,
             createdTime = os.time(),
             lastExpanded = os.time(),
-            dataVersion = 2
+            dataVersion = SpatialRefugeConfig.CURRENT_DATA_VERSION,
+            upgrades = {}
         }
         
-        -- Save to registry
         SpatialRefugeData.SaveRefugeData(refugeData)
         
         if getDebug() then
@@ -199,42 +217,53 @@ function SpatialRefugeData.GetOrCreateRefugeData(player)
     return refugeData
 end
 
--- Save refuge data to ModData
--- NOTE: Only server/singleplayer can save refuge data
+-- Only server/singleplayer can save refuge data
 function SpatialRefugeData.SaveRefugeData(refugeData)
-    if not refugeData or not refugeData.username then return false end
+    if not refugeData or not refugeData.username then 
+        print("[SpatialRefugeData] SaveRefugeData: FAILED - no refugeData or username")
+        return false 
+    end
     
-    -- Only server/singleplayer can save
     if not canModifyData() then
-        if getDebug() then
-            print("[SpatialRefugeData] MP client cannot save refuge data")
-        end
+        print("[SpatialRefugeData] SaveRefugeData: FAILED - MP client cannot save")
         return false
     end
     
     local registry = SpatialRefugeData.GetRefugeRegistry()
     if not registry then
-        -- Initialize if needed
         local modData = SpatialRefugeData.InitializeModData()
         registry = modData[SpatialRefugeConfig.REFUGES_KEY]
     end
     
-    if not registry then return false end
+    if not registry then 
+        print("[SpatialRefugeData] SaveRefugeData: FAILED - no registry")
+        return false 
+    end
+    
+    if getDebug and getDebug() then
+        print("[SpatialRefugeData] SaveRefugeData: Saving for " .. refugeData.username .. 
+              " with upgrades=" .. formatUpgradesTable(refugeData.upgrades))
+    end
     
     registry[refugeData.username] = refugeData
-    
-    -- Transmit for multiplayer sync
     SpatialRefugeData.TransmitModData()
+    
+    if getDebug and getDebug() then
+        local verify = registry[refugeData.username]
+        if verify and verify.upgrades then
+            print("[SpatialRefugeData] SaveRefugeData: Verified upgrades=" .. formatUpgradesTable(verify.upgrades))
+        else
+            print("[SpatialRefugeData] SaveRefugeData: WARNING - verify.upgrades is nil after save!")
+        end
+    end
     
     return true
 end
 
--- Delete refuge data from ModData
--- NOTE: Only server/singleplayer can delete refuge data
+-- Only server/singleplayer can delete refuge data
 function SpatialRefugeData.DeleteRefugeData(player)
     if not player then return false end
     
-    -- Only server/singleplayer can delete
     if not canModifyData() then
         if getDebug() then
             print("[SpatialRefugeData] MP client cannot delete refuge data")
@@ -257,15 +286,13 @@ end
 -- Return Position Management
 -----------------------------------------------------------
 
--- Cached refuge bounds for performance
 local refugeBoundsCache = nil
 
--- Get cached refuge bounds
 local function getRefugeBounds()
     if not refugeBoundsCache then
         local baseX = SpatialRefugeConfig.REFUGE_BASE_X
         local baseY = SpatialRefugeConfig.REFUGE_BASE_Y
-        local maxRadius = 10  -- Account for refuge extending below/left of base
+        local maxRadius = 10
         refugeBoundsCache = {
             minX = baseX - maxRadius,
             minY = baseY - maxRadius,
@@ -276,18 +303,15 @@ local function getRefugeBounds()
     return refugeBoundsCache
 end
 
--- Check if coordinates are within refuge space
 function SpatialRefugeData.IsInRefugeCoordinates(x, y)
     local bounds = getRefugeBounds()
     return x >= bounds.minX and x < bounds.maxX and 
            y >= bounds.minY and y < bounds.maxY
 end
 
--- Check if player is currently in refuge coordinates
 function SpatialRefugeData.IsPlayerInRefugeCoords(player)
     if not player then return false end
     
-    -- Safety check for player position functions
     if not player.getX or not player.getY then
         return false
     end
@@ -300,7 +324,6 @@ function SpatialRefugeData.IsPlayerInRefugeCoords(player)
     return SpatialRefugeData.IsInRefugeCoordinates(x, y)
 end
 
--- Get player's return position from global ModData
 function SpatialRefugeData.GetReturnPosition(player)
     if not player then return nil end
     
@@ -310,7 +333,6 @@ function SpatialRefugeData.GetReturnPosition(player)
     return SpatialRefugeData.GetReturnPositionByUsername(username)
 end
 
--- Get return position by username
 function SpatialRefugeData.GetReturnPositionByUsername(username)
     if not username then return nil end
     
@@ -320,7 +342,6 @@ function SpatialRefugeData.GetReturnPositionByUsername(username)
     return modData.ReturnPositions[username]
 end
 
--- Save player's return position to global ModData
 function SpatialRefugeData.SaveReturnPosition(player, x, y, z)
     if not player then return false end
     
@@ -330,12 +351,10 @@ function SpatialRefugeData.SaveReturnPosition(player, x, y, z)
     return SpatialRefugeData.SaveReturnPositionByUsername(username, x, y, z)
 end
 
--- Save return position by username
--- NOTE: Only server/singleplayer can save return positions
+-- Only server/singleplayer can save return positions
 function SpatialRefugeData.SaveReturnPositionByUsername(username, x, y, z)
     if not username then return false end
     
-    -- Only server/singleplayer can save
     if not canModifyData() then
         if getDebug() then
             print("[SpatialRefugeData] MP client cannot save return position")
@@ -343,7 +362,7 @@ function SpatialRefugeData.SaveReturnPositionByUsername(username, x, y, z)
         return false
     end
     
-    -- CRITICAL: Never save refuge coordinates as return position
+    -- Never save refuge coordinates as return position
     if SpatialRefugeData.IsInRefugeCoordinates(x, y) then
         if getDebug() then
             print("[SpatialRefugeData] WARNING: Attempted to save refuge coordinates as return position - blocked!")
@@ -354,21 +373,16 @@ function SpatialRefugeData.SaveReturnPositionByUsername(username, x, y, z)
     local modData = SpatialRefugeData.InitializeModData()
     if not modData then return false end
     
-    -- Ensure ReturnPositions table exists
     if not modData.ReturnPositions then
         modData.ReturnPositions = {}
     end
     
-    -- Save the position
     modData.ReturnPositions[username] = { x = x, y = y, z = z }
-    
-    -- Transmit for multiplayer sync
     SpatialRefugeData.TransmitModData()
     
     return true
 end
 
--- Clear player's return position from global ModData
 function SpatialRefugeData.ClearReturnPosition(player)
     if not player then return end
     
@@ -378,12 +392,10 @@ function SpatialRefugeData.ClearReturnPosition(player)
     SpatialRefugeData.ClearReturnPositionByUsername(username)
 end
 
--- Clear return position by username
--- NOTE: Only server/singleplayer can clear return positions
+-- Only server/singleplayer can clear return positions
 function SpatialRefugeData.ClearReturnPositionByUsername(username)
     if not username then return false end
     
-    -- Only server/singleplayer can clear
     if not canModifyData() then
         if getDebug() then
             print("[SpatialRefugeData] MP client cannot clear return position")

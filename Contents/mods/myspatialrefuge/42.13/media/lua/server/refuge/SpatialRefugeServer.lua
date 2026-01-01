@@ -8,8 +8,85 @@ require "shared/SpatialRefugeData"
 require "shared/SpatialRefugeValidation"
 require "shared/SpatialRefugeMigration"
 require "shared/SpatialRefugeUpgradeData"
+require "shared/SpatialRefugeTransaction"
 
 SpatialRefugeServer = SpatialRefugeServer or {}
+SpatialRefuge = SpatialRefuge or {}
+
+-----------------------------------------------------------
+-- Shared helpers needed by shared code (server-side)
+-----------------------------------------------------------
+
+-- Relic container cache per player for server-side performance
+-- Key: username, Value: {container, refugeId, cacheTime}
+local _serverRelicContainerCache = {}
+local CACHE_DURATION = 5  -- seconds
+
+-- Invalidate server-side relic container cache for a player
+function SpatialRefuge.InvalidateRelicContainerCache(username)
+    if username then
+        _serverRelicContainerCache[username] = nil
+    end
+end
+
+-- Get Sacred Relic container for a player (for item source access)
+-- Returns: ItemContainer if found, nil otherwise
+-- NOTE: Must exist on server so shared/SpatialRefugeTransaction can include relic storage in MP validation/consumption.
+-- Uses caching to avoid expensive grid searches on every call
+-- @param player: The player
+-- @param bypassCache: (optional) If true, always do a fresh lookup (for transactions)
+function SpatialRefuge.GetRelicContainer(player, bypassCache)
+    if not player then return nil end
+    if not SpatialRefugeData or not SpatialRefugeData.GetRefugeDataByUsername then return nil end
+    
+    local username = nil
+    if player.getUsername then
+        local ok, name = pcall(function() return player:getUsername() end)
+        if ok then username = name end
+    end
+    if not username then return nil end
+    
+    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    if not refugeData then return nil end
+    
+    local now = getTimestamp and getTimestamp() or 0
+    local refugeId = refugeData.refugeId
+    
+    -- Check cache validity (skip if bypassCache is true - used for transactions)
+    if not bypassCache then
+        local cached = _serverRelicContainerCache[username]
+        if cached and cached.refugeId == refugeId and (now - cached.cacheTime) < CACHE_DURATION then
+            -- Cache hit
+            return cached.container
+        end
+    end
+    
+    -- Cache miss or bypass - need to search for relic
+    local relicX = refugeData.relicX or refugeData.centerX
+    local relicY = refugeData.relicY or refugeData.centerY
+    local relicZ = refugeData.relicZ or refugeData.centerZ or 0
+    local radius = refugeData.radius or 1
+    
+    local relic = SpatialRefugeShared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
+    if not relic then 
+        _serverRelicContainerCache[username] = nil
+        return nil 
+    end
+    
+    local container = nil
+    if relic.getContainer then
+        container = relic:getContainer()
+    end
+    
+    -- Update cache (even when bypassing, so next call benefits)
+    _serverRelicContainerCache[username] = {
+        container = container,
+        refugeId = refugeId,
+        cacheTime = now
+    }
+    
+    return container
+end
 
 -----------------------------------------------------------
 -- Server-Side State Tracking (authoritative, not client ModData)
@@ -136,20 +213,9 @@ function SpatialRefugeServer.HandleModDataRequest(player, args)
               refugeData.centerX .. "," .. refugeData.centerY .. " tier " .. refugeData.tier)
     end
     
-    -- Send refuge data to client
+    -- Send refuge data to client (using serialization helper for DRY)
     sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.MODDATA_RESPONSE, {
-        refugeData = {
-            refugeId = refugeData.refugeId,
-            username = refugeData.username,
-            centerX = refugeData.centerX,
-            centerY = refugeData.centerY,
-            centerZ = refugeData.centerZ,
-            tier = refugeData.tier,
-            radius = refugeData.radius,
-            relicX = refugeData.relicX,
-            relicY = refugeData.relicY,
-            relicZ = refugeData.relicZ
-        },
+        refugeData = SpatialRefugeData.SerializeRefugeData(refugeData),
         returnPosition = returnPos
     })
     
@@ -407,158 +473,6 @@ function SpatialRefugeServer.HandleExitRequest(player, args)
     end
 end
 
--- Handle Upgrade Refuge Request
-function SpatialRefugeServer.HandleUpgradeRequest(player, args)
-    if not player then return end
-    
-    local username = player:getUsername()
-    if not username then return end
-    
-    -- Extract transaction info from args
-    local coreCost = args and args.coreCost or 0
-    local transactionId = args and args.transactionId or nil
-    
-    -- Get current refuge data
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
-    
-    -- Use shared validation for upgrade prerequisites
-    local canUpgrade, reason, tierConfig = SpatialRefugeValidation.CanUpgradeRefuge(player, refugeData)
-    if not canUpgrade then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = reason,
-            transactionId = transactionId,  -- Include for transaction rollback
-            transactionType = "REFUGE_UPGRADE",
-            coreRefund = coreCost  -- Legacy fallback
-        })
-        return
-    end
-    
-    local currentTier = refugeData.tier or 0
-    local newTier = currentTier + 1
-    
-    -- Note: Core consumption validated client-side before request
-    -- Server refunds cores on failure via coreRefund in error response
-    
-    -- CRITICAL: Verify chunks are loaded for the NEW radius before modifying structures
-    -- The new walls will be at a larger radius, those chunks must be loaded
-    local newRadius = tierConfig.radius
-    local cell = getCell()
-    if not cell then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "World not ready",
-            transactionId = transactionId,
-            transactionType = "REFUGE_UPGRADE",
-            coreRefund = coreCost
-        })
-        return
-    end
-    
-    -- Check all corners of the NEW radius are loaded
-    local cornerOffsets = {
-        {0, 0},
-        {-newRadius - 1, -newRadius - 1},
-        {newRadius + 1, -newRadius - 1},
-        {-newRadius - 1, newRadius + 1},
-        {newRadius + 1, newRadius + 1}
-    }
-    
-    for _, offset in ipairs(cornerOffsets) do
-        local x = refugeData.centerX + offset[1]
-        local y = refugeData.centerY + offset[2]
-        -- Only use getGridSquare - don't create empty cells
-        local square = cell:getGridSquare(x, y, refugeData.centerZ)
-        if not square or not square:getChunk() then
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-                message = "Refuge area not fully loaded. Move around and try again.",
-                transactionId = transactionId,
-                transactionType = "REFUGE_UPGRADE",
-                coreRefund = coreCost
-            })
-            return
-        end
-    end
-    
-    -- CRITICAL: Capture old radius BEFORE expansion
-    -- After ExpandRefuge, refugeData.radius will be the NEW radius
-    -- We need the OLD radius to find the relic at its current position
-    local oldRadius = refugeData.radius
-    
-    -- Perform expansion using shared module (pass player for MP zombie sync)
-    local success = SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
-    
-    if success then
-        -- Reposition relic to its assigned corner (if any) after expansion
-        -- This is crucial - relic may be outside new walls if not repositioned
-        -- IMPORTANT: Search using OLD radius where relic currently is located
-        local relic = SpatialRefugeShared.FindRelicInRefuge(
-            refugeData.centerX, refugeData.centerY, refugeData.centerZ,
-            oldRadius, -- Use OLD radius - relic is at old corner position
-            refugeData.refugeId
-        )
-        if relic then
-            local md = relic:getModData()
-            if md and md.assignedCorner then
-                -- Relic has an assigned corner, reposition it to new radius
-                local cornerDx = md.assignedCornerDx or 0
-                local cornerDy = md.assignedCornerDy or 0
-                SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner)
-                
-                -- Update relic position in ModData (server-authoritative)
-                local newRelicX = refugeData.centerX + (cornerDx * refugeData.radius)
-                local newRelicY = refugeData.centerY + (cornerDy * refugeData.radius)
-                refugeData.relicX = newRelicX
-                refugeData.relicY = newRelicY
-                refugeData.relicZ = refugeData.centerZ
-                
-                if getDebug() then
-                    print("[SpatialRefugeServer] Repositioned relic to " .. md.assignedCorner .. " after upgrade")
-                    print("[SpatialRefugeServer] Updated relic position in ModData: " .. newRelicX .. "," .. newRelicY)
-                end
-            end
-        end
-        
-        -- Save updated refuge data (includes new tier, radius, and relic position)
-        SpatialRefugeData.SaveRefugeData(refugeData)
-        
-        -- Send success response with full updated refugeData
-        -- Client needs this to update its local copy AND refresh visual state
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.UPGRADE_COMPLETE, {
-            newTier = newTier,
-            newRadius = refugeData.radius,
-            oldRadius = oldRadius,  -- Include old radius for client-side cleanup
-            displayName = tierConfig.displayName,
-            centerX = refugeData.centerX,
-            centerY = refugeData.centerY,
-            centerZ = refugeData.centerZ,
-            transactionId = transactionId,  -- Include for transaction commit
-            -- Include full refugeData for client to update local copy
-            refugeData = {
-                refugeId = refugeData.refugeId,
-                username = refugeData.username,
-                centerX = refugeData.centerX,
-                centerY = refugeData.centerY,
-                centerZ = refugeData.centerZ,
-                tier = refugeData.tier,
-                radius = refugeData.radius,
-                relicX = refugeData.relicX,
-                relicY = refugeData.relicY,
-                relicZ = refugeData.relicZ
-            }
-        })
-        
-        if getDebug() then
-            print("[SpatialRefugeServer] Upgraded refuge for " .. username .. " to tier " .. newTier)
-        end
-    else
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "Upgrade failed",
-            transactionId = transactionId,
-            transactionType = "REFUGE_UPGRADE",
-            coreRefund = coreCost  -- Legacy fallback
-        })
-    end
-end
-
 -- Handle Move Relic Request
 function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     if not player then return end
@@ -635,19 +549,7 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
             cornerName = cornerName,
             cornerDx = cornerDx,
             cornerDy = cornerDy,
-            -- Include full refugeData for client to update local copy
-            refugeData = {
-                refugeId = refugeData.refugeId,
-                username = refugeData.username,
-                centerX = refugeData.centerX,
-                centerY = refugeData.centerY,
-                centerZ = refugeData.centerZ,
-                tier = refugeData.tier,
-                radius = refugeData.radius,
-                relicX = refugeData.relicX,
-                relicY = refugeData.relicY,
-                relicZ = refugeData.relicZ
-            }
+            refugeData = SpatialRefugeData.SerializeRefugeData(refugeData)
         })
         
         if getDebug() then
@@ -666,32 +568,23 @@ end
 
 -- Handle Feature Upgrade Request (new upgrade system)
 function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ========================================")
-    
-    if not player then 
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - No player")
-        return 
-    end
+    if not player then return end
     
     local username = player:getUsername()
-    if not username then 
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - No username")
-        return 
-    end
+    if not username then return end
     
     -- Extract args
     local upgradeId = args and args.upgradeId
     local targetLevel = args and args.targetLevel
     local transactionId = args and args.transactionId
     
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: user=" .. username)
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: upgradeId=" .. tostring(upgradeId))
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: targetLevel=" .. tostring(targetLevel))
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: transactionId=" .. tostring(transactionId))
+    if getDebug and getDebug() then
+        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: " .. username .. 
+              " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
+    end
     
     if not upgradeId or not targetLevel then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Invalid upgrade request")
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Invalid upgrade request"
         })
@@ -701,19 +594,16 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     -- Get upgrade definition
     local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
     if not upgrade then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Unknown upgrade: " .. tostring(upgradeId))
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Unknown upgrade: " .. tostring(upgradeId)
         })
         return
     end
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: upgrade found, maxLevel=" .. tostring(upgrade.maxLevel))
     
     -- Validate dependencies
     if not SpatialRefugeUpgradeData.isUpgradeUnlocked(player, upgradeId) then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Dependencies not met")
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Dependencies not met"
         })
@@ -722,11 +612,9 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     
     -- Validate current level
     local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: currentLevel=" .. tostring(currentLevel))
     
     if targetLevel <= currentLevel then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Already at this level (target=" .. targetLevel .. " current=" .. currentLevel .. ")")
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Already at this level"
         })
@@ -734,8 +622,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     if targetLevel > currentLevel + 1 then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Must upgrade one level at a time")
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Must upgrade one level at a time"
         })
@@ -743,15 +630,12 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     if targetLevel > upgrade.maxLevel then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Exceeds max level (" .. targetLevel .. " > " .. upgrade.maxLevel .. ")")
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Exceeds max level"
         })
         return
     end
-    
-    print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: All validations passed")
     
     -- Get level requirements for item validation
     local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, targetLevel)
@@ -759,78 +643,60 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     
     -- Validate player has required items (server-side anti-cheat)
     if #requirements > 0 then
-        local playerInv = player:getInventory()
-        if not playerInv then
-            print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Cannot access player inventory")
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
-                transactionId = transactionId,
-                reason = "Cannot access inventory"
-            })
-            return
-        end
-        
         for _, req in ipairs(requirements) do
             local itemType = req.type
             local needed = req.count or 1
-            local available = playerInv:getCountType(itemType)
+            
+            -- IMPORTANT: Use multi-source counting (inventory + Sacred Relic container)
+            -- so server-side validation matches client-side availability in MP.
+            local available = SpatialRefugeTransaction.GetMultiSourceCount(player, itemType)
             
             -- Check substitutes if primary type insufficient
             if available < needed and req.substitutes then
                 for _, subType in ipairs(req.substitutes) do
-                    available = available + playerInv:getCountType(subType)
+                    available = available + SpatialRefugeTransaction.GetMultiSourceCount(player, subType)
                     if available >= needed then break end
                 end
             end
             
             if available < needed then
                 local itemName = itemType:match("%.(.+)$") or itemType
-                print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: ERROR - Not enough " .. itemName .. " (need " .. needed .. ", have " .. available .. ")")
-                sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+                sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "Not enough " .. itemName
                 })
                 return
             end
         end
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: Item validation passed")
     end
     
     -- Special case: expand_refuge triggers the actual refuge expansion
     if upgradeId == "expand_refuge" then
-        print("[SpatialRefugeServer] expand_refuge: ========================================")
-        print("[SpatialRefugeServer] expand_refuge: Processing for " .. username)
-        print("[SpatialRefugeServer] expand_refuge: targetLevel=" .. tostring(targetLevel))
-        
         -- Get current refuge data
         local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
         if not refugeData then
-            print("[SpatialRefugeServer] expand_refuge: ERROR - No refuge data found")
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "No refuge data found"
             })
             return
         end
-        print("[SpatialRefugeServer] expand_refuge: Current tier=" .. tostring(refugeData.tier) .. " radius=" .. tostring(refugeData.radius))
         
         -- Use shared validation for upgrade prerequisites
         local canUpgrade, reason, tierConfig = SpatialRefugeValidation.CanUpgradeRefuge(player, refugeData)
         if not canUpgrade then
-            print("[SpatialRefugeServer] expand_refuge: VALIDATION FAILED - " .. tostring(reason))
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = reason or "Cannot upgrade refuge"
             })
             return
         end
-        print("[SpatialRefugeServer] expand_refuge: Validation passed, newTier config: radius=" .. tostring(tierConfig.radius))
         
         -- Verify chunks are loaded for the NEW radius
         local newRadius = tierConfig.radius
         local cell = getCell()
         if not cell then
-            print("[SpatialRefugeServer] expand_refuge: ERROR - World not ready (no cell)")
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "World not ready"
             })
@@ -851,30 +717,61 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
             local y = refugeData.centerY + offset[2]
             local square = cell:getGridSquare(x, y, refugeData.centerZ)
             if not square or not square:getChunk() then
-                print("[SpatialRefugeServer] expand_refuge: ERROR - Chunks not loaded at " .. x .. "," .. y)
-                sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+                sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "Refuge area not fully loaded. Move around and try again."
                 })
                 return
             end
         end
-        print("[SpatialRefugeServer] expand_refuge: All chunks loaded")
         
         -- Capture old radius BEFORE expansion
         local oldRadius = refugeData.radius
         local newTier = (refugeData.tier or 0) + 1
-        print("[SpatialRefugeServer] expand_refuge: oldRadius=" .. tostring(oldRadius) .. " newTier=" .. tostring(newTier))
         
         -- Perform expansion using shared module
-        print("[SpatialRefugeServer] expand_refuge: Calling ExpandRefuge...")
         local success = SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
         
         if success then
             print("[SpatialRefugeServer] expand_refuge: ExpandRefuge SUCCESS")
+            
             -- Reposition relic to its assigned corner after expansion
-            if refugeData.relicCorner and SpatialRefugeShared.RepositionRelic then
-                SpatialRefugeShared.RepositionRelic(refugeData, oldRadius)
+            -- IMPORTANT: Search using OLD radius where relic currently is located
+            local relic = SpatialRefugeShared.FindRelicInRefuge(
+                refugeData.centerX, refugeData.centerY, refugeData.centerZ,
+                oldRadius, -- Use OLD radius - relic is at old corner position
+                refugeData.refugeId
+            )
+            if relic then
+                local md = relic:getModData()
+                if md and md.assignedCorner then
+                    -- Relic has an assigned corner, reposition it to new radius
+                    local cornerDx = md.assignedCornerDx or 0
+                    local cornerDy = md.assignedCornerDy or 0
+                    -- Pass the already-found relic to avoid redundant search
+                    local moveSuccess, moveMessage = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner, relic)
+                    
+                    if moveSuccess then
+                        -- Update relic position in ModData only if move succeeded (server-authoritative)
+                        local newRelicX = refugeData.centerX + (cornerDx * refugeData.radius)
+                        local newRelicY = refugeData.centerY + (cornerDy * refugeData.radius)
+                        refugeData.relicX = newRelicX
+                        refugeData.relicY = newRelicY
+                        refugeData.relicZ = refugeData.centerZ
+                        
+                        print("[SpatialRefugeServer] expand_refuge: Repositioned relic to " .. md.assignedCorner)
+                        print("[SpatialRefugeServer] expand_refuge: New relic position: " .. newRelicX .. "," .. newRelicY)
+                    else
+                        -- Move failed - relic stays at old position, don't update ModData
+                        -- This prevents position desync between physical relic and stored data
+                        print("[SpatialRefugeServer] expand_refuge: WARNING - Failed to reposition relic: " .. tostring(moveMessage))
+                        print("[SpatialRefugeServer] expand_refuge: Relic remains at current position, ModData unchanged")
+                    end
+                else
+                    print("[SpatialRefugeServer] expand_refuge: Relic has no assigned corner, not moving")
+                end
+            else
+                print("[SpatialRefugeServer] expand_refuge: Could not find relic to reposition")
             end
             
             print("[SpatialRefugeServer] expand_refuge: " .. username .. " expanded to tier " .. newTier)
@@ -884,7 +781,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
             
             -- Send success response with ALL data needed for client-side cleanup
             -- Client needs location and radius info to clean up stale wall objects
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeComplete", {
+            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
                 transactionId = transactionId,
                 upgradeId = upgradeId,
                 newLevel = targetLevel,
@@ -895,24 +792,14 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
                 oldRadius = oldRadius,
                 newRadius = refugeData.radius,
                 newTier = newTier,
-                -- Include full refugeData for client to update local copy
-                refugeData = {
-                    refugeId = refugeData.refugeId,
-                    username = refugeData.username,
-                    centerX = refugeData.centerX,
-                    centerY = refugeData.centerY,
-                    centerZ = refugeData.centerZ,
-                    tier = refugeData.tier,
-                    radius = refugeData.radius,
-                    relicX = refugeData.relicX,
-                    relicY = refugeData.relicY,
-                    relicZ = refugeData.relicZ
-                }
+                refugeData = SpatialRefugeData.SerializeRefugeData(refugeData)
             })
-            print("[SpatialRefugeServer] expand_refuge: Sent FeatureUpgradeComplete")
+            if getDebug and getDebug() then
+                print("[SpatialRefugeServer] expand_refuge: Sent FeatureUpgradeComplete")
+            end
         else
             print("[SpatialRefugeServer] expand_refuge: ExpandRefuge FAILED")
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeError", {
+            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "Expansion failed"
             })
@@ -922,15 +809,28 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
         -- Standard upgrade: Update player level in ModData
         SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
         
-        if getDebug() then
+        if getDebug and getDebug() then
             print("[SpatialRefugeServer] Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
         end
         
-        -- Send success response
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, "FeatureUpgradeComplete", {
+        -- Refresh refugeData after the upgrade to get updated upgrades table
+        local updatedRefugeData = SpatialRefugeData.GetRefugeData(player)
+        
+        -- Debug: Print upgrades after save (using helper)
+        if getDebug and getDebug() then
+            if updatedRefugeData and updatedRefugeData.upgrades then
+                print("[SpatialRefugeServer] Upgrades after save: " .. SpatialRefugeData.FormatUpgradesTable(updatedRefugeData.upgrades))
+            else
+                print("[SpatialRefugeServer] WARNING: No upgrades in refugeData after save!")
+            end
+        end
+        
+        -- Send success response with updated refugeData including upgrades
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
             transactionId = transactionId,
             upgradeId = upgradeId,
-            newLevel = targetLevel
+            newLevel = targetLevel,
+            refugeData = SpatialRefugeData.SerializeRefugeData(updatedRefugeData)
         })
     end
 end
@@ -967,11 +867,9 @@ local function OnClientCommand(module, command, player, args)
         SpatialRefugeServer.HandleChunksReady(player, args)
     elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_EXIT then
         SpatialRefugeServer.HandleExitRequest(player, args)
-    elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_UPGRADE then
-        SpatialRefugeServer.HandleUpgradeRequest(player, args)
     elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_MOVE_RELIC then
         SpatialRefugeServer.HandleMoveRelicRequest(player, args)
-    elseif command == "RequestFeatureUpgrade" then
+    elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_FEATURE_UPGRADE then
         SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     else
         if getDebug() then

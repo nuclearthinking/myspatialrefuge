@@ -14,6 +14,7 @@ UI_CN = {
     -- Categories
     UI_RefugeUpgrade_Category_shelter = "庇护所", -- 1.5/31.12.2025
     UI_RefugeUpgrade_Category_general = "通用", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_comfort = "舒适", -- 1.6/15.01.2026
     
     -- Expand Refuge Area
     UI_Upgrade_ExpandRefuge = "扩展避难所区域", -- 1.5/31.12.2025
@@ -26,5 +27,14 @@ UI_CN = {
     UI_Upgrade_ExpandRefuge_L7 = "将避难所扩展至 17x17 格。", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L8 = "将避难所扩展至 19x19 格。", -- 1.5/31.12.2025
     
+    -- Faster Reading
+    UI_Upgrade_FasterReading = "快速阅读", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L1 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L2 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L3 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L4 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L5 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+    
     UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
+    UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026
 }

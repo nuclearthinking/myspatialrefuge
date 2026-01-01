@@ -5,8 +5,9 @@
 require "shared/SpatialRefugeUpgradeData"
 require "shared/SpatialRefugeTransaction"
 require "shared/SpatialRefugeConfig"
+require "shared/SpatialRefugeShared"
+require "shared/SpatialRefugeData"
 
--- Prevent double-loading
 if SpatialRefugeUpgradeLogic and SpatialRefugeUpgradeLogic._loaded then
     return SpatialRefugeUpgradeLogic
 end
@@ -25,7 +26,6 @@ local TRANSACTION_TYPE_UPGRADE = "REFUGE_FEATURE_UPGRADE"
 -- Helper Functions
 -----------------------------------------------------------
 
--- Resolve player reference
 local function resolvePlayer(player)
     if not player then return nil end
     
@@ -46,7 +46,6 @@ local function resolvePlayer(player)
     return player
 end
 
--- Check if we're in multiplayer client mode
 local _cachedIsMPClient = nil
 local function isMultiplayerClient()
     if _cachedIsMPClient == nil then
@@ -59,12 +58,10 @@ end
 -- Item Source Management
 -----------------------------------------------------------
 
--- Get all containers to check for items
 function SpatialRefugeUpgradeLogic.getItemSources(player)
     return SpatialRefugeTransaction.GetItemSources(player)
 end
 
--- Get total available count for a requirement (with substitutes)
 function SpatialRefugeUpgradeLogic.getAvailableItemCount(player, requirement)
     if not requirement then return 0 end
     
@@ -72,7 +69,6 @@ function SpatialRefugeUpgradeLogic.getAvailableItemCount(player, requirement)
     return total
 end
 
--- Check if player has all required items for an upgrade level
 function SpatialRefugeUpgradeLogic.hasRequiredItems(player, requirements)
     if not requirements or #requirements == 0 then
         return true
@@ -94,33 +90,27 @@ end
 -- Upgrade Validation
 -----------------------------------------------------------
 
--- Check if player can purchase an upgrade
 function SpatialRefugeUpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then
         return false, "Invalid player"
     end
     
-    -- Check if upgrade exists
     local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
     if not upgrade then
         return false, "Unknown upgrade"
     end
     
-    -- Check dependencies
     if not SpatialRefugeUpgradeData.isUpgradeUnlocked(playerObj, upgradeId) then
         return false, "Dependencies not met"
     end
     
-    -- Check current level
     local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId)
     
-    -- Determine target level
     if not targetLevel then
         targetLevel = currentLevel + 1
     end
     
-    -- Validate target level
     if targetLevel <= currentLevel then
         return false, "Already at this level"
     end
@@ -129,18 +119,15 @@ function SpatialRefugeUpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetL
         return false, "Exceeds max level"
     end
     
-    -- Can only upgrade one level at a time
     if targetLevel > currentLevel + 1 then
         return false, "Must upgrade one level at a time"
     end
     
-    -- Get level requirements
     local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, targetLevel)
     if not levelData then
         return false, "Invalid level data"
     end
     
-    -- Check items
     local requirements = levelData.requirements or {}
     if not SpatialRefugeUpgradeLogic.hasRequiredItems(playerObj, requirements) then
         return false, "Missing required items"
@@ -153,7 +140,6 @@ end
 -- Upgrade Purchase
 -----------------------------------------------------------
 
--- Purchase an upgrade (main entry point)
 function SpatialRefugeUpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then
@@ -164,7 +150,6 @@ function SpatialRefugeUpgradeLogic.purchaseUpgrade(player, upgradeId, targetLeve
     print("[SpatialRefugeUpgradeLogic] ========================================")
     print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: " .. tostring(upgradeId) .. " level " .. tostring(targetLevel))
     
-    -- Validate
     local canPurchase, err = SpatialRefugeUpgradeLogic.canPurchaseUpgrade(playerObj, upgradeId, targetLevel)
     if not canPurchase then
         print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: CANNOT purchase - " .. tostring(err))
@@ -172,7 +157,6 @@ function SpatialRefugeUpgradeLogic.purchaseUpgrade(player, upgradeId, targetLeve
     end
     print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Validation passed")
     
-    -- Get requirements
     local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, targetLevel)
     local requirements = levelData.requirements or {}
     
@@ -182,21 +166,17 @@ function SpatialRefugeUpgradeLogic.purchaseUpgrade(player, upgradeId, targetLeve
     end
     
     if isMultiplayerClient() then
-        -- Multiplayer: Use transaction system
         print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Using MP flow")
         return SpatialRefugeUpgradeLogic.purchaseUpgradeMP(playerObj, upgradeId, targetLevel, requirements)
     else
-        -- Singleplayer: Direct purchase
         print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Using SP flow")
         return SpatialRefugeUpgradeLogic.purchaseUpgradeSP(playerObj, upgradeId, targetLevel, requirements)
     end
 end
 
--- Singleplayer purchase flow
 function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirements)
     print("[SpatialRefugeUpgradeLogic] SP: Starting singleplayer purchase")
     
-    -- Consume items directly
     local success = SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
     if not success then
         print("[SpatialRefugeUpgradeLogic] SP: FAILED to consume items")
@@ -204,12 +184,10 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
     end
     print("[SpatialRefugeUpgradeLogic] SP: Items consumed successfully")
     
-    -- Special case: expand_refuge triggers the refuge expansion system
     if upgradeId == "expand_refuge" then
         print("[SpatialRefugeUpgradeLogic] SP: Processing expand_refuge")
         
-        -- Get refuge data
-        local refugeData = SpatialRefuge.GetRefugeData(player)
+        local refugeData = SpatialRefugeData.GetRefugeData(player)
         if not refugeData then
             print("[SpatialRefugeUpgradeLogic] SP: ERROR - No refuge data found")
             return false, "Refuge data not found"
@@ -217,35 +195,64 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
         
         local currentTier = refugeData.tier or 0
         local nextTier = currentTier + 1
+        local oldRadius = refugeData.radius or 1
         print("[SpatialRefugeUpgradeLogic] SP: Tier " .. currentTier .. " -> " .. nextTier)
         
-        -- Call PerformUpgrade directly (cores already consumed by consumeItems above)
-        if SpatialRefuge and SpatialRefuge.PerformUpgrade then
-            local success = SpatialRefuge.PerformUpgrade(player, refugeData, nextTier)
-            if success then
-                print("[SpatialRefugeUpgradeLogic] SP: PerformUpgrade SUCCESS")
-                local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
-                if tierConfig and player and player.Say then
-                    player:Say("Refuge upgraded to " .. tierConfig.displayName .. "!")
+        -- Perform expansion using shared module
+        local expandSuccess = SpatialRefugeShared.ExpandRefuge(refugeData, nextTier, player)
+        
+        if expandSuccess then
+            print("[SpatialRefugeUpgradeLogic] SP: ExpandRefuge SUCCESS")
+            
+            -- Handle relic repositioning after expansion (same as server does)
+            local relic = SpatialRefugeShared.FindRelicInRefuge(
+                refugeData.centerX, refugeData.centerY, refugeData.centerZ,
+                oldRadius, -- Use OLD radius - relic is at old corner position
+                refugeData.refugeId
+            )
+            if relic then
+                local md = relic:getModData()
+                if md and md.assignedCorner then
+                    local cornerDx = md.assignedCornerDx or 0
+                    local cornerDy = md.assignedCornerDy or 0
+                    local moveSuccess, moveMessage = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner, relic)
+                    
+                    if moveSuccess then
+                        -- Update relic position in ModData
+                        local newRelicX = refugeData.centerX + (cornerDx * refugeData.radius)
+                        local newRelicY = refugeData.centerY + (cornerDy * refugeData.radius)
+                        refugeData.relicX = newRelicX
+                        refugeData.relicY = newRelicY
+                        refugeData.relicZ = refugeData.centerZ
+                        print("[SpatialRefugeUpgradeLogic] SP: Repositioned relic to " .. md.assignedCorner)
+                    else
+                        print("[SpatialRefugeUpgradeLogic] SP: WARNING - Failed to reposition relic: " .. tostring(moveMessage))
+                    end
                 end
-            else
-                print("[SpatialRefugeUpgradeLogic] SP: PerformUpgrade FAILED")
-                return false, "Expansion failed"
+            end
+            
+            -- Save updated refuge data
+            SpatialRefugeData.SaveRefugeData(refugeData)
+            
+            -- Invalidate cached boundary bounds
+            if SpatialRefuge and SpatialRefuge.InvalidateBoundsCache then
+                SpatialRefuge.InvalidateBoundsCache(player)
+            end
+            
+            local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
+            if tierConfig and player and player.Say then
+                player:Say("Refuge upgraded to " .. tierConfig.displayName .. "!")
             end
         else
-            print("[SpatialRefugeUpgradeLogic] SP: WARNING - SpatialRefuge.PerformUpgrade not available!")
-            return false, "Upgrade system not available"
+            print("[SpatialRefugeUpgradeLogic] SP: ExpandRefuge FAILED")
+            return false, "Expansion failed"
         end
     else
-        -- Standard upgrade: Update player level
         print("[SpatialRefugeUpgradeLogic] SP: Setting upgrade level")
         SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
-        
-        -- Apply effects
         SpatialRefugeUpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
     end
     
-    -- Notify player
     local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     if player and player.Say then
@@ -256,9 +263,7 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
     return true, nil
 end
 
--- Multiplayer purchase flow
 function SpatialRefugeUpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirements)
-    -- Begin transaction with substitutions
     local transaction, err = SpatialRefugeTransaction.BeginWithSubstitutions(
         player,
         TRANSACTION_TYPE_UPGRADE,
@@ -269,7 +274,6 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLe
         return false, err or "Failed to start transaction"
     end
     
-    -- Send request to server
     local args = {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
@@ -278,7 +282,7 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLe
     
     sendClientCommand(
         SpatialRefugeConfig.COMMAND_NAMESPACE,
-        "RequestFeatureUpgrade",
+        SpatialRefugeConfig.COMMANDS.REQUEST_FEATURE_UPGRADE,
         args
     )
     
@@ -293,34 +297,27 @@ end
 -- Item Consumption
 -----------------------------------------------------------
 
--- Consume items for an upgrade (singleplayer only)
 function SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    -- Resolve which specific items to consume
     local resolved, err = SpatialRefugeTransaction.ResolveSubstitutions(playerObj, requirements)
     if not resolved then
         return false
     end
     
-    -- Get all item sources (inventory + relic container)
     local sources = SpatialRefugeTransaction.GetItemSources(playerObj)
     if not sources or #sources == 0 then return false end
     
-    -- Consume each item type from all available sources
     for itemType, count in pairs(resolved) do
         local remaining = count
         
-        -- Try each source until we have enough items
         for _, container in ipairs(sources) do
             if remaining <= 0 then break end
             if not container then
-                -- Skip invalid container
             else
                 local items = container:getItems()
                 if items then
-                    -- Iterate backwards to safely remove items
                     for i = items:size() - 1, 0, -1 do
                         if remaining <= 0 then break end
                         
@@ -335,7 +332,6 @@ function SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
         end
         
         if remaining > 0 then
-            -- Failed to consume all items - should not happen if validation passed
             print("[SpatialRefugeUpgradeLogic] consumeItems: Failed to consume " .. tostring(remaining) .. " of " .. tostring(itemType))
             return false
         end
@@ -348,11 +344,7 @@ end
 -- Effect Application
 -----------------------------------------------------------
 
--- Apply upgrade effects to player
 function SpatialRefugeUpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
-    -- Effects are stored in moddata and checked when relevant
-    -- This function is called after a successful upgrade
-    
     local effects = SpatialRefugeUpgradeData.getLevelEffects(upgradeId, level)
     if not effects then return end
     
@@ -363,12 +355,8 @@ function SpatialRefugeUpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
             print("  - " .. name .. ": " .. tostring(value))
         end
     end
-    
-    -- Specific effect handlers can be added here
-    -- For now, effects are passively stored and queried via getPlayerActiveEffects
 end
 
--- Get a specific effect value for a player
 function SpatialRefugeUpgradeLogic.getPlayerEffect(player, effectName)
     local effects = SpatialRefugeUpgradeData.getPlayerActiveEffects(player)
     return effects[effectName] or 0
@@ -378,7 +366,6 @@ end
 -- Transaction Callbacks (for multiplayer)
 -----------------------------------------------------------
 
--- Called when server confirms upgrade
 function SpatialRefugeUpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transactionId)
     print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: ========================================")
     print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: upgradeId=" .. tostring(upgradeId))
@@ -391,18 +378,14 @@ function SpatialRefugeUpgradeLogic.onUpgradeComplete(player, upgradeId, targetLe
         return 
     end
     
-    -- Commit transaction (consume locked items)
     if transactionId then
         print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Committing transaction")
         SpatialRefugeTransaction.Commit(playerObj, transactionId)
     end
     
-    -- Special case: expand_refuge triggers the refuge expansion system
     if upgradeId == "expand_refuge" then
-        -- Server already handled the tier upgrade and expansion
         print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: expand_refuge - server handled expansion")
         
-        -- CRITICAL: Invalidate cached boundary bounds so player can move in expanded area
         if SpatialRefuge and SpatialRefuge.InvalidateBoundsCache then
             print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Invalidating bounds cache for MP")
             SpatialRefuge.InvalidateBoundsCache(playerObj)
@@ -417,22 +400,17 @@ function SpatialRefugeUpgradeLogic.onUpgradeComplete(player, upgradeId, targetLe
             end
         end
     else
-        -- Standard upgrade: Update player level
         print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Setting upgrade level")
         SpatialRefugeUpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
-        
-        -- Apply effects
         SpatialRefugeUpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
     
-    -- Refresh UI if open
     local SpatialRefugeUpgradeWindow = require "refuge/SpatialRefugeUpgradeWindow"
     if SpatialRefugeUpgradeWindow.instance then
         SpatialRefugeUpgradeWindow.instance:refreshUpgradeList()
         SpatialRefugeUpgradeWindow.instance:refreshCurrentUpgrade()
     end
     
-    -- Notify player
     local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     if playerObj and playerObj.Say then
@@ -441,7 +419,6 @@ function SpatialRefugeUpgradeLogic.onUpgradeComplete(player, upgradeId, targetLe
     print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Done")
 end
 
--- Called when server reports error
 function SpatialRefugeUpgradeLogic.onUpgradeError(player, transactionId, reason)
     print("[SpatialRefugeUpgradeLogic] onUpgradeError: ========================================")
     print("[SpatialRefugeUpgradeLogic] onUpgradeError: transactionId=" .. tostring(transactionId))
@@ -453,7 +430,6 @@ function SpatialRefugeUpgradeLogic.onUpgradeError(player, transactionId, reason)
         return 
     end
     
-    -- Rollback transaction (unlock items)
     if transactionId then
         print("[SpatialRefugeUpgradeLogic] onUpgradeError: Rolling back transaction")
         local success = SpatialRefugeTransaction.Rollback(playerObj, transactionId)
@@ -464,16 +440,11 @@ function SpatialRefugeUpgradeLogic.onUpgradeError(player, transactionId, reason)
         end
     end
     
-    -- Notify player
     if playerObj and playerObj.Say then
         playerObj:Say(reason or "Upgrade failed")
     end
     print("[SpatialRefugeUpgradeLogic] onUpgradeError: Done")
 end
-
------------------------------------------------------------
--- Module Export
------------------------------------------------------------
 
 print("[SpatialRefugeUpgradeLogic] Upgrade logic loaded")
 

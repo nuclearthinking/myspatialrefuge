@@ -5,7 +5,209 @@
 # Upgrade data is stored in GlobalModData (refugeData.upgrades)
 # This enables future cooperative play where multiple players share a refuge
 
-upgrades: {}
+# =============================================================================
+# itemGroups
+# Define reusable item lists here, then reference them inside arrays.
+#
+# Reference tokens (inside arrays):
+# - $skillbooks                -> expands to all items in itemGroups.skillbooks
+# - $skillbooks+Base.SomeItem  -> expands group + appends extra items
+# (You can also use *skillbooks as an alias prefix.)
+# =============================================================================
+
+itemGroups:
+  # Skill books grouped by tier (1..5).
+  # Use these to require "5 books of level N" without caring about the skill.
+  skillbooks_1:
+    - Base.BookCarpentry1
+    - Base.BookCarving1
+    - Base.BookCooking1
+    - Base.BookElectrician1
+    - Base.BookFarming1
+    - Base.BookFirstAid1
+    - Base.BookFishing1
+    - Base.BookFlintKnapping1
+    - Base.BookForaging1
+    - Base.BookGlassmaking1
+    - Base.BookMasonry1
+    - Base.BookMechanic1
+    - Base.BookMetalWelding1
+    - Base.BookBlacksmith1
+    - Base.BookPottery1
+    - Base.BookTailoring1
+    - Base.BookTrapping1
+    - Base.BookAiming1
+    - Base.BookReloading1
+    - Base.BookHusbandry1
+    - Base.BookButchering1
+    - Base.BookTracking1
+    - Base.BookLongBlade1
+    - Base.BookMaintenance1
+  skillbooks_2:
+    - Base.BookCarpentry2
+    - Base.BookCarving2
+    - Base.BookCooking2
+    - Base.BookElectrician2
+    - Base.BookFarming2
+    - Base.BookFirstAid2
+    - Base.BookFishing2
+    - Base.BookFlintKnapping2
+    - Base.BookForaging2
+    - Base.BookGlassmaking2
+    - Base.BookMasonry2
+    - Base.BookMechanic2
+    - Base.BookMetalWelding2
+    - Base.BookBlacksmith2
+    - Base.BookPottery2
+    - Base.BookTailoring2
+    - Base.BookTrapping2
+    - Base.BookAiming2
+    - Base.BookReloading2
+    - Base.BookHusbandry2
+    - Base.BookButchering2
+    - Base.BookTracking2
+    - Base.BookLongBlade2
+    - Base.BookMaintenance2
+  skillbooks_3:
+    - Base.BookCarpentry3
+    - Base.BookCarving3
+    - Base.BookCooking3
+    - Base.BookElectrician3
+    - Base.BookFarming3
+    - Base.BookFirstAid3
+    - Base.BookFishing3
+    - Base.BookFlintKnapping3
+    - Base.BookForaging3
+    - Base.BookGlassmaking3
+    - Base.BookMasonry3
+    - Base.BookMechanic3
+    - Base.BookMetalWelding3
+    - Base.BookBlacksmith3
+    - Base.BookPottery3
+    - Base.BookTailoring3
+    - Base.BookTrapping3
+    - Base.BookAiming3
+    - Base.BookReloading3
+    - Base.BookHusbandry3
+    - Base.BookButchering3
+    - Base.BookTracking3
+    - Base.BookLongBlade3
+    - Base.BookMaintenance3
+  skillbooks_4:
+    - Base.BookCarpentry4
+    - Base.BookCarving4
+    - Base.BookCooking4
+    - Base.BookElectrician4
+    - Base.BookFarming4
+    - Base.BookFirstAid4
+    - Base.BookFishing4
+    - Base.BookFlintKnapping4
+    - Base.BookForaging4
+    - Base.BookGlassmaking4
+    - Base.BookMasonry4
+    - Base.BookMechanic4
+    - Base.BookMetalWelding4
+    - Base.BookBlacksmith4
+    - Base.BookPottery4
+    - Base.BookTailoring4
+    - Base.BookTrapping4
+    - Base.BookAiming4
+    - Base.BookReloading4
+    - Base.BookHusbandry4
+    - Base.BookButchering4
+    - Base.BookTracking4
+    - Base.BookLongBlade4
+    - Base.BookMaintenance4
+  skillbooks_5:
+    - Base.BookCarpentry5
+    - Base.BookCarving5
+    - Base.BookCooking5
+    - Base.BookElectrician5
+    - Base.BookFarming5
+    - Base.BookFirstAid5
+    - Base.BookFishing5
+    - Base.BookFlintKnapping5
+    - Base.BookForaging5
+    - Base.BookGlassmaking5
+    - Base.BookMasonry5
+    - Base.BookMechanic5
+    - Base.BookMetalWelding5
+    - Base.BookBlacksmith5
+    - Base.BookPottery5
+    - Base.BookTailoring5
+    - Base.BookTrapping5
+    - Base.BookAiming5
+    - Base.BookReloading5
+    - Base.BookHusbandry5
+    - Base.BookButchering5
+    - Base.BookTracking5
+    - Base.BookLongBlade5
+    - Base.BookMaintenance5
+
+upgrades:
+  faster_reading:
+    id: faster_reading
+    name: UI_Upgrade_FasterReading
+    icon: Item_Book8
+    category: comfort
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_FasterReading_L1
+        effects:
+          readingSpeedMultiplier: 0.85  # 15% faster (0.85x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 10
+          - type: Base.SRU_SkillBookTier1
+            count: 5
+            substitutes:
+              - $skillbooks_1
+      2:
+        description: UI_Upgrade_FasterReading_L2
+        effects:
+          readingSpeedMultiplier: 0.70  # 30% faster (0.70x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 20
+          - type: Base.SRU_SkillBookTier2
+            count: 5
+            substitutes:
+              - $skillbooks_2
+      3:
+        description: UI_Upgrade_FasterReading_L3
+        effects:
+          readingSpeedMultiplier: 0.55  # 45% faster (0.55x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.SRU_SkillBookTier3
+            count: 5
+            substitutes:
+              - $skillbooks_3
+      4:
+        description: UI_Upgrade_FasterReading_L4
+        effects:
+          readingSpeedMultiplier: 0.40  # 60% faster (0.40x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.SRU_SkillBookTier4
+            count: 5
+            substitutes:
+              - $skillbooks_4
+      5:
+        description: UI_Upgrade_FasterReading_L5
+        effects:
+          readingSpeedMultiplier: 0.25  # 75% faster (0.25x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 75
+          - type: Base.SRU_SkillBookTier5
+            count: 5
+            substitutes:
+              - $skillbooks_5
 
 # =============================================================================
 # EXAMPLE UPGRADE (uncomment and modify to add new upgrades)

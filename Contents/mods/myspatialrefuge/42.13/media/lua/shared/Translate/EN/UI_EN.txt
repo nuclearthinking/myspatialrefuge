@@ -14,6 +14,7 @@ UI_EN = {
     -- Categories
     UI_RefugeUpgrade_Category_shelter = "Shelter", -- 1.5/31.12.2025
     UI_RefugeUpgrade_Category_general = "General", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_comfort = "Comfort", -- 1.6/15.01.2026
     
     -- Expand Refuge Area
     UI_Upgrade_ExpandRefuge = "Expand Refuge Area", -- 1.5/31.12.2025
@@ -26,5 +27,14 @@ UI_EN = {
     UI_Upgrade_ExpandRefuge_L7 = "Expand refuge to 17x17 tiles.", -- 1.5/31.12.2025
     UI_Upgrade_ExpandRefuge_L8 = "Expand refuge to 19x19 tiles.", -- 1.5/31.12.2025
     
+    -- Faster Reading
+    UI_Upgrade_FasterReading = "Faster Reading", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L1 = "In exchange for knowledge of your world, the Spatial Refuge sharpens your perception and memory, helping you absorb written knowledge faster while you are inside.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L2 = "In exchange for knowledge of your world, the Spatial Refuge sharpens your perception and memory, helping you absorb written knowledge faster while you are inside.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L3 = "In exchange for knowledge of your world, the Spatial Refuge sharpens your perception and memory, helping you absorb written knowledge faster while you are inside.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L4 = "In exchange for knowledge of your world, the Spatial Refuge sharpens your perception and memory, helping you absorb written knowledge faster while you are inside.", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L5 = "In exchange for knowledge of your world, the Spatial Refuge sharpens your perception and memory, helping you absorb written knowledge faster while you are inside.", -- 1.6/15.01.2026
+    
     UI_Effect_refugeSize = "Refuge Size", -- 1.5/31.12.2025
+    UI_Effect_readingSpeedMultiplier = "Reading Speed", -- 1.6/15.01.2026
 }

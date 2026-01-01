@@ -386,8 +386,21 @@ function SRU_UpgradeDetails:formatEffect(name, value)
     local displayName = getText("UI_Effect_" .. name) or name
     
     if type(value) == "number" then
-        if value < 1 and value > 0 then
-            -- Percentage
+        -- Special handling for time multipliers (lower = faster)
+        -- readingSpeedMultiplier: 0.85 means 15% faster (1 - 0.85 = 0.15)
+        -- If value > 1, it means slower reading (negative speed bonus)
+        if name == "readingSpeedMultiplier" then
+            local speedBonus = math.floor((1 - value) * 100)
+            -- Handle sign properly: positive shows +, negative shows -, zero shows no sign
+            local sign = ""
+            if speedBonus > 0 then
+                sign = "+"
+            elseif speedBonus < 0 then
+                sign = ""  -- Negative number already includes the minus sign
+            end
+            return string.format("%s: %s%d%%", displayName, sign, speedBonus)
+        elseif value < 1 and value > 0 then
+            -- Generic percentage multiplier
             return string.format("%s: +%d%%", displayName, math.floor(value * 100))
         else
             return string.format("%s: +%d", displayName, value)

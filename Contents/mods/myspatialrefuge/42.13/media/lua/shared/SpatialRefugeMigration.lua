@@ -3,6 +3,7 @@
 -- Version 1: per-player ModData (spatialRefuge_* fields)
 -- Version 2: global ModData (MySpatialRefuge.Refuges[username])
 -- Version 3: Custom relic sprite (myspatialrefuge_0)
+-- Version 4: Added upgrades table for feature upgrades (faster_reading, etc.)
 
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeData"
@@ -16,7 +17,8 @@ end
 SpatialRefugeMigration = SpatialRefugeMigration or {}
 SpatialRefugeMigration._loaded = true
 
-SpatialRefugeMigration.CURRENT_VERSION = 3
+-- Use version from config to keep it in sync
+SpatialRefugeMigration.CURRENT_VERSION = SpatialRefugeConfig.CURRENT_DATA_VERSION
 
 -----------------------------------------------------------
 -- Environment Helpers (delegated to SpatialRefugeEnv)
@@ -200,9 +202,36 @@ local function migrate_2_to_3(player)
     return true, relicFound and "Updated relic sprite" or "Relic not found - will update on next load"
 end
 
+-----------------------------------------------------------
+-- Migration: v3 -> v4
+-- Add upgrades table for feature upgrades (faster_reading, etc.)
+-----------------------------------------------------------
+
+local function migrate_3_to_4(player)
+    local username = player:getUsername()
+    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+    
+    -- Add upgrades table if missing
+    if not refugeData.upgrades then
+        refugeData.upgrades = {}
+        print("[Migration] Added upgrades table for " .. username)
+    end
+    
+    -- Update data version (hardcoded - each migration sets its target version)
+    refugeData.dataVersion = 4
+    SpatialRefugeData.SaveRefugeData(refugeData)
+    
+    return true, "Migrated v3 -> v4 (added upgrades table)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
-    [2] = migrate_2_to_3
+    [2] = migrate_2_to_3,
+    [3] = migrate_3_to_4
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)
