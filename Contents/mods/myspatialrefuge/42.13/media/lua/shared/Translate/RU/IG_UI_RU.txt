@@ -19,6 +19,7 @@ IGUI_RU = {
     IGUI_ExitedRefuge = "Вы покинули Пространственное Убежище", -- 1.6/16.01.2026
     IGUI_AlreadyInRefuge = "Вы уже в убежище!", -- 1.6/16.01.2026
     IGUI_GeneratingRefuge = "Создание Пространственного Убежища...", -- 1.6/16.01.2026
+    IGUI_RefugeInitializing = "Инициализация Пространственного Убежища...", -- 1.7/02.01.2026
     IGUI_FailedToGenerateRefuge = "Не удалось создать убежище!", -- 1.6/16.01.2026
     IGUI_ExitingRefuge = "Выход из Пространственного Убежища...", -- 1.6/16.01.2026
     IGUI_EnteringRefuge = "Вход в Пространственное Убежище...", -- 1.6/16.01.2026
@@ -57,6 +58,10 @@ IGUI_RU = {
     IGUI_Upgrading = "Улучшение...", -- 1.6/16.01.2026
     IGUI_UpgradeFailed = "Улучшение не удалось", -- 1.6/16.01.2026
     IGUI_RefugeError = "Ошибка убежища", -- 1.6/16.01.2026
+    IGUI_RefugeActionNotAvailable = "Ошибка: действие убежища недоступно", -- 1.7/02.01.2026
+    IGUI_RefugeExitActionNotAvailable = "Ошибка: действие выхода из убежища недоступно", -- 1.7/02.01.2026
+    IGUI_CannotLeaveBoundary = "Нельзя покинуть границу убежища!", -- 1.7/02.01.2026
+    IGUI_ActionTimeoutItemsUnlocked = "Действие истекло — предметы разблокированы", -- 1.7/02.01.2026
     
     -- Protected Object Messages (random responses when trying to destroy refuge structures)
     IGUI_ProtectedObject_1 = "Не хочу этого делать...", -- 1.7/02.01.2026

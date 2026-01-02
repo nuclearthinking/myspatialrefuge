@@ -1,17 +1,17 @@
 -- Spatial Refuge Context Menu
 -- Adds right-click menu options for Sacred Relic (exit and upgrade)
 
-require "shared/SpatialRefugeTransaction"
-require "shared/SpatialRefugeIntegrity"
+require "shared/MSR_Transaction"
+require "shared/MSR_Integrity"
 
 -- Assume dependencies are already loaded
-SpatialRefuge = SpatialRefuge or {}
-SpatialRefugeConfig = SpatialRefugeConfig or {}
-SpatialRefugeShared = SpatialRefugeShared or {}
+
+
+
 
 -- Translate canonical corner name to localized display text
 -- Canonical names: "Up", "Right", "Left", "Down", "Center"
-function SpatialRefuge.TranslateCornerName(canonicalName)
+function MSR.TranslateCornerName(canonicalName)
     if not canonicalName then return canonicalName end
     
     local translationKeys = {
@@ -31,125 +31,15 @@ function SpatialRefuge.TranslateCornerName(canonicalName)
     return canonicalName
 end
 
--- Count how many cores player has in inventory (total, including locked)
-function SpatialRefuge.CountCores(player)
-    if not player then return 0 end
-    
-    local inv = player:getInventory()
-    if not inv then return 0 end
-    
-    return inv:getCountType(SpatialRefugeConfig.CORE_ITEM)
-end
-
--- Count how many cores are AVAILABLE (not locked in pending transactions)
-function SpatialRefuge.CountAvailableCores(player)
-    if not player then return 0 end
-    
-    return SpatialRefugeTransaction.GetAvailableCount(player, SpatialRefugeConfig.CORE_ITEM)
-end
-
--- Consume cores from player inventory
--- Returns: true if successful, false otherwise
-function SpatialRefuge.ConsumeCores(player, amount)
-    if not player then return false end
-    
-    local inv = player:getInventory()
-    if not inv then return false end
-    
-    local coreCount = SpatialRefuge.CountCores(player)
-    if coreCount < amount then
-        return false
-    end
-    
-    -- Remove cores
-    local removed = 0
-    local items = inv:getItems()
-    for i = items:size()-1, 0, -1 do
-        if removed >= amount then break end
-        
-        local item = items:get(i)
-        if item and item:getFullType() == SpatialRefugeConfig.CORE_ITEM then
-            inv:Remove(item)
-            removed = removed + 1
-        end
-    end
-    
-    return removed == amount
-end
-
--- Check if a square can have furniture/objects placed on it
--- Returns: isBlocked (boolean), reason (string if blocked)
-local function squareHasBlockingContent(square)
-    if not square then return true, "Invalid destination" end
-    
-    -- Check for world items on the ground
-    local worldObjects = square:getWorldObjects()
-    if worldObjects and worldObjects:size() > 0 then
-        return true, "Items on the ground"
-    end
-    
-    -- Use game's built-in isFree check
-    if not square:isFree(false) then
-        if square:has(IsoObjectType.tree) then
-            return true, "Tree blocking destination"
-        end
-        return true, "Tile is blocked"
-    end
-    
-    return false, nil
-end
-
--- Clean vegetation/objects from a tile for relic placement
-local function cleanTileForPlacement(square)
-    if not square then return end
-    
-    local objects = square:getObjects()
-    if not objects then return end
-    
-    local objectsToRemove = {}
-    for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-        if obj then
-            local md = obj:getModData()
-            
-            -- Don't remove our own objects or player-placed items
-            if md and (md.isSacredRelic or md.isRefugeBoundary or md.refugeInvisibleWall or md.playerPlaced) then
-                -- Skip
-            elseif obj:getType() == IsoObjectType.tree then
-                table.insert(objectsToRemove, obj)
-            else
-                local sprite = obj:getSprite()
-                if sprite then
-                    local spriteName = sprite:getName()
-                    if spriteName and type(spriteName) == "string" then
-                        -- Remove vegetation but not floors
-                        if not spriteName:find("^blends_") and not spriteName:find("^floors_") then
-                            if spriteName:find("vegetation_") or spriteName:find("e_newgrass_") or
-                               spriteName:find("f_bushes_") or spriteName:find("f_flowers_") or
-                               spriteName:find("d_plants_") or spriteName:find("_trees_") then
-                                table.insert(objectsToRemove, obj)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    for _, obj in ipairs(objectsToRemove) do
-        square:transmitRemoveItemFromSquare(obj)
-    end
-end
-
 -- Get last relic move timestamp
-function SpatialRefuge.GetLastRelicMoveTime(player)
+function MSR.GetLastRelicMoveTime(player)
     if not player then return 0 end
     local pmd = player:getModData()
     return pmd.spatialRefuge_lastRelicMove or 0
 end
 
 -- Update last relic move timestamp
-function SpatialRefuge.UpdateRelicMoveTime(player)
+function MSR.UpdateRelicMoveTime(player)
     if not player then return end
     local pmd = player:getModData()
     pmd.spatialRefuge_lastRelicMove = getTimestamp()
@@ -166,13 +56,13 @@ end
 
 -- Move Sacred Relic to a new position within the refuge
 -- In MP: sends command to server; In SP: moves locally
-function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, cornerName)
+function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, cornerName)
     if not player or not refugeData then return false end
     
     -- Check cooldown (client-side validation, server also validates)
-    local lastMove = SpatialRefuge.GetLastRelicMoveTime(player)
+    local lastMove = MSR.GetLastRelicMoveTime(player)
     local now = getTimestamp()
-    local cooldown = SpatialRefugeConfig.RELIC_MOVE_COOLDOWN or 120
+    local cooldown = MSR.Config.RELIC_MOVE_COOLDOWN or 120
     local remaining = cooldown - (now - lastMove)
     
     if remaining > 0 then
@@ -184,7 +74,7 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
     if isMultiplayerClient() then
         -- ========== MULTIPLAYER PATH ==========
         -- Send request to server, server moves the relic
-        sendClientCommand(SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.REQUEST_MOVE_RELIC, {
+        sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_MOVE_RELIC, {
             cornerDx = cornerDx,
             cornerDy = cornerDy,
             cornerName = cornerName
@@ -192,7 +82,7 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
         player:Say(getText("IGUI_MovingSacredRelic"))
         
         if getDebug() then
-            print("[SpatialRefuge] Sent RequestMoveRelic to server: " .. cornerName)
+            print("[MSR] Sent RequestMoveRelic to server: " .. cornerName)
         end
         
         return true
@@ -201,48 +91,23 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
         -- Move locally using shared function
         if not relic then return false end
         
-        local success, errorCode = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
+        local success, errorCode = MSR.Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
         
         if success then
-            SpatialRefuge.UpdateRelicMoveTime(player)
+            MSR.UpdateRelicMoveTime(player)
             -- Translate canonical corner name for display
-            local translatedCornerName = SpatialRefuge.TranslateCornerName(cornerName)
+            local translatedCornerName = MSR.TranslateCornerName(cornerName)
             local successMsg = string.format(getText("IGUI_SacredRelicMovedTo"), translatedCornerName)
             player:Say(successMsg)
         else
             -- Translate error code to localized message
-            local translationKey = SpatialRefugeShared.GetMoveRelicTranslationKey(errorCode)
+            local translationKey = MSR.Shared.GetMoveRelicTranslationKey(errorCode)
             local message = getText(translationKey)
             player:Say(message)
         end
         
         return success
     end
-end
-
--- Reposition relic to its assigned corner (called after refuge upgrade)
--- This is called server-side after expand, so just uses the shared function
-function SpatialRefuge.RepositionRelicToAssignedCorner(relic, refugeData)
-    if not relic or not refugeData then return false end
-    
-    local md = relic:getModData()
-    if not md.assignedCorner then
-        -- No corner assigned, relic stays at current position
-        return false
-    end
-    
-    local cornerDx = md.assignedCornerDx or 0
-    local cornerDy = md.assignedCornerDy or 0
-    local cornerName = md.assignedCorner
-    
-    -- Use shared function for the actual move
-    local success, message = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
-    
-    if getDebug() and success then
-        print("[SpatialRefuge] Repositioned relic to " .. cornerName)
-    end
-    
-    return success
 end
 
 -- Check if an object is a Sacred Relic by examining its ModData or sprite
@@ -260,18 +125,18 @@ local function isSacredRelicObject(obj)
     -- Fallback: Check sprite name (for unsynced MP clients or old saves)
     -- This allows context menu to work even if ModData hasn't synced yet
     -- Also recognizes old fallback sprite for migration
-    if obj.getSprite and SpatialRefugeConfig and SpatialRefugeConfig.SPRITES then
+    if obj.getSprite and MSR.Config and MSR.Config.SPRITES then
         local sprite = obj:getSprite()
         if sprite then
             local spriteName = sprite:getName()
-            local currentSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-            local oldFallbackSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+            local currentSprite = MSR.Config.SPRITES.SACRED_RELIC
+            local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
             
             if spriteName == currentSprite or (oldFallbackSprite and spriteName == oldFallbackSprite) then
                 -- Attempt client-side repair if integrity system is available
                 -- This will migrate old fallback sprite to new one
-                if SpatialRefugeIntegrity and SpatialRefugeIntegrity.ClientSpriteRepair then
-                    SpatialRefugeIntegrity.ClientSpriteRepair(obj)
+                if MSR.Integrity and MSR.Integrity.ClientSpriteRepair then
+                    MSR.Integrity.ClientSpriteRepair(obj)
                 end
                 return true
             end
@@ -304,7 +169,7 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     if not sacredRelic then return end
     
     -- Get player's refuge data
-    local refugeData = SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(playerObj)
+    local refugeData = MSR.GetRefugeData and MSR.GetRefugeData(playerObj)
     if not refugeData then return end
     
     -- Add "Move Sacred Relic" submenu
@@ -328,15 +193,15 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
         local function moveToCorner()
             -- Pass canonical name (corner.name) for server communication and storage
             -- Translation will be applied at display time
-            SpatialRefuge.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
+            MSR.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
         end
         moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
     end
     
     -- Show Upgrade Refuge option (opens the upgrade window)
     local function openUpgradeWindow()
-        local SpatialRefugeUpgradeWindow = require "refuge/SpatialRefugeUpgradeWindow"
-        SpatialRefugeUpgradeWindow.Open(playerObj)
+        local MSR_UpgradeWindow = require "refuge/MSR_UpgradeWindow"
+        MSR_UpgradeWindow.Open(playerObj)
     end
     
     local upgradeOptionText = getText("IGUI_UpgradeRefuge")
@@ -570,5 +435,5 @@ end
 -- Register action blocking hooks on game start
 Events.OnGameStart.Add(BlockDisassembleAction)
 
-return SpatialRefuge
+return MSR
 

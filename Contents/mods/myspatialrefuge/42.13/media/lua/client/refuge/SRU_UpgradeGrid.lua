@@ -3,7 +3,7 @@
 -- Uses virtual scrolling for efficient rendering
 
 require "ISUI/ISPanel"
-require "shared/SpatialRefugeUpgradeData"
+require "shared/MSR_UpgradeData"
 
 SRU_UpgradeGrid = ISPanel:derive("SRU_UpgradeGrid")
 
@@ -114,10 +114,10 @@ end
 function SRU_UpgradeGrid:refreshUpgrades()
     -- Get all upgrades
     self.upgrades = {}
-    local ids = SpatialRefugeUpgradeData.getAllUpgradeIds()
+    local ids = MSR.UpgradeData.getAllUpgradeIds()
     
     for _, id in ipairs(ids) do
-        local upgrade = SpatialRefugeUpgradeData.getUpgrade(id)
+        local upgrade = MSR.UpgradeData.getUpgrade(id)
         if upgrade then
             table.insert(self.upgrades, upgrade)
         end
@@ -334,8 +334,8 @@ function SRU_UpgradeSlot:setUpgrade(upgrade, upgradeIndex)
     
     -- Check if locked (dependencies not met)
     if upgrade and self.grid.player then
-        self.isLocked = not SpatialRefugeUpgradeData.isUpgradeUnlocked(self.grid.player, upgrade.id)
-        self.playerLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(self.grid.player, upgrade.id)
+        self.isLocked = not MSR.UpgradeData.isUpgradeUnlocked(self.grid.player, upgrade.id)
+        self.playerLevel = MSR.UpgradeData.getPlayerUpgradeLevel(self.grid.player, upgrade.id)
     else
         self.isLocked = false
         self.playerLevel = 0

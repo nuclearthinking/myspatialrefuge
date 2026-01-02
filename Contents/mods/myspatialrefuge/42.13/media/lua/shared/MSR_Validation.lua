@@ -1,22 +1,28 @@
--- Spatial Refuge Validation Module (Shared)
+-- MSR_Validation - Validation Module (Shared)
 -- Centralized validation logic for both client and server
 -- Eliminates code duplication and ensures consistent validation rules
 
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeData"
+require "shared/MSR"
+require "shared/MSR_Config"
+require "shared/MSR_Data"
 
-if SpatialRefugeValidation and SpatialRefugeValidation._loaded then
-    return SpatialRefugeValidation
+if MSR.Validation and MSR.Validation._loaded then
+    return MSR.Validation
 end
 
-SpatialRefugeValidation = SpatialRefugeValidation or {}
-SpatialRefugeValidation._loaded = true
+MSR.Validation = MSR.Validation or {}
+MSR.Validation._loaded = true
+
+-- Local aliases
+local Validation = MSR.Validation
+local Config = MSR.Config
+local Data = MSR.Data
 
 -----------------------------------------------------------
 -- Player State Validation
 -----------------------------------------------------------
 
-function SpatialRefugeValidation.IsValidPlayer(player)
+function Validation.IsValidPlayer(player)
     if not player then
         return false, "Invalid player"
     end
@@ -28,22 +34,22 @@ function SpatialRefugeValidation.IsValidPlayer(player)
     return true, nil
 end
 
-function SpatialRefugeValidation.IsInVehicle(player)
+function Validation.IsInVehicle(player)
     if not player then return false end
     return player:getVehicle() ~= nil
 end
 
-function SpatialRefugeValidation.IsClimbing(player)
+function Validation.IsClimbing(player)
     if not player then return false end
     return player.isClimbing and player:isClimbing()
 end
 
-function SpatialRefugeValidation.IsFalling(player)
+function Validation.IsFalling(player)
     if not player then return false end
     return player.isFalling and player:isFalling()
 end
 
-function SpatialRefugeValidation.IsOverEncumbered(player)
+function Validation.IsOverEncumbered(player)
     if not player then return false end
     
     if player.isOverEncumbered then
@@ -74,9 +80,9 @@ function SpatialRefugeValidation.IsOverEncumbered(player)
     return false
 end
 
-function SpatialRefugeValidation.IsInRefugeCoords(player)
+function Validation.IsInRefugeCoords(player)
     if not player then return false end
-    return SpatialRefugeData.IsPlayerInRefugeCoords(player)
+    return Data.IsPlayerInRefugeCoords(player)
 end
 
 -----------------------------------------------------------
@@ -84,25 +90,25 @@ end
 -----------------------------------------------------------
 
 -- Does NOT check cooldowns - those are context-specific (client vs server)
-function SpatialRefugeValidation.CanPlayerTeleport(player)
-    local valid, reason = SpatialRefugeValidation.IsValidPlayer(player)
+function Validation.CanPlayerTeleport(player)
+    local valid, reason = Validation.IsValidPlayer(player)
     if not valid then
         return false, reason
     end
     
-    if SpatialRefugeValidation.IsInVehicle(player) then
+    if Validation.IsInVehicle(player) then
         return false, "Cannot teleport while in vehicle"
     end
     
-    if SpatialRefugeValidation.IsClimbing(player) then
+    if Validation.IsClimbing(player) then
         return false, "Cannot teleport while climbing"
     end
     
-    if SpatialRefugeValidation.IsFalling(player) then
+    if Validation.IsFalling(player) then
         return false, "Cannot teleport while falling"
     end
     
-    if SpatialRefugeValidation.IsOverEncumbered(player) then
+    if Validation.IsOverEncumbered(player) then
         return false, "Cannot teleport while encumbered"
     end
     
@@ -110,26 +116,26 @@ function SpatialRefugeValidation.CanPlayerTeleport(player)
 end
 
 -- Does NOT check cooldowns - those are context-specific
-function SpatialRefugeValidation.CanEnterRefuge(player)
-    local canTeleport, reason = SpatialRefugeValidation.CanPlayerTeleport(player)
+function Validation.CanEnterRefuge(player)
+    local canTeleport, reason = Validation.CanPlayerTeleport(player)
     if not canTeleport then
         return false, reason
     end
     
-    if SpatialRefugeValidation.IsInRefugeCoords(player) then
+    if Validation.IsInRefugeCoords(player) then
         return false, "Already in refuge"
     end
     
     return true, nil
 end
 
-function SpatialRefugeValidation.CanExitRefuge(player)
-    local canTeleport, reason = SpatialRefugeValidation.CanPlayerTeleport(player)
+function Validation.CanExitRefuge(player)
+    local canTeleport, reason = Validation.CanPlayerTeleport(player)
     if not canTeleport then
         return false, reason
     end
     
-    if not SpatialRefugeValidation.IsInRefugeCoords(player) then
+    if not Validation.IsInRefugeCoords(player) then
         return false, "Not in refuge"
     end
     
@@ -143,7 +149,7 @@ end
 -- @param lastTime: timestamp of last action
 -- @param cooldownDuration: required cooldown in seconds
 -- @param currentTime: current timestamp (optional, uses getTimestamp() if nil)
-function SpatialRefugeValidation.CheckCooldown(lastTime, cooldownDuration, currentTime)
+function Validation.CheckCooldown(lastTime, cooldownDuration, currentTime)
     local now = currentTime or (getTimestamp and getTimestamp() or os.time())
     lastTime = lastTime or 0
     cooldownDuration = cooldownDuration or 0
@@ -158,7 +164,7 @@ function SpatialRefugeValidation.CheckCooldown(lastTime, cooldownDuration, curre
     return true, 0
 end
 
-function SpatialRefugeValidation.FormatCooldownMessage(baseMessage, remainingSeconds)
+function Validation.FormatCooldownMessage(baseMessage, remainingSeconds)
     return baseMessage .. " (" .. remainingSeconds .. "s)"
 end
 
@@ -168,7 +174,7 @@ end
 
 -- @param cornerDx: x offset (-1, 0, or 1)
 -- @param cornerDy: y offset (-1, 0, or 1)
-function SpatialRefugeValidation.ValidateCornerOffset(cornerDx, cornerDy)
+function Validation.ValidateCornerOffset(cornerDx, cornerDy)
     if type(cornerDx) ~= "number" or type(cornerDy) ~= "number" then
         return false, 0, 0
     end
@@ -180,7 +186,7 @@ function SpatialRefugeValidation.ValidateCornerOffset(cornerDx, cornerDy)
 end
 
 -- @param tier: tier number to validate
-function SpatialRefugeValidation.ValidateTier(tier)
+function Validation.ValidateTier(tier)
     if type(tier) ~= "number" then
         return false, "Invalid tier type"
     end
@@ -189,11 +195,11 @@ function SpatialRefugeValidation.ValidateTier(tier)
         return false, "Tier cannot be negative"
     end
     
-    if tier > SpatialRefugeConfig.MAX_TIER then
+    if tier > Config.MAX_TIER then
         return false, "Tier exceeds maximum"
     end
     
-    if not SpatialRefugeConfig.TIERS[tier] then
+    if not Config.TIERS[tier] then
         return false, "Invalid tier configuration"
     end
     
@@ -202,7 +208,7 @@ end
 
 -- @param player: player object
 -- @param refugeId: refuge ID to check
-function SpatialRefugeValidation.ValidateRefugeAccess(player, refugeId)
+function Validation.ValidateRefugeAccess(player, refugeId)
     if not player then return false end
     
     local username = player:getUsername()
@@ -213,12 +219,12 @@ function SpatialRefugeValidation.ValidateRefugeAccess(player, refugeId)
 end
 
 -- @param x, y: coordinates to check
-function SpatialRefugeValidation.ValidateWorldCoordinates(x, y)
+function Validation.ValidateWorldCoordinates(x, y)
     if type(x) ~= "number" or type(y) ~= "number" then
         return false, "Invalid coordinate type"
     end
     
-    if SpatialRefugeData.IsInRefugeCoordinates(x, y) then
+    if Data.IsInRefugeCoordinates(x, y) then
         return false, "Coordinates are in refuge space"
     end
     
@@ -231,8 +237,8 @@ end
 
 -- @param player: player object
 -- @param refugeData: current refuge data
-function SpatialRefugeValidation.CanUpgradeRefuge(player, refugeData)
-    local valid, reason = SpatialRefugeValidation.IsValidPlayer(player)
+function Validation.CanUpgradeRefuge(player, refugeData)
+    local valid, reason = Validation.IsValidPlayer(player)
     if not valid then
         return false, reason, nil
     end
@@ -241,18 +247,18 @@ function SpatialRefugeValidation.CanUpgradeRefuge(player, refugeData)
         return false, "No refuge found", nil
     end
     
-    if not SpatialRefugeValidation.IsInRefugeCoords(player) then
+    if not Validation.IsInRefugeCoords(player) then
         return false, "Must be in refuge to upgrade", nil
     end
     
     local currentTier = refugeData.tier or 0
     local newTier = currentTier + 1
     
-    if newTier > SpatialRefugeConfig.MAX_TIER then
+    if newTier > Config.MAX_TIER then
         return false, "Already at maximum tier", nil
     end
     
-    local tierConfig = SpatialRefugeConfig.TIERS[newTier]
+    local tierConfig = Config.TIERS[newTier]
     if not tierConfig then
         return false, "Invalid tier configuration", nil
     end
@@ -260,5 +266,4 @@ function SpatialRefugeValidation.CanUpgradeRefuge(player, refugeData)
     return true, nil, tierConfig
 end
 
-return SpatialRefugeValidation
-
+return MSR.Validation

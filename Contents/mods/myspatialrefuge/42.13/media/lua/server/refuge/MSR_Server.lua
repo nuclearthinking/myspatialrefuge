@@ -2,17 +2,17 @@
 -- Server-side command handlers and generation for multiplayer persistence
 -- Server generates refuge structures so they persist in map save
 
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeShared"
-require "shared/SpatialRefugeData"
-require "shared/SpatialRefugeValidation"
-require "shared/SpatialRefugeMigration"
-require "shared/SpatialRefugeUpgradeData"
-require "shared/SpatialRefugeTransaction"
-require "shared/SpatialRefugeIntegrity"
+require "shared/MSR_Config"
+require "shared/MSR_Shared"
+require "shared/MSR_Data"
+require "shared/MSR_Validation"
+require "shared/MSR_Migration"
+require "shared/MSR_UpgradeData"
+require "shared/MSR_Transaction"
+require "shared/MSR_Integrity"
 
-SpatialRefugeServer = SpatialRefugeServer or {}
-SpatialRefuge = SpatialRefuge or {}
+MSR_Server = MSR_Server or {}
+
 
 -----------------------------------------------------------
 -- Shared helpers needed by shared code (server-side)
@@ -24,7 +24,7 @@ local _serverRelicContainerCache = {}
 local CACHE_DURATION = 5  -- seconds
 
 -- Invalidate server-side relic container cache for a player
-function SpatialRefuge.InvalidateRelicContainerCache(username)
+function MSR.InvalidateRelicContainerCache(username)
     if username then
         _serverRelicContainerCache[username] = nil
     end
@@ -36,9 +36,9 @@ end
 -- Uses caching to avoid expensive grid searches on every call
 -- @param player: The player
 -- @param bypassCache: (optional) If true, always do a fresh lookup (for transactions)
-function SpatialRefuge.GetRelicContainer(player, bypassCache)
+function MSR.GetRelicContainer(player, bypassCache)
     if not player then return nil end
-    if not SpatialRefugeData or not SpatialRefugeData.GetRefugeDataByUsername then return nil end
+    if not MSR.Data or not MSR.Data.GetRefugeDataByUsername then return nil end
     
     local username = nil
     if player.getUsername then
@@ -47,7 +47,7 @@ function SpatialRefuge.GetRelicContainer(player, bypassCache)
     end
     if not username then return nil end
     
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then return nil end
     
     local now = getTimestamp and getTimestamp() or 0
@@ -68,7 +68,7 @@ function SpatialRefuge.GetRelicContainer(player, bypassCache)
     local relicZ = refugeData.relicZ or refugeData.centerZ or 0
     local radius = refugeData.radius or 1
     
-    local relic = SpatialRefugeShared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
+    local relic = MSR.Shared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
     if not relic then 
         _serverRelicContainerCache[username] = nil
         return nil 
@@ -112,7 +112,7 @@ end
 local function checkTeleportCooldown(username)
     local lastTeleport = serverCooldowns.teleport[username] or 0
     local now = getServerTimestamp()
-    local cooldown = SpatialRefugeConfig.TELEPORT_COOLDOWN or 60
+    local cooldown = MSR.Config.TELEPORT_COOLDOWN or 60
     local remaining = cooldown - (now - lastTeleport)
     
     if remaining > 0 then
@@ -130,7 +130,7 @@ end
 local function checkRelicMoveCooldown(username)
     local lastMove = serverCooldowns.relicMove[username] or 0
     local now = getServerTimestamp()
-    local cooldown = SpatialRefugeConfig.RELIC_MOVE_COOLDOWN or 120
+    local cooldown = MSR.Config.RELIC_MOVE_COOLDOWN or 120
     local remaining = cooldown - (now - lastMove)
     
     if remaining > 0 then
@@ -163,19 +163,19 @@ end
 
 -----------------------------------------------------------
 -- Validation Helpers
--- Note: Most validation logic is now in shared/SpatialRefugeValidation.lua
+-- Note: Most validation logic is now in shared/MSR.Validation.lua
 -----------------------------------------------------------
 
 -- Validate player refuge access (security check)
 -- Delegates to shared validation module
-function SpatialRefugeServer.ValidateRefugeAccess(player, refugeId)
-    return SpatialRefugeValidation.ValidateRefugeAccess(player, refugeId)
+function MSR_Server.ValidateRefugeAccess(player, refugeId)
+    return MSR.Validation.ValidateRefugeAccess(player, refugeId)
 end
 
 -- Check if player can enter refuge (validation)
 -- Delegates to shared validation module
-function SpatialRefugeServer.CanPlayerEnterRefuge(player)
-    return SpatialRefugeValidation.CanEnterRefuge(player)
+function MSR_Server.CanPlayerEnterRefuge(player)
+    return MSR.Validation.CanEnterRefuge(player)
 end
 
 -----------------------------------------------------------
@@ -184,51 +184,51 @@ end
 
 -- Handle ModData Request - Client asking for their refuge data on connect
 -- This is the authoritative source - server creates refuge if needed
-function SpatialRefugeServer.HandleModDataRequest(player, args)
+function MSR_Server.HandleModDataRequest(player, args)
     if not player then return end
     
     local username = player:getUsername()
     if not username then return end
     
     if getDebug() then
-        print("[SpatialRefugeServer] ModData request from " .. username)
+        print("[MSR_Server] ModData request from " .. username)
     end
     
-    if SpatialRefugeMigration.NeedsMigration(player) then
-        SpatialRefugeMigration.MigratePlayer(player)
+    if MSR.Migration.NeedsMigration(player) then
+        MSR.Migration.MigratePlayer(player)
     end
     
-    local refugeData = SpatialRefugeData.GetOrCreateRefugeData(player)
+    local refugeData = MSR.Data.GetOrCreateRefugeData(player)
     if not refugeData then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = "Failed to get or create refuge data"
         })
         return
     end
     
     -- Get return position if any
-    local returnPos = SpatialRefugeData.GetReturnPositionByUsername(username)
+    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
     
     if getDebug() then
-        print("[SpatialRefugeServer] Sending ModData to " .. username .. ": refuge at " .. 
+        print("[MSR_Server] Sending ModData to " .. username .. ": refuge at " .. 
               refugeData.centerX .. "," .. refugeData.centerY .. " tier " .. refugeData.tier)
     end
     
     -- Send refuge data to client (using serialization helper for DRY)
-    sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.MODDATA_RESPONSE, {
-        refugeData = SpatialRefugeData.SerializeRefugeData(refugeData),
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.MODDATA_RESPONSE, {
+        refugeData = MSR.Data.SerializeRefugeData(refugeData),
         returnPosition = returnPos
     })
     
     -- Also transmit global ModData for good measure
-    SpatialRefugeData.TransmitModData()
+    MSR.Data.TransmitModData()
 end
 
 -- Handle Enter Refuge Request - Phase 1
 -- Two-phase approach for MP persistence:
 -- Phase 1: Server sends TeleportTo, client teleports and waits for chunks
 -- Phase 2: Client sends ChunksReady, server generates structures (chunks now loaded!)
-function SpatialRefugeServer.HandleEnterRequest(player, args)
+function MSR_Server.HandleEnterRequest(player, args)
     if not player then return end
     
     local username = player:getUsername()
@@ -237,7 +237,7 @@ function SpatialRefugeServer.HandleEnterRequest(player, args)
     -- Server-authoritative teleport cooldown check
     local canTeleport, remaining = checkTeleportCooldown(username)
     if not canTeleport then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = "IGUI_PortalCharging",
             messageArgs = { remaining }
         })
@@ -245,19 +245,19 @@ function SpatialRefugeServer.HandleEnterRequest(player, args)
     end
     
     -- Validate player can enter
-    local canEnter, reason = SpatialRefugeServer.CanPlayerEnterRefuge(player)
+    local canEnter, reason = MSR_Server.CanPlayerEnterRefuge(player)
     if not canEnter then
         -- Send error response
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = reason
         })
         return
     end
     
     -- Get or create refuge data
-    local refugeData = SpatialRefugeData.GetOrCreateRefugeData(player)
+    local refugeData = MSR.Data.GetOrCreateRefugeData(player)
     if not refugeData then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = "Failed to create refuge data"
         })
         return
@@ -265,11 +265,11 @@ function SpatialRefugeServer.HandleEnterRequest(player, args)
     
     -- Save return position from args (validate it's not already in refuge)
     if args and args.returnX and args.returnY and args.returnZ then
-        SpatialRefugeData.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ)
+        MSR.Data.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ)
     end
     
     if getDebug() then
-        print("[SpatialRefugeServer] Phase 1: Sending TeleportTo for " .. username)
+        print("[MSR_Server] Phase 1: Sending TeleportTo for " .. username)
     end
     
     -- Update server-side teleport cooldown
@@ -277,7 +277,7 @@ function SpatialRefugeServer.HandleEnterRequest(player, args)
     
     -- Phase 1: Tell client to teleport (no generation yet)
     -- Client will teleport, wait for chunks to load, then send ChunksReady
-    sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.TELEPORT_TO, {
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.TELEPORT_TO, {
         centerX = refugeData.centerX,
         centerY = refugeData.centerY,
         centerZ = refugeData.centerZ,
@@ -290,23 +290,23 @@ end
 -- Handle ChunksReady - Phase 2
 -- Client has teleported, now server needs to wait for ITS chunks to load
 -- (Client chunks and ServerMap chunks are separate systems)
-function SpatialRefugeServer.HandleChunksReady(player, args)
+function MSR_Server.HandleChunksReady(player, args)
     if not player then return end
     
     local username = player:getUsername()
     if not username then return end
     
     -- Get refuge data
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = "No refuge data found"
         })
         return
     end
     
     if getDebug() then
-        print("[SpatialRefugeServer] Phase 2: Waiting for server chunks to load for " .. username)
+        print("[MSR_Server] Phase 2: Waiting for server chunks to load for " .. username)
     end
     
     -- Server needs to wait for its own chunks to load around the player
@@ -335,7 +335,7 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
         if not playerValid then
             Events.OnTick.Remove(waitForServerChunks)
             if getDebug() then
-                print("[SpatialRefugeServer] Player disconnected during chunk wait for " .. tostring(usernameRef))
+                print("[MSR_Server] Player disconnected during chunk wait for " .. tostring(usernameRef))
             end
             return
         end
@@ -377,13 +377,13 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
             Events.OnTick.Remove(waitForServerChunks)
             
             if getDebug() then
-                print("[SpatialRefugeServer] All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
+                print("[MSR_Server] All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
             end
             
             -- Check if refuge needs repair/generation using lightweight integrity check
             local needsFullSetup = false
-            if SpatialRefugeIntegrity and SpatialRefugeIntegrity.CheckNeedsRepair then
-                needsFullSetup = SpatialRefugeIntegrity.CheckNeedsRepair(refugeDataRef)
+            if MSR.Integrity and MSR.Integrity.CheckNeedsRepair then
+                needsFullSetup = MSR.Integrity.CheckNeedsRepair(refugeDataRef)
             else
                 -- Fallback: always regenerate if integrity module not available
                 needsFullSetup = true
@@ -391,44 +391,44 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
             
             if needsFullSetup then
                 if getDebug() then
-                    print("[SpatialRefugeServer] Refuge needs setup/repair, running EnsureRefugeStructures")
+                    print("[MSR_Server] Refuge needs setup/repair, running EnsureRefugeStructures")
                 end
                 -- Full generation only when needed (first time or after corruption)
-                SpatialRefugeShared.EnsureRefugeStructures(refugeDataRef, playerRef)
+                MSR.Shared.EnsureRefugeStructures(refugeDataRef, playerRef)
             else
                 if getDebug() then
-                    print("[SpatialRefugeServer] Refuge already set up, skipping full generation")
+                    print("[MSR_Server] Refuge already set up, skipping full generation")
                 end
                 -- Quick validation via integrity system (lighter than full regeneration)
-                SpatialRefugeIntegrity.ValidateAndRepair(refugeDataRef, {
+                MSR.Integrity.ValidateAndRepair(refugeDataRef, {
                     source = "enter_server",
                     player = playerRef
                 })
                 -- Clear zombies that may have spawned
-                SpatialRefugeShared.ClearZombiesFromArea(
+                MSR.Shared.ClearZombiesFromArea(
                     refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
                     refugeDataRef.radius or 1, true, playerRef
                 )
             end
             
             -- Transmit ModData to ensure client has refuge data for context menus
-            SpatialRefugeData.TransmitModData()
+            MSR.Data.TransmitModData()
             
             if getDebug() then
                 -- Log the ModData state for debugging
-                local registry = SpatialRefugeData.GetRefugeRegistry()
+                local registry = MSR.Data.GetRefugeRegistry()
                 local count = 0
                 if registry then
                     for k, v in pairs(registry) do
                         count = count + 1
-                        print("[SpatialRefugeServer] ModData contains refuge: " .. tostring(k))
+                        print("[MSR_Server] ModData contains refuge: " .. tostring(k))
                     end
                 end
-                print("[SpatialRefugeServer] Total refuges in ModData: " .. count)
+                print("[MSR_Server] Total refuges in ModData: " .. count)
             end
             
             -- Send confirmation to client
-            sendServerCommand(playerRef, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.GENERATION_COMPLETE, {
+            sendServerCommand(playerRef, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.GENERATION_COMPLETE, {
                 centerX = refugeDataRef.centerX,
                 centerY = refugeDataRef.centerY,
                 centerZ = refugeDataRef.centerZ,
@@ -437,7 +437,7 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
             })
             
             if getDebug() then
-                print("[SpatialRefugeServer] Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
+                print("[MSR_Server] Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
             end
         end
         
@@ -446,10 +446,10 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
             Events.OnTick.Remove(waitForServerChunks)
             
             if getDebug() then
-                print("[SpatialRefugeServer] Timeout waiting for server chunks for " .. usernameRef)
+                print("[MSR_Server] Timeout waiting for server chunks for " .. usernameRef)
             end
             
-            sendServerCommand(playerRef, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+            sendServerCommand(playerRef, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
                 message = "Server could not load refuge area"
             })
         end
@@ -459,7 +459,7 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
 end
 
 -- Handle Exit Refuge Request
-function SpatialRefugeServer.HandleExitRequest(player, args)
+function MSR_Server.HandleExitRequest(player, args)
     if not player then return end
     
     local username = player:getUsername()
@@ -468,7 +468,7 @@ function SpatialRefugeServer.HandleExitRequest(player, args)
     -- Server-authoritative teleport cooldown check (exit also uses teleport cooldown)
     local canTeleport, remaining = checkTeleportCooldown(username)
     if not canTeleport then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = "IGUI_PortalCharging",
             messageArgs = { remaining }
         })
@@ -476,11 +476,11 @@ function SpatialRefugeServer.HandleExitRequest(player, args)
     end
     
     -- Get return position
-    local returnPos = SpatialRefugeData.GetReturnPositionByUsername(username)
+    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
     
     if not returnPos then
         -- No return position found - use default safe location
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = "Return position not found"
         })
         return
@@ -490,22 +490,22 @@ function SpatialRefugeServer.HandleExitRequest(player, args)
     updateTeleportCooldown(username)
     
     -- Clear return position before sending response
-    SpatialRefugeData.ClearReturnPositionByUsername(username)
+    MSR.Data.ClearReturnPositionByUsername(username)
     
     -- Send success response with return coordinates
-    sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.EXIT_READY, {
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.EXIT_READY, {
         returnX = returnPos.x,
         returnY = returnPos.y,
         returnZ = returnPos.z
     })
     
     if getDebug() then
-        print("[SpatialRefugeServer] Sent ExitReady to " .. username)
+        print("[MSR_Server] Sent ExitReady to " .. username)
     end
 end
 
 -- Handle Move Relic Request
-function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
+function MSR_Server.HandleMoveRelicRequest(player, args)
     if not player then return end
     
     local username = player:getUsername()
@@ -518,7 +518,7 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     local canMove, remaining = checkRelicMoveCooldown(username)
     if not canMove then
         -- Send translation key with format args for cooldown message
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = "IGUI_CannotMoveRelicYet",
             messageArgs = { remaining }
         })
@@ -526,9 +526,9 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     end
     
     -- Get refuge data
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = "IGUI_MoveRelic_NoRefugeData"
         })
         return
@@ -540,9 +540,9 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     local cornerName = args and args.cornerName or "Unknown"
     
     -- SECURITY: Validate and sanitize corner values using shared validation
-    local isValid, sanitizedDx, sanitizedDy = SpatialRefugeValidation.ValidateCornerOffset(cornerDx, cornerDy)
+    local isValid, sanitizedDx, sanitizedDy = MSR.Validation.ValidateCornerOffset(cornerDx, cornerDy)
     if not isValid then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = "IGUI_MoveRelic_DestinationBlocked"
         })
         return
@@ -551,18 +551,18 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     cornerDy = sanitizedDy
     
     -- Log the request details
-    print("[SpatialRefugeServer] HandleMoveRelicRequest: " .. username .. " -> " .. cornerName)
-    print("[SpatialRefugeServer]   cornerDx=" .. tostring(cornerDx) .. " cornerDy=" .. tostring(cornerDy))
-    print("[SpatialRefugeServer]   refugeData: center=" .. refugeData.centerX .. "," .. refugeData.centerY .. " radius=" .. refugeData.radius)
+    print("[MSR_Server] HandleMoveRelicRequest: " .. username .. " -> " .. cornerName)
+    print("[MSR_Server]   cornerDx=" .. tostring(cornerDx) .. " cornerDy=" .. tostring(cornerDy))
+    print("[MSR_Server]   refugeData: center=" .. refugeData.centerX .. "," .. refugeData.centerY .. " radius=" .. refugeData.radius)
     
     local targetX = refugeData.centerX + (cornerDx * refugeData.radius)
     local targetY = refugeData.centerY + (cornerDy * refugeData.radius)
-    print("[SpatialRefugeServer]   Target position: " .. targetX .. "," .. targetY)
+    print("[MSR_Server]   Target position: " .. targetX .. "," .. targetY)
     
     -- Perform the move using shared function
-    local success, errorCode = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
+    local success, errorCode = MSR.Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
     
-    print("[SpatialRefugeServer]   MoveRelic result: success=" .. tostring(success) .. " errorCode=" .. tostring(errorCode))
+    print("[MSR_Server]   MoveRelic result: success=" .. tostring(success) .. " errorCode=" .. tostring(errorCode))
     
     if success then
         -- Update cooldown using SERVER-SIDE storage (authoritative)
@@ -572,26 +572,26 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
         refugeData.relicX = targetX
         refugeData.relicY = targetY
         refugeData.relicZ = refugeData.centerZ
-        SpatialRefugeData.SaveRefugeData(refugeData)
+        MSR.Data.SaveRefugeData(refugeData)
         
         if getDebug() then
-            print("[SpatialRefugeServer] Saved relic position to ModData: " .. targetX .. "," .. targetY)
+            print("[MSR_Server] Saved relic position to ModData: " .. targetX .. "," .. targetY)
         end
         
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.MOVE_RELIC_COMPLETE, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE, {
             cornerName = cornerName,
             cornerDx = cornerDx,
             cornerDy = cornerDy,
-            refugeData = SpatialRefugeData.SerializeRefugeData(refugeData)
+            refugeData = MSR.Data.SerializeRefugeData(refugeData)
         })
         
         if getDebug() then
-            print("[SpatialRefugeServer] Moved relic for " .. username .. " to " .. cornerName)
+            print("[MSR_Server] Moved relic for " .. username .. " to " .. cornerName)
         end
     else
         -- Send translation key for error message
-        local translationKey = SpatialRefugeShared.GetMoveRelicTranslationKey(errorCode)
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
+        local translationKey = MSR.Shared.GetMoveRelicTranslationKey(errorCode)
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = translationKey
         })
     end
@@ -602,7 +602,7 @@ end
 -----------------------------------------------------------
 
 -- Handle Feature Upgrade Request (new upgrade system)
-function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
+function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     if not player then return end
     
     local username = player:getUsername()
@@ -614,12 +614,12 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     local transactionId = args and args.transactionId
     
     if getDebug and getDebug() then
-        print("[SpatialRefugeServer] HandleFeatureUpgradeRequest: " .. username .. 
+        print("[MSR_Server] HandleFeatureUpgradeRequest: " .. username .. 
               " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
     end
     
     if not upgradeId or not targetLevel then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Invalid upgrade request"
         })
@@ -627,9 +627,9 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     -- Get upgrade definition
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+    local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Unknown upgrade: " .. tostring(upgradeId)
         })
@@ -637,8 +637,8 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     -- Validate dependencies
-    if not SpatialRefugeUpgradeData.isUpgradeUnlocked(player, upgradeId) then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+    if not MSR.UpgradeData.isUpgradeUnlocked(player, upgradeId) then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Dependencies not met"
         })
@@ -646,10 +646,10 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     -- Validate current level
-    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
+    local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     
     if targetLevel <= currentLevel then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Already at this level"
         })
@@ -657,7 +657,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     if targetLevel > currentLevel + 1 then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Must upgrade one level at a time"
         })
@@ -665,7 +665,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     if targetLevel > upgrade.maxLevel then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Exceeds max level"
         })
@@ -673,7 +673,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     end
     
     -- Get level requirements for item validation
-    local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, targetLevel)
+    local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     local requirements = levelData and levelData.requirements or {}
     
     -- Validate player has required items (server-side anti-cheat)
@@ -684,19 +684,19 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
             
             -- IMPORTANT: Use multi-source counting (inventory + Sacred Relic container)
             -- so server-side validation matches client-side availability in MP.
-            local available = SpatialRefugeTransaction.GetMultiSourceCount(player, itemType)
+            local available = MSR.Transaction.GetMultiSourceCount(player, itemType)
             
             -- Check substitutes if primary type insufficient
             if available < needed and req.substitutes then
                 for _, subType in ipairs(req.substitutes) do
-                    available = available + SpatialRefugeTransaction.GetMultiSourceCount(player, subType)
+                    available = available + MSR.Transaction.GetMultiSourceCount(player, subType)
                     if available >= needed then break end
                 end
             end
             
             if available < needed then
                 local itemName = itemType:match("%.(.+)$") or itemType
-                sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+                sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "Not enough " .. itemName
                 })
@@ -708,9 +708,9 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
     -- Special case: expand_refuge triggers the actual refuge expansion
     if upgradeId == "expand_refuge" then
         -- Get current refuge data
-        local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+        local refugeData = MSR.Data.GetRefugeDataByUsername(username)
         if not refugeData then
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "No refuge data found"
             })
@@ -718,9 +718,9 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
         end
         
         -- Use shared validation for upgrade prerequisites
-        local canUpgrade, reason, tierConfig = SpatialRefugeValidation.CanUpgradeRefuge(player, refugeData)
+        local canUpgrade, reason, tierConfig = MSR.Validation.CanUpgradeRefuge(player, refugeData)
         if not canUpgrade then
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = reason or "Cannot upgrade refuge"
             })
@@ -731,7 +731,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
         local newRadius = tierConfig.radius
         local cell = getCell()
         if not cell then
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "World not ready"
             })
@@ -752,7 +752,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
             local y = refugeData.centerY + offset[2]
             local square = cell:getGridSquare(x, y, refugeData.centerZ)
             if not square or not square:getChunk() then
-                sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+                sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "Refuge area not fully loaded. Move around and try again."
                 })
@@ -765,14 +765,14 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
         local newTier = (refugeData.tier or 0) + 1
         
         -- Perform expansion using shared module
-        local success = SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
+        local success = MSR.Shared.ExpandRefuge(refugeData, newTier, player)
         
         if success then
-            print("[SpatialRefugeServer] expand_refuge: ExpandRefuge SUCCESS")
+            print("[MSR_Server] expand_refuge: ExpandRefuge SUCCESS")
             
             -- Reposition relic to its assigned corner after expansion
             -- IMPORTANT: Search using OLD radius where relic currently is located
-            local relic = SpatialRefugeShared.FindRelicInRefuge(
+            local relic = MSR.Shared.FindRelicInRefuge(
                 refugeData.centerX, refugeData.centerY, refugeData.centerZ,
                 oldRadius, -- Use OLD radius - relic is at old corner position
                 refugeData.refugeId
@@ -784,7 +784,7 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
                     local cornerDx = md.assignedCornerDx or 0
                     local cornerDy = md.assignedCornerDy or 0
                     -- Pass the already-found relic to avoid redundant search
-                    local moveSuccess, moveMessage = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner, relic)
+                    local moveSuccess, moveMessage = MSR.Shared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner, relic)
                     
                     if moveSuccess then
                         -- Update relic position in ModData only if move succeeded (server-authoritative)
@@ -794,35 +794,35 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
                         refugeData.relicY = newRelicY
                         refugeData.relicZ = refugeData.centerZ
                         
-                        print("[SpatialRefugeServer] expand_refuge: Repositioned relic to " .. md.assignedCorner)
-                        print("[SpatialRefugeServer] expand_refuge: New relic position: " .. newRelicX .. "," .. newRelicY)
+                        print("[MSR_Server] expand_refuge: Repositioned relic to " .. md.assignedCorner)
+                        print("[MSR_Server] expand_refuge: New relic position: " .. newRelicX .. "," .. newRelicY)
                     else
                         -- Move failed - relic stays at old position, don't update ModData
                         -- This prevents position desync between physical relic and stored data
-                        print("[SpatialRefugeServer] expand_refuge: WARNING - Failed to reposition relic: " .. tostring(moveMessage))
-                        print("[SpatialRefugeServer] expand_refuge: Relic remains at current position, ModData unchanged")
+                        print("[MSR_Server] expand_refuge: WARNING - Failed to reposition relic: " .. tostring(moveMessage))
+                        print("[MSR_Server] expand_refuge: Relic remains at current position, ModData unchanged")
                     end
                 else
-                    print("[SpatialRefugeServer] expand_refuge: Relic has no assigned corner, not moving")
+                    print("[MSR_Server] expand_refuge: Relic has no assigned corner, not moving")
                 end
             else
-                print("[SpatialRefugeServer] expand_refuge: Could not find relic to reposition")
+                print("[MSR_Server] expand_refuge: Could not find relic to reposition")
             end
             
-            print("[SpatialRefugeServer] expand_refuge: " .. username .. " expanded to tier " .. newTier)
+            print("[MSR_Server] expand_refuge: " .. username .. " expanded to tier " .. newTier)
             
             -- Run integrity check after expansion to ensure everything is valid
-            SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+            MSR.Integrity.ValidateAndRepair(refugeData, {
                 source = "upgrade",
                 player = player
             })
             
             -- Save updated refuge data
-            SpatialRefugeData.SaveRefugeData(refugeData)
+            MSR.Data.SaveRefugeData(refugeData)
             
             -- Send success response with ALL data needed for client-side cleanup
             -- Client needs location and radius info to clean up stale wall objects
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
                 transactionId = transactionId,
                 upgradeId = upgradeId,
                 newLevel = targetLevel,
@@ -833,45 +833,45 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
                 oldRadius = oldRadius,
                 newRadius = refugeData.radius,
                 newTier = newTier,
-                refugeData = SpatialRefugeData.SerializeRefugeData(refugeData)
+                refugeData = MSR.Data.SerializeRefugeData(refugeData)
             })
             if getDebug and getDebug() then
-                print("[SpatialRefugeServer] expand_refuge: Sent FeatureUpgradeComplete")
+                print("[MSR_Server] expand_refuge: Sent FeatureUpgradeComplete")
             end
         else
-            print("[SpatialRefugeServer] expand_refuge: ExpandRefuge FAILED")
-            sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            print("[MSR_Server] expand_refuge: ExpandRefuge FAILED")
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "Expansion failed"
             })
         end
-        print("[SpatialRefugeServer] expand_refuge: ========================================")
+        print("[MSR_Server] expand_refuge: ========================================")
     else
         -- Standard upgrade: Update player level in ModData
-        SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+        MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
         
         if getDebug and getDebug() then
-            print("[SpatialRefugeServer] Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
+            print("[MSR_Server] Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
         end
         
         -- Refresh refugeData after the upgrade to get updated upgrades table
-        local updatedRefugeData = SpatialRefugeData.GetRefugeData(player)
+        local updatedRefugeData = MSR.Data.GetRefugeData(player)
         
         -- Debug: Print upgrades after save (using helper)
         if getDebug and getDebug() then
             if updatedRefugeData and updatedRefugeData.upgrades then
-                print("[SpatialRefugeServer] Upgrades after save: " .. SpatialRefugeData.FormatUpgradesTable(updatedRefugeData.upgrades))
+                print("[MSR_Server] Upgrades after save: " .. MSR.Data.FormatUpgradesTable(updatedRefugeData.upgrades))
             else
-                print("[SpatialRefugeServer] WARNING: No upgrades in refugeData after save!")
+                print("[MSR_Server] WARNING: No upgrades in refugeData after save!")
             end
         end
         
         -- Send success response with updated refugeData including upgrades
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
             transactionId = transactionId,
             upgradeId = upgradeId,
             newLevel = targetLevel,
-            refugeData = SpatialRefugeData.SerializeRefugeData(updatedRefugeData)
+            refugeData = MSR.Data.SerializeRefugeData(updatedRefugeData)
         })
     end
 end
@@ -883,38 +883,38 @@ end
 -- Main command dispatcher
 local function OnClientCommand(module, command, player, args)
     -- Only handle our namespace
-    if module ~= SpatialRefugeConfig.COMMAND_NAMESPACE then return end
+    if module ~= MSR.Config.COMMAND_NAMESPACE then return end
     
     -- Some commands are exempt from rate limiting
     local isExemptFromRateLimit = (
-        command == SpatialRefugeConfig.COMMANDS.CHUNKS_READY or
-        command == SpatialRefugeConfig.COMMANDS.REQUEST_MODDATA
+        command == MSR.Config.COMMANDS.CHUNKS_READY or
+        command == MSR.Config.COMMANDS.REQUEST_MODDATA
     )
     
     -- Rate limit check (skip for exempt commands)
     if not isExemptFromRateLimit and not canProcessRequest(player) then
         if getDebug() then
-            print("[SpatialRefugeServer] Rate limited request from " .. tostring(player:getUsername()))
+            print("[MSR_Server] Rate limited request from " .. tostring(player:getUsername()))
         end
         return
     end
     
     -- Dispatch to appropriate handler
-    if command == SpatialRefugeConfig.COMMANDS.REQUEST_MODDATA then
-        SpatialRefugeServer.HandleModDataRequest(player, args)
-    elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_ENTER then
-        SpatialRefugeServer.HandleEnterRequest(player, args)
-    elseif command == SpatialRefugeConfig.COMMANDS.CHUNKS_READY then
-        SpatialRefugeServer.HandleChunksReady(player, args)
-    elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_EXIT then
-        SpatialRefugeServer.HandleExitRequest(player, args)
-    elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_MOVE_RELIC then
-        SpatialRefugeServer.HandleMoveRelicRequest(player, args)
-    elseif command == SpatialRefugeConfig.COMMANDS.REQUEST_FEATURE_UPGRADE then
-        SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
+    if command == MSR.Config.COMMANDS.REQUEST_MODDATA then
+        MSR_Server.HandleModDataRequest(player, args)
+    elseif command == MSR.Config.COMMANDS.REQUEST_ENTER then
+        MSR_Server.HandleEnterRequest(player, args)
+    elseif command == MSR.Config.COMMANDS.CHUNKS_READY then
+        MSR_Server.HandleChunksReady(player, args)
+    elseif command == MSR.Config.COMMANDS.REQUEST_EXIT then
+        MSR_Server.HandleExitRequest(player, args)
+    elseif command == MSR.Config.COMMANDS.REQUEST_MOVE_RELIC then
+        MSR_Server.HandleMoveRelicRequest(player, args)
+    elseif command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE then
+        MSR_Server.HandleFeatureUpgradeRequest(player, args)
     else
         if getDebug() then
-            print("[SpatialRefugeServer] Unknown command: " .. tostring(command))
+            print("[MSR_Server] Unknown command: " .. tostring(command))
         end
     end
 end
@@ -956,11 +956,11 @@ end
 
 -- Check if a player is stranded in refuge (logged in at refuge coords with missing structures)
 -- This function waits for chunks to load before checking/regenerating
-function SpatialRefugeServer.CheckAndRecoverStrandedPlayer(player)
+function MSR_Server.CheckAndRecoverStrandedPlayer(player)
     if not player then return end
     
     -- Check if player is at refuge coordinates
-    if not SpatialRefugeData.IsPlayerInRefugeCoords(player) then
+    if not MSR.Data.IsPlayerInRefugeCoords(player) then
         return  -- Not in refuge area, nothing to do
     end
     
@@ -968,11 +968,11 @@ function SpatialRefugeServer.CheckAndRecoverStrandedPlayer(player)
     if not username then return end
     
     -- Get player's refuge data
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then
         -- Player is in refuge coords but has no refuge data - unusual situation
         if getDebug() then
-            print("[SpatialRefugeServer] Player " .. username .. " in refuge coords but no data found")
+            print("[MSR_Server] Player " .. username .. " in refuge coords but no data found")
         end
         return
     end
@@ -999,7 +999,7 @@ function SpatialRefugeServer.CheckAndRecoverStrandedPlayer(player)
         if not playerValid then
             Events.OnTick.Remove(waitForChunksAndCheck)
             if getDebug() then
-                print("[SpatialRefugeServer] Player disconnected during stranded check for " .. tostring(usernameRef))
+                print("[MSR_Server] Player disconnected during stranded check for " .. tostring(usernameRef))
             end
             return
         end
@@ -1009,7 +1009,7 @@ function SpatialRefugeServer.CheckAndRecoverStrandedPlayer(player)
             if tickCount >= maxTicks then
                 Events.OnTick.Remove(waitForChunksAndCheck)
                 if getDebug() then
-                    print("[SpatialRefugeServer] Timeout waiting for refuge chunks for " .. usernameRef)
+                    print("[MSR_Server] Timeout waiting for refuge chunks for " .. usernameRef)
                 end
             end
             return  -- Keep waiting
@@ -1021,11 +1021,11 @@ function SpatialRefugeServer.CheckAndRecoverStrandedPlayer(player)
         Events.OnTick.Remove(waitForChunksAndCheck)
         
         if getDebug() then
-            print("[SpatialRefugeServer] Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
+            print("[MSR_Server] Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
         end
         
         -- Now safely check if Sacred Relic exists
-        local hasRelic = SpatialRefugeShared.FindRelicInRefuge(
+        local hasRelic = MSR.Shared.FindRelicInRefuge(
             refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
             refugeDataRef.radius, refugeDataRef.refugeId
         )
@@ -1033,13 +1033,13 @@ function SpatialRefugeServer.CheckAndRecoverStrandedPlayer(player)
         if not hasRelic then
             -- Relic genuinely missing - regenerate structures
             if getDebug() then
-                print("[SpatialRefugeServer] Regenerating structures for stranded player " .. usernameRef)
+                print("[MSR_Server] Regenerating structures for stranded player " .. usernameRef)
             end
             
-            SpatialRefugeShared.EnsureRefugeStructures(refugeDataRef, playerRef)
+            MSR.Shared.EnsureRefugeStructures(refugeDataRef, playerRef)
         else
             if getDebug() then
-                print("[SpatialRefugeServer] Structures intact for " .. usernameRef .. ", no regeneration needed")
+                print("[MSR_Server] Structures intact for " .. usernameRef .. ", no regeneration needed")
             end
         end
     end
@@ -1059,19 +1059,19 @@ local function OnPlayerDeathServer(player)
     if not username then return end
     
     -- Check if player died inside their refuge
-    if not SpatialRefugeData.IsPlayerInRefugeCoords(player) then
+    if not MSR.Data.IsPlayerInRefugeCoords(player) then
         return -- Not in refuge, nothing to do
     end
     
     if getDebug() then
-        print("[SpatialRefugeServer] Player " .. username .. " died in refuge")
+        print("[MSR_Server] Player " .. username .. " died in refuge")
     end
     
     -- Get refuge data before we delete it
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     
     -- Get return position (to move corpse there)
-    local returnPos = SpatialRefugeData.GetReturnPositionByUsername(username)
+    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
     
     -- Move corpse to last world position (where they entered from)
     if returnPos then
@@ -1082,7 +1082,7 @@ local function OnPlayerDeathServer(player)
             corpse:setZ(returnPos.z)
             
             if getDebug() then
-                print("[SpatialRefugeServer] Moved corpse to " .. returnPos.x .. "," .. returnPos.y)
+                print("[MSR_Server] Moved corpse to " .. returnPos.x .. "," .. returnPos.y)
             end
         end
     end
@@ -1091,17 +1091,17 @@ local function OnPlayerDeathServer(player)
     -- NOTE: We do NOT delete physical structures here - they persist in world save
     -- This is intentional: the refuge space can be reused by a new character
     -- or cleaned up by admin tools if needed
-    SpatialRefugeData.DeleteRefugeData(player)
+    MSR.Data.DeleteRefugeData(player)
     
     -- Clear return position
-    SpatialRefugeData.ClearReturnPositionByUsername(username)
+    MSR.Data.ClearReturnPositionByUsername(username)
     
     -- Clear server-side cooldowns for this player
     serverCooldowns.teleport[username] = nil
     serverCooldowns.relicMove[username] = nil
     
     if getDebug() then
-        print("[SpatialRefugeServer] Cleaned up refuge data for " .. username)
+        print("[MSR_Server] Cleaned up refuge data for " .. username)
     end
 end
 
@@ -1112,14 +1112,14 @@ end
 -- Server initialization
 local function OnServerStart()
     if getDebug() then
-        print("[SpatialRefugeServer] Server initialized")
+        print("[MSR_Server] Server initialized")
     end
     
     -- Initialize ModData
-    SpatialRefugeData.InitializeModData()
+    MSR.Data.InitializeModData()
     
     -- Transmit existing ModData to any connected clients
-    SpatialRefugeData.TransmitModData()
+    MSR.Data.TransmitModData()
 end
 
 -- Transmit ModData to newly connected players
@@ -1129,7 +1129,7 @@ local function OnPlayerFullyConnected(player)
     local playerUsername = player:getUsername() or "unknown"
     
     if getDebug() then
-        print("[SpatialRefugeServer] OnPlayerFullyConnected called for: " .. playerUsername)
+        print("[MSR_Server] OnPlayerFullyConnected called for: " .. playerUsername)
     end
     
     -- Small delay to ensure client is ready to receive
@@ -1141,20 +1141,20 @@ local function OnPlayerFullyConnected(player)
         Events.OnTick.Remove(delayedTransmit)
         
         -- Transmit ModData so new player has refuge data
-        SpatialRefugeData.TransmitModData()
+        MSR.Data.TransmitModData()
         
         if getDebug() then
-            print("[SpatialRefugeServer] Transmitted ModData to " .. playerUsername)
+            print("[MSR_Server] Transmitted ModData to " .. playerUsername)
             -- Log what we're transmitting
-            local registry = SpatialRefugeData.GetRefugeRegistry()
+            local registry = MSR.Data.GetRefugeRegistry()
             if registry then
                 local count = 0
                 for k, v in pairs(registry) do
                     count = count + 1
                 end
-                print("[SpatialRefugeServer] ModData has " .. count .. " refuge entries")
+                print("[MSR_Server] ModData has " .. count .. " refuge entries")
             else
-                print("[SpatialRefugeServer] WARNING: Registry is nil!")
+                print("[MSR_Server] WARNING: Registry is nil!")
             end
         end
     end
@@ -1168,16 +1168,16 @@ local function OnPlayerConnect(player)
     
     local username = player:getUsername() or "unknown"
     
-    if SpatialRefugeMigration.NeedsMigration(player) then
-        local success, message = SpatialRefugeMigration.MigratePlayer(player)
+    if MSR.Migration.NeedsMigration(player) then
+        local success, message = MSR.Migration.MigratePlayer(player)
         if success then
-            print("[SpatialRefugeServer] " .. username .. ": " .. message)
-            SpatialRefugeData.TransmitModData()
+            print("[MSR_Server] " .. username .. ": " .. message)
+            MSR.Data.TransmitModData()
         end
     end
     
     if getDebug() then
-        print("[SpatialRefugeServer] Player connected: " .. username)
+        print("[MSR_Server] Player connected: " .. username)
     end
 end
 
@@ -1210,7 +1210,7 @@ if Events.OnCreatePlayer then
 end
 
 if getDebug() then
-    print("[SpatialRefugeServer] Server module loaded")
+    print("[MSR_Server] Server module loaded")
 end
 
-return SpatialRefugeServer
+return MSR_Server

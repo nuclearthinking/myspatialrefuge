@@ -1,20 +1,24 @@
--- Spatial Refuge Upgrade Logic
+-- MSR_UpgradeLogic - Upgrade Logic
 -- Business logic for the upgrade system
 -- Handles item checking, purchase flow, and transaction management
 
-require "shared/SpatialRefugeUpgradeData"
-require "shared/SpatialRefugeTransaction"
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeShared"
-require "shared/SpatialRefugeData"
+require "shared/MSR"
+require "shared/MSR_UpgradeData"
+require "shared/MSR_Transaction"
+require "shared/MSR_Config"
+require "shared/MSR_Shared"
+require "shared/MSR_Data"
 
-if SpatialRefugeUpgradeLogic and SpatialRefugeUpgradeLogic._loaded then
-    return SpatialRefugeUpgradeLogic
+-- Prevent double-loading
+if MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
+    return MSR.UpgradeLogic
 end
 
-SpatialRefugeUpgradeLogic = {
-    _loaded = true
-}
+MSR.UpgradeLogic = MSR.UpgradeLogic or {}
+MSR.UpgradeLogic._loaded = true
+
+-- Local alias
+local UpgradeLogic = MSR.UpgradeLogic
 
 -----------------------------------------------------------
 -- Configuration
@@ -58,24 +62,24 @@ end
 -- Item Source Management
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeLogic.getItemSources(player)
-    return SpatialRefugeTransaction.GetItemSources(player)
+function UpgradeLogic.getItemSources(player)
+    return MSR.Transaction.GetItemSources(player)
 end
 
-function SpatialRefugeUpgradeLogic.getAvailableItemCount(player, requirement)
+function UpgradeLogic.getAvailableItemCount(player, requirement)
     if not requirement then return 0 end
     
-    local total, _ = SpatialRefugeTransaction.GetSubstitutionCount(player, requirement)
+    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement)
     return total
 end
 
-function SpatialRefugeUpgradeLogic.hasRequiredItems(player, requirements)
+function UpgradeLogic.hasRequiredItems(player, requirements)
     if not requirements or #requirements == 0 then
         return true
     end
     
     for _, req in ipairs(requirements) do
-        local available = SpatialRefugeUpgradeLogic.getAvailableItemCount(player, req)
+        local available = UpgradeLogic.getAvailableItemCount(player, req)
         local needed = req.count or 1
         
         if available < needed then
@@ -90,22 +94,22 @@ end
 -- Upgrade Validation
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
+function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then
         return false, "Invalid player"
     end
     
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+    local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then
         return false, "Unknown upgrade"
     end
     
-    if not SpatialRefugeUpgradeData.isUpgradeUnlocked(playerObj, upgradeId) then
+    if not MSR.UpgradeData.isUpgradeUnlocked(playerObj, upgradeId) then
         return false, "Dependencies not met"
     end
     
-    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId)
+    local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId)
     
     if not targetLevel then
         targetLevel = currentLevel + 1
@@ -123,13 +127,13 @@ function SpatialRefugeUpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetL
         return false, "Must upgrade one level at a time"
     end
     
-    local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, targetLevel)
+    local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     if not levelData then
         return false, "Invalid level data"
     end
     
     local requirements = levelData.requirements or {}
-    if not SpatialRefugeUpgradeLogic.hasRequiredItems(playerObj, requirements) then
+    if not UpgradeLogic.hasRequiredItems(playerObj, requirements) then
         return false, "Missing required items"
     end
     
@@ -140,72 +144,72 @@ end
 -- Upgrade Purchase
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
+function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then
-        print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Invalid player")
+        print("[MSR_UpgradeLogic] purchaseUpgrade: Invalid player")
         return false, "Invalid player"
     end
     
-    print("[SpatialRefugeUpgradeLogic] ========================================")
-    print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: " .. tostring(upgradeId) .. " level " .. tostring(targetLevel))
+    print("[MSR_UpgradeLogic] ========================================")
+    print("[MSR_UpgradeLogic] purchaseUpgrade: " .. tostring(upgradeId) .. " level " .. tostring(targetLevel))
     
-    local canPurchase, err = SpatialRefugeUpgradeLogic.canPurchaseUpgrade(playerObj, upgradeId, targetLevel)
+    local canPurchase, err = UpgradeLogic.canPurchaseUpgrade(playerObj, upgradeId, targetLevel)
     if not canPurchase then
-        print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: CANNOT purchase - " .. tostring(err))
+        print("[MSR_UpgradeLogic] purchaseUpgrade: CANNOT purchase - " .. tostring(err))
         return false, err
     end
-    print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Validation passed")
+    print("[MSR_UpgradeLogic] purchaseUpgrade: Validation passed")
     
-    local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, targetLevel)
+    local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     local requirements = levelData.requirements or {}
     
-    print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Requirements count = " .. #requirements)
+    print("[MSR_UpgradeLogic] purchaseUpgrade: Requirements count = " .. #requirements)
     for i, req in ipairs(requirements) do
-        print("[SpatialRefugeUpgradeLogic]   Req " .. i .. ": " .. tostring(req.type) .. " x" .. tostring(req.count))
+        print("[MSR_UpgradeLogic]   Req " .. i .. ": " .. tostring(req.type) .. " x" .. tostring(req.count))
     end
     
     if isMultiplayerClient() then
-        print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Using MP flow")
-        return SpatialRefugeUpgradeLogic.purchaseUpgradeMP(playerObj, upgradeId, targetLevel, requirements)
+        print("[MSR_UpgradeLogic] purchaseUpgrade: Using MP flow")
+        return UpgradeLogic.purchaseUpgradeMP(playerObj, upgradeId, targetLevel, requirements)
     else
-        print("[SpatialRefugeUpgradeLogic] purchaseUpgrade: Using SP flow")
-        return SpatialRefugeUpgradeLogic.purchaseUpgradeSP(playerObj, upgradeId, targetLevel, requirements)
+        print("[MSR_UpgradeLogic] purchaseUpgrade: Using SP flow")
+        return UpgradeLogic.purchaseUpgradeSP(playerObj, upgradeId, targetLevel, requirements)
     end
 end
 
-function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirements)
-    print("[SpatialRefugeUpgradeLogic] SP: Starting singleplayer purchase")
+function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirements)
+    print("[MSR_UpgradeLogic] SP: Starting singleplayer purchase")
     
-    local success = SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
+    local success = UpgradeLogic.consumeItems(player, requirements)
     if not success then
-        print("[SpatialRefugeUpgradeLogic] SP: FAILED to consume items")
+        print("[MSR_UpgradeLogic] SP: FAILED to consume items")
         return false, "Failed to consume items"
     end
-    print("[SpatialRefugeUpgradeLogic] SP: Items consumed successfully")
+    print("[MSR_UpgradeLogic] SP: Items consumed successfully")
     
     if upgradeId == "expand_refuge" then
-        print("[SpatialRefugeUpgradeLogic] SP: Processing expand_refuge")
+        print("[MSR_UpgradeLogic] SP: Processing expand_refuge")
         
-        local refugeData = SpatialRefugeData.GetRefugeData(player)
+        local refugeData = MSR.Data.GetRefugeData(player)
         if not refugeData then
-            print("[SpatialRefugeUpgradeLogic] SP: ERROR - No refuge data found")
+            print("[MSR_UpgradeLogic] SP: ERROR - No refuge data found")
             return false, "Refuge data not found"
         end
         
         local currentTier = refugeData.tier or 0
         local nextTier = currentTier + 1
         local oldRadius = refugeData.radius or 1
-        print("[SpatialRefugeUpgradeLogic] SP: Tier " .. currentTier .. " -> " .. nextTier)
+        print("[MSR_UpgradeLogic] SP: Tier " .. currentTier .. " -> " .. nextTier)
         
         -- Perform expansion using shared module
-        local expandSuccess = SpatialRefugeShared.ExpandRefuge(refugeData, nextTier, player)
+        local expandSuccess = MSR.Shared.ExpandRefuge(refugeData, nextTier, player)
         
         if expandSuccess then
-            print("[SpatialRefugeUpgradeLogic] SP: ExpandRefuge SUCCESS")
+            print("[MSR_UpgradeLogic] SP: ExpandRefuge SUCCESS")
             
             -- Handle relic repositioning after expansion (same as server does)
-            local relic = SpatialRefugeShared.FindRelicInRefuge(
+            local relic = MSR.Shared.FindRelicInRefuge(
                 refugeData.centerX, refugeData.centerY, refugeData.centerZ,
                 oldRadius, -- Use OLD radius - relic is at old corner position
                 refugeData.refugeId
@@ -215,7 +219,7 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
                 if md and md.assignedCorner then
                     local cornerDx = md.assignedCornerDx or 0
                     local cornerDy = md.assignedCornerDy or 0
-                    local moveSuccess, moveMessage = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner, relic)
+                    local moveSuccess, moveMessage = MSR.Shared.MoveRelic(refugeData, cornerDx, cornerDy, md.assignedCorner, relic)
                     
                     if moveSuccess then
                         -- Update relic position in ModData
@@ -224,49 +228,49 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
                         refugeData.relicX = newRelicX
                         refugeData.relicY = newRelicY
                         refugeData.relicZ = refugeData.centerZ
-                        print("[SpatialRefugeUpgradeLogic] SP: Repositioned relic to " .. md.assignedCorner)
+                        print("[MSR_UpgradeLogic] SP: Repositioned relic to " .. md.assignedCorner)
                     else
-                        print("[SpatialRefugeUpgradeLogic] SP: WARNING - Failed to reposition relic: " .. tostring(moveMessage))
+                        print("[MSR_UpgradeLogic] SP: WARNING - Failed to reposition relic: " .. tostring(moveMessage))
                     end
                 end
             end
             
             -- Save updated refuge data
-            SpatialRefugeData.SaveRefugeData(refugeData)
+            MSR.Data.SaveRefugeData(refugeData)
             
             -- Invalidate cached boundary bounds
-            if SpatialRefuge and SpatialRefuge.InvalidateBoundsCache then
-                SpatialRefuge.InvalidateBoundsCache(player)
+            if MSR and MSR.InvalidateBoundsCache then
+                MSR.InvalidateBoundsCache(player)
             end
             
-            local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
+            local tierConfig = MSR.Config.TIERS[nextTier]
             if tierConfig and player and player.Say then
                 local message = string.format(getText("IGUI_RefugeUpgradedTo"), tierConfig.displayName)
                 player:Say(message)
             end
         else
-            print("[SpatialRefugeUpgradeLogic] SP: ExpandRefuge FAILED")
+            print("[MSR_UpgradeLogic] SP: ExpandRefuge FAILED")
             return false, "Expansion failed"
         end
     else
-        print("[SpatialRefugeUpgradeLogic] SP: Setting upgrade level")
-        SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
-        SpatialRefugeUpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
+        print("[MSR_UpgradeLogic] SP: Setting upgrade level")
+        MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+        UpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
     end
     
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+    local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     if player and player.Say then
         local message = string.format(getText("IGUI_UpgradedToLevel"), name, targetLevel)
         player:Say(message)
     end
     
-    print("[SpatialRefugeUpgradeLogic] SP: Purchase complete")
+    print("[MSR_UpgradeLogic] SP: Purchase complete")
     return true, nil
 end
 
-function SpatialRefugeUpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirements)
-    local transaction, err = SpatialRefugeTransaction.BeginWithSubstitutions(
+function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirements)
+    local transaction, err = MSR.Transaction.BeginWithSubstitutions(
         player,
         TRANSACTION_TYPE_UPGRADE,
         requirements
@@ -283,8 +287,8 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLe
     }
     
     sendClientCommand(
-        SpatialRefugeConfig.COMMAND_NAMESPACE,
-        SpatialRefugeConfig.COMMANDS.REQUEST_FEATURE_UPGRADE,
+        MSR.Config.COMMAND_NAMESPACE,
+        MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE,
         args
     )
     
@@ -299,16 +303,16 @@ end
 -- Item Consumption
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
+function UpgradeLogic.consumeItems(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    local resolved, err = SpatialRefugeTransaction.ResolveSubstitutions(playerObj, requirements)
+    local resolved, err = MSR.Transaction.ResolveSubstitutions(playerObj, requirements)
     if not resolved then
         return false
     end
     
-    local sources = SpatialRefugeTransaction.GetItemSources(playerObj)
+    local sources = MSR.Transaction.GetItemSources(playerObj)
     if not sources or #sources == 0 then return false end
     
     for itemType, count in pairs(resolved) do
@@ -334,7 +338,7 @@ function SpatialRefugeUpgradeLogic.consumeItems(player, requirements)
         end
         
         if remaining > 0 then
-            print("[SpatialRefugeUpgradeLogic] consumeItems: Failed to consume " .. tostring(remaining) .. " of " .. tostring(itemType))
+            print("[MSR_UpgradeLogic] consumeItems: Failed to consume " .. tostring(remaining) .. " of " .. tostring(itemType))
             return false
         end
     end
@@ -346,21 +350,21 @@ end
 -- Effect Application
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
-    local effects = SpatialRefugeUpgradeData.getLevelEffects(upgradeId, level)
+function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
+    local effects = MSR.UpgradeData.getLevelEffects(upgradeId, level)
     if not effects then return end
     
     -- Log effects for debugging
     if getDebug and getDebug() then
-        print("[SpatialRefugeUpgradeLogic] Applied effects for " .. upgradeId .. " level " .. level .. ":")
+        print("[MSR_UpgradeLogic] Applied effects for " .. upgradeId .. " level " .. level .. ":")
         for name, value in pairs(effects) do
             print("  - " .. name .. ": " .. tostring(value))
         end
     end
 end
 
-function SpatialRefugeUpgradeLogic.getPlayerEffect(player, effectName)
-    local effects = SpatialRefugeUpgradeData.getPlayerActiveEffects(player)
+function UpgradeLogic.getPlayerEffect(player, effectName)
+    local effects = MSR.UpgradeData.getPlayerActiveEffects(player)
     return effects[effectName] or 0
 end
 
@@ -368,88 +372,88 @@ end
 -- Transaction Callbacks (for multiplayer)
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transactionId)
-    print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: ========================================")
-    print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: upgradeId=" .. tostring(upgradeId))
-    print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: targetLevel=" .. tostring(targetLevel))
-    print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: transactionId=" .. tostring(transactionId))
+function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transactionId)
+    print("[MSR_UpgradeLogic] onUpgradeComplete: ========================================")
+    print("[MSR_UpgradeLogic] onUpgradeComplete: upgradeId=" .. tostring(upgradeId))
+    print("[MSR_UpgradeLogic] onUpgradeComplete: targetLevel=" .. tostring(targetLevel))
+    print("[MSR_UpgradeLogic] onUpgradeComplete: transactionId=" .. tostring(transactionId))
     
     local playerObj = resolvePlayer(player)
     if not playerObj then 
-        print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: ERROR - No player")
+        print("[MSR_UpgradeLogic] onUpgradeComplete: ERROR - No player")
         return 
     end
     
     if transactionId then
-        print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Committing transaction")
-        SpatialRefugeTransaction.Commit(playerObj, transactionId)
+        print("[MSR_UpgradeLogic] onUpgradeComplete: Committing transaction")
+        MSR.Transaction.Commit(playerObj, transactionId)
     end
     
     if upgradeId == "expand_refuge" then
-        print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: expand_refuge - server handled expansion")
+        print("[MSR_UpgradeLogic] onUpgradeComplete: expand_refuge - server handled expansion")
         
-        if SpatialRefuge and SpatialRefuge.InvalidateBoundsCache then
-            print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Invalidating bounds cache for MP")
-            SpatialRefuge.InvalidateBoundsCache(playerObj)
+        if MSR and MSR.InvalidateBoundsCache then
+            print("[MSR_UpgradeLogic] onUpgradeComplete: Invalidating bounds cache for MP")
+            MSR.InvalidateBoundsCache(playerObj)
         end
         
         -- Notify about the new tier
-        local refugeData = SpatialRefuge and SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(playerObj)
+        local refugeData = MSR and MSR.GetRefugeData and MSR.GetRefugeData(playerObj)
         if refugeData then
-            local tierConfig = SpatialRefugeConfig.TIERS[refugeData.tier]
+            local tierConfig = MSR.Config.TIERS[refugeData.tier]
             if tierConfig then
-                print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: New tier=" .. tostring(refugeData.tier) .. " size=" .. tostring(tierConfig.size))
+                print("[MSR_UpgradeLogic] onUpgradeComplete: New tier=" .. tostring(refugeData.tier) .. " size=" .. tostring(tierConfig.size))
             end
         end
     else
-        print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Setting upgrade level")
-        SpatialRefugeUpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
-        SpatialRefugeUpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
+        print("[MSR_UpgradeLogic] onUpgradeComplete: Setting upgrade level")
+        MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
+        UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
     
-    local SpatialRefugeUpgradeWindow = require "refuge/SpatialRefugeUpgradeWindow"
-    if SpatialRefugeUpgradeWindow.instance then
-        SpatialRefugeUpgradeWindow.instance:refreshUpgradeList()
-        SpatialRefugeUpgradeWindow.instance:refreshCurrentUpgrade()
+    local MSR_UpgradeWindow = require "refuge/MSR_UpgradeWindow"
+    if MSR_UpgradeWindow.instance then
+        MSR_UpgradeWindow.instance:refreshUpgradeList()
+        MSR_UpgradeWindow.instance:refreshCurrentUpgrade()
     end
     
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+    local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     if playerObj and playerObj.Say then
         local message = string.format(getText("IGUI_UpgradedToLevel"), name, targetLevel)
         playerObj:Say(message)
     end
-    print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Done")
+    print("[MSR_UpgradeLogic] onUpgradeComplete: Done")
 end
 
-function SpatialRefugeUpgradeLogic.onUpgradeError(player, transactionId, reason)
-    print("[SpatialRefugeUpgradeLogic] onUpgradeError: ========================================")
-    print("[SpatialRefugeUpgradeLogic] onUpgradeError: transactionId=" .. tostring(transactionId))
-    print("[SpatialRefugeUpgradeLogic] onUpgradeError: reason=" .. tostring(reason))
+function UpgradeLogic.onUpgradeError(player, transactionId, reason)
+    print("[MSR_UpgradeLogic] onUpgradeError: ========================================")
+    print("[MSR_UpgradeLogic] onUpgradeError: transactionId=" .. tostring(transactionId))
+    print("[MSR_UpgradeLogic] onUpgradeError: reason=" .. tostring(reason))
     
     local playerObj = resolvePlayer(player)
     if not playerObj then 
-        print("[SpatialRefugeUpgradeLogic] onUpgradeError: ERROR - No player")
+        print("[MSR_UpgradeLogic] onUpgradeError: ERROR - No player")
         return 
     end
     
     if transactionId then
-        print("[SpatialRefugeUpgradeLogic] onUpgradeError: Rolling back transaction")
-        local success = SpatialRefugeTransaction.Rollback(playerObj, transactionId)
+        print("[MSR_UpgradeLogic] onUpgradeError: Rolling back transaction")
+        local success = MSR.Transaction.Rollback(playerObj, transactionId)
         if success then
-            print("[SpatialRefugeUpgradeLogic] onUpgradeError: Rollback SUCCESS - items unlocked")
+            print("[MSR_UpgradeLogic] onUpgradeError: Rollback SUCCESS - items unlocked")
         else
-            print("[SpatialRefugeUpgradeLogic] onUpgradeError: Rollback FAILED - transaction not found or already committed")
+            print("[MSR_UpgradeLogic] onUpgradeError: Rollback FAILED - transaction not found or already committed")
         end
     end
     
     if playerObj and playerObj.Say then
         playerObj:Say(reason or getText("IGUI_UpgradeFailed"))
     end
-    print("[SpatialRefugeUpgradeLogic] onUpgradeError: Done")
+    print("[MSR_UpgradeLogic] onUpgradeError: Done")
 end
 
-print("[SpatialRefugeUpgradeLogic] Upgrade logic loaded")
+print("[MSR_UpgradeLogic] Upgrade logic loaded")
 
-return SpatialRefugeUpgradeLogic
+return MSR.UpgradeLogic
 

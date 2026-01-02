@@ -2,8 +2,7 @@
 -- Monitors player position and prevents them from leaving refuge boundaries
 -- Uses soft boundaries that push players back to the edge (not center)
 
-SpatialRefuge = SpatialRefuge or {}
-SpatialRefugeConfig = SpatialRefugeConfig or {}
+require "shared/MSR_PlayerMessage"
 
 -- Track last boundary warning time per player to avoid spam
 -- Uses weak keys to allow garbage collection when players disconnect
@@ -15,7 +14,7 @@ local cachedBounds = setmetatable({}, {__mode = "k"})
 -- Get refuge boundary limits for position checking
 -- In PZ, a tile at (x,y) has player positions from x.0 to x.999...
 -- So for tiles minX to maxX, valid positions are minX.0 to (maxX+1).0
-function SpatialRefuge.GetRefugeBounds(refugeData)
+function MSR.GetRefugeBounds(refugeData)
     if not refugeData then return nil end
     
     local centerX = refugeData.centerX
@@ -49,7 +48,7 @@ function SpatialRefuge.GetRefugeBounds(refugeData)
 end
 
 -- Invalidate cached bounds for a player (call on upgrade or exit)
-function SpatialRefuge.InvalidateBoundsCache(player)
+function MSR.InvalidateBoundsCache(player)
     if player then
         cachedBounds[player] = nil
     end
@@ -57,11 +56,11 @@ end
 
 -- Check if player position is outside boundaries and calculate clamped position
 -- Returns: isOutside, clampedX, clampedY, bounds
-function SpatialRefuge.CheckBoundaryViolation(player)
+function MSR.CheckBoundaryViolation(player)
     if not player then return false end
     
     -- Only check if player is in refuge area
-    if not SpatialRefuge.IsPlayerInRefuge or not SpatialRefuge.IsPlayerInRefuge(player) then
+    if not MSR.IsPlayerInRefuge or not MSR.IsPlayerInRefuge(player) then
         return false
     end
     
@@ -69,14 +68,14 @@ function SpatialRefuge.CheckBoundaryViolation(player)
     local bounds = cachedBounds[player]
     if not bounds then
         -- Check if ModData is available (may not be on MP client before server sync)
-        if not SpatialRefugeData or not SpatialRefugeData.HasRefugeData or not SpatialRefugeData.HasRefugeData() then
+        if not MSR.Data or not MSR.Data.HasRefugeData or not MSR.Data.HasRefugeData() then
             return false
         end
         
-        if not SpatialRefuge.GetRefugeData then return false end
-        local refugeData = SpatialRefuge.GetRefugeData(player)
+        if not MSR.GetRefugeData then return false end
+        local refugeData = MSR.GetRefugeData(player)
         if not refugeData then return false end
-        bounds = SpatialRefuge.GetRefugeBounds(refugeData)
+        bounds = MSR.GetRefugeBounds(refugeData)
         if not bounds then return false end
         cachedBounds[player] = bounds
     end
@@ -116,8 +115,8 @@ function SpatialRefuge.CheckBoundaryViolation(player)
 end
 
 -- Legacy function for compatibility (returns center for teleport-back)
-function SpatialRefuge.IsOutsideRefugeBoundary(player)
-    local isOutside, clampedX, clampedY, bounds = SpatialRefuge.CheckBoundaryViolation(player)
+function MSR.IsOutsideRefugeBoundary(player)
+    local isOutside, clampedX, clampedY, bounds = MSR.CheckBoundaryViolation(player)
     if isOutside and bounds then
         return true, bounds.centerX, bounds.centerY, clampedX, clampedY
     end
@@ -128,7 +127,7 @@ end
 local function OnPlayerUpdate(player)
     if not player then return end
     
-    local isOutside, clampedX, clampedY = SpatialRefuge.CheckBoundaryViolation(player)
+    local isOutside, clampedX, clampedY = MSR.CheckBoundaryViolation(player)
     
     if isOutside and clampedX and clampedY then
         -- Push player back to edge (not center) - much smoother experience
@@ -143,7 +142,8 @@ local function OnPlayerUpdate(player)
         
         if currentTime - lastWarning > 2 then
             lastBoundaryWarning[player] = currentTime
-            player:Say("Cannot leave refuge boundary!")
+            local PM = MSR.PlayerMessage
+            PM.Say(player, PM.CANNOT_LEAVE_BOUNDARY)
         end
     end
 end
@@ -162,5 +162,5 @@ end
 
 Events.OnPlayerUpdate.Add(OnPlayerUpdateThrottled)
 
-return SpatialRefuge
+return MSR
 

@@ -205,8 +205,8 @@ function SRU_ItemSlot:updateItemCount()
     end
     
     -- Get available count using upgrade logic
-    local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
-    self.haveCount = SpatialRefugeUpgradeLogic.getAvailableItemCount(self.player, self.requirement)
+    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
+    self.haveCount = UpgradeLogic.getAvailableItemCount(self.player, self.requirement)
     self.hasEnough = self.haveCount >= self.needCount
 end
 

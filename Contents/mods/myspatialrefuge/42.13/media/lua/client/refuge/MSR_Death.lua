@@ -2,14 +2,14 @@
 -- Handles player death in refuge: corpse relocation and refuge deletion
 -- 
 -- MULTIPLAYER NOTE: In MP, the SERVER handles authoritative death processing
--- via OnPlayerDeathServer in SpatialRefugeServer.lua
+-- via OnPlayerDeathServer in MSR_Server.lua
 -- This client-side handler only does local cleanup
 
-require "refuge/SpatialRefugeGeneration"
+require "refuge/MSR_Generation"
 
 -- Assume dependencies are already loaded
-SpatialRefuge = SpatialRefuge or {}
-SpatialRefugeConfig = SpatialRefugeConfig or {}
+
+
 
 -- Cached MP check
 local _cachedIsMPClient = nil
@@ -25,7 +25,7 @@ local function OnPlayerDeath(player)
     if not player then return end
     
     -- Check if player died inside their refuge
-    if not SpatialRefuge.IsPlayerInRefuge(player) then return end
+    if not MSR.IsPlayerInRefuge(player) then return end
     
     if isMultiplayerClient() then
         -- MULTIPLAYER: Server handles corpse movement, ModData cleanup, etc.
@@ -38,7 +38,7 @@ local function OnPlayerDeath(player)
         pmd.spatialRefuge_lastRelicMove = nil
         
         if getDebug() then
-            print("[SpatialRefuge] Player died in refuge (MP client) - server handles cleanup")
+            print("[MSR] Player died in refuge (MP client) - server handles cleanup")
         end
         return
     end
@@ -46,7 +46,7 @@ local function OnPlayerDeath(player)
     -- SINGLEPLAYER: Full local handling
     
     -- Get return position (now uses global ModData)
-    local returnPos = SpatialRefuge.GetReturnPosition(player)
+    local returnPos = MSR.GetReturnPosition(player)
     
     -- Move corpse to last world position (where they entered from)
     if returnPos then
@@ -59,10 +59,10 @@ local function OnPlayerDeath(player)
     end
     
     -- Delete refuge completely (singleplayer only - MP check is inside DeleteRefuge)
-    SpatialRefuge.DeleteRefuge(player)
+    MSR.DeleteRefuge(player)
     
     -- Clear return position
-    SpatialRefuge.ClearReturnPosition(player)
+    MSR.ClearReturnPosition(player)
     
     -- Clear player-specific modData (legacy cleanup)
     local pmd = player:getModData()
@@ -76,5 +76,5 @@ end
 -- Register death event handler
 Events.OnPlayerDeath.Add(OnPlayerDeath)
 
-return SpatialRefuge
+return MSR
 

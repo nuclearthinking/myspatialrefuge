@@ -2,72 +2,72 @@
 -- Handles refuge data persistence and coordinate management for client
 -- Uses shared SpatialRefugeData module for core functionality
 
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeData"
-require "shared/SpatialRefugeMigration"
-require "shared/SpatialRefugeShared"
+require "shared/MSR_Config"
+require "shared/MSR_Data"
+require "shared/MSR_Migration"
+require "shared/MSR_Shared"
 
-if SpatialRefuge and SpatialRefuge._mainLoaded then
-    return SpatialRefuge
+if MSR and MSR._mainLoaded then
+    return MSR
 end
 
-SpatialRefuge = SpatialRefuge or {}
-SpatialRefugeConfig = SpatialRefugeConfig or {}
-SpatialRefuge._mainLoaded = true
+
+
+MSR._mainLoaded = true
 
 -----------------------------------------------------------
 -- Delegate to Shared Data Module
 -----------------------------------------------------------
 
-function SpatialRefuge.InitializeModData()
-    return SpatialRefugeData.InitializeModData()
+function MSR.InitializeModData()
+    return MSR.Data.InitializeModData()
 end
 
-function SpatialRefuge.TransmitModData()
-    return SpatialRefugeData.TransmitModData()
+function MSR.TransmitModData()
+    return MSR.Data.TransmitModData()
 end
 
-function SpatialRefuge.GetRefugeRegistry()
-    return SpatialRefugeData.GetRefugeRegistry()
+function MSR.GetRefugeRegistry()
+    return MSR.Data.GetRefugeRegistry()
 end
 
-function SpatialRefuge.GetRefugeData(player)
-    return SpatialRefugeData.GetRefugeData(player)
+function MSR.GetRefugeData(player)
+    return MSR.Data.GetRefugeData(player)
 end
 
-function SpatialRefuge.GetOrCreateRefugeData(player)
-    return SpatialRefugeData.GetOrCreateRefugeData(player)
+function MSR.GetOrCreateRefugeData(player)
+    return MSR.Data.GetOrCreateRefugeData(player)
 end
 
-function SpatialRefuge.SaveRefugeData(refugeData)
-    return SpatialRefugeData.SaveRefugeData(refugeData)
+function MSR.SaveRefugeData(refugeData)
+    return MSR.Data.SaveRefugeData(refugeData)
 end
 
-function SpatialRefuge.DeleteRefugeData(player)
-    return SpatialRefugeData.DeleteRefugeData(player)
+function MSR.DeleteRefugeData(player)
+    return MSR.Data.DeleteRefugeData(player)
 end
 
-function SpatialRefuge.AllocateRefugeCoordinates()
-    return SpatialRefugeData.AllocateRefugeCoordinates()
+function MSR.AllocateRefugeCoordinates()
+    return MSR.Data.AllocateRefugeCoordinates()
 end
 
-function SpatialRefuge.IsPlayerInRefuge(player)
-    return SpatialRefugeData.IsPlayerInRefugeCoords(player)
+function MSR.IsPlayerInRefuge(player)
+    return MSR.Data.IsPlayerInRefugeCoords(player)
 end
 
-function SpatialRefuge.GetReturnPosition(player)
-    return SpatialRefugeData.GetReturnPosition(player)
+function MSR.GetReturnPosition(player)
+    return MSR.Data.GetReturnPosition(player)
 end
 
-function SpatialRefuge.SaveReturnPosition(player, x, y, z)
-    return SpatialRefugeData.SaveReturnPosition(player, x, y, z)
+function MSR.SaveReturnPosition(player, x, y, z)
+    return MSR.Data.SaveReturnPosition(player, x, y, z)
 end
 
-function SpatialRefuge.ClearReturnPosition(player)
-    SpatialRefugeData.ClearReturnPosition(player)
+function MSR.ClearReturnPosition(player)
+    MSR.Data.ClearReturnPosition(player)
     
-    if SpatialRefuge.InvalidateBoundsCache then
-        SpatialRefuge.InvalidateBoundsCache(player)
+    if MSR.InvalidateBoundsCache then
+        MSR.InvalidateBoundsCache(player)
     end
 end
 
@@ -75,28 +75,28 @@ end
 -- Client-Specific Functions
 -----------------------------------------------------------
 
-function SpatialRefuge.GetLastTeleportTime(player)
+function MSR.GetLastTeleportTime(player)
     if not player then return 0 end
     
     local pmd = player:getModData()
     return pmd.spatialRefuge_lastTeleport or 0
 end
 
-function SpatialRefuge.UpdateTeleportTime(player)
+function MSR.UpdateTeleportTime(player)
     if not player then return end
     
     local pmd = player:getModData()
     pmd.spatialRefuge_lastTeleport = getTimestamp()
 end
 
-function SpatialRefuge.GetLastDamageTime(player)
+function MSR.GetLastDamageTime(player)
     if not player then return 0 end
     
     local pmd = player:getModData()
     return pmd.spatialRefuge_lastDamage or 0
 end
 
-function SpatialRefuge.UpdateDamageTime(player)
+function MSR.UpdateDamageTime(player)
     if not player then return end
     
     local pmd = player:getModData()
@@ -111,17 +111,17 @@ local _relicContainerCache = {
     CACHE_DURATION = 5
 }
 
-function SpatialRefuge.InvalidateRelicContainerCache()
+function MSR.InvalidateRelicContainerCache()
     _relicContainerCache.container = nil
     _relicContainerCache.refugeId = nil
     _relicContainerCache.cacheTime = 0
 end
 
 -- @param bypassCache: If true, always do a fresh lookup (for transactions)
-function SpatialRefuge.GetRelicContainer(player, bypassCache)
+function MSR.GetRelicContainer(player, bypassCache)
     if not player then return nil end
     
-    local refugeData = SpatialRefuge.GetRefugeData(player)
+    local refugeData = MSR.GetRefugeData(player)
     if not refugeData then return nil end
     
     local now = getTimestamp and getTimestamp() or 0
@@ -145,7 +145,7 @@ function SpatialRefuge.GetRelicContainer(player, bypassCache)
     end
     
     local radius = refugeData.radius or 1
-    local relic = SpatialRefugeShared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
+    local relic = MSR.Shared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
     
     if not relic then 
         _relicContainerCache.container = nil
@@ -176,15 +176,15 @@ local function OnPlayerDamage(character, damageType, damage)
     if not character then return end
     
     if damageType == "WEAPONHIT" then
-        SpatialRefuge.UpdateDamageTime(character)
+        MSR.UpdateDamageTime(character)
     end
 end
 
-SpatialRefuge.worldReady = false
+MSR.worldReady = false
 
 local function OnGameStart()
     if not isClient() then
-        SpatialRefuge.InitializeModData()
+        MSR.InitializeModData()
         
         local tickCount = 0
         local function delayedMigration()
@@ -194,10 +194,10 @@ local function OnGameStart()
             Events.OnTick.Remove(delayedMigration)
             
             local player = getPlayer()
-            if player and SpatialRefugeMigration.NeedsMigration(player) then
-                local success, msg = SpatialRefugeMigration.MigratePlayer(player)
+            if player and MSR.Migration.NeedsMigration(player) then
+                local success, msg = MSR.Migration.MigratePlayer(player)
                 if success then
-                    print("[SpatialRefuge] " .. msg)
+                    print("[MSR] " .. msg)
                 end
             end
         end
@@ -207,11 +207,11 @@ local function OnGameStart()
 end
 
 local function OnInitWorld()
-    SpatialRefuge.worldReady = true
+    MSR.worldReady = true
 end
 
 Events.OnGameStart.Add(OnGameStart)
 Events.OnInitWorld.Add(OnInitWorld)
 Events.OnPlayerGetDamage.Add(OnPlayerDamage)
 
-return SpatialRefuge
+return MSR

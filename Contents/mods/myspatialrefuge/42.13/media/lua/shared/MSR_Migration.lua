@@ -1,41 +1,48 @@
--- Spatial Refuge Migration Module
+-- MSR_Migration - Migration Module
 -- Alembic-like pattern: MIGRATIONS[version] = migrationFunction
 -- Version 1: per-player ModData (spatialRefuge_* fields)
--- Version 2: global ModData (MySpatialRefuge.Refuges[username])
+-- Version 2: global ModData (MyMSR.Refuges[username])
 -- Version 3: Custom relic sprite (myspatialrefuge_0)
 -- Version 4: Added upgrades table for feature upgrades (faster_reading, etc.)
 
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeData"
-require "shared/SpatialRefugeEnv"
+require "shared/MSR"
+require "shared/MSR_Config"
+require "shared/MSR_Data"
+require "shared/MSR_Env"
 
 -- Prevent double-loading
-if SpatialRefugeMigration and SpatialRefugeMigration._loaded then
-    return SpatialRefugeMigration
+if MSR.Migration and MSR.Migration._loaded then
+    return MSR.Migration
 end
 
-SpatialRefugeMigration = SpatialRefugeMigration or {}
-SpatialRefugeMigration._loaded = true
+MSR.Migration = MSR.Migration or {}
+MSR.Migration._loaded = true
+
+-- Local aliases
+local Migration = MSR.Migration
+local Config = MSR.Config
+local Data = MSR.Data
+local Env = MSR.Env
 
 -- Use version from config to keep it in sync
-SpatialRefugeMigration.CURRENT_VERSION = SpatialRefugeConfig.CURRENT_DATA_VERSION
+Migration.CURRENT_VERSION = Config.CURRENT_DATA_VERSION
 
 -----------------------------------------------------------
--- Environment Helpers (delegated to SpatialRefugeEnv)
+-- Environment Helpers (delegated to MSR.Env)
 -----------------------------------------------------------
 
 local function getCachedIsServer()
-    return SpatialRefugeEnv.isServer()
+    return Env.isServer()
 end
 
 local function canModifyData()
-    return SpatialRefugeEnv.canModifyData()
+    return Env.canModifyData()
 end
 
 -----------------------------------------------------------
 -- Migration: v1 -> v2
 -- Old: per-player ModData (spatialRefuge_* fields)
--- New: global ModData (MySpatialRefuge.Refuges[username])
+-- New: global ModData (MyMSR.Refuges[username])
 -----------------------------------------------------------
 
 local function clearLegacyFields(pmd)
@@ -54,7 +61,7 @@ local function migrate_1_to_2(player)
     local pmd = player:getModData()
     if not pmd then return true, "No player ModData" end
     
-    local existingData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local existingData = Data.GetRefugeDataByUsername(username)
     if existingData then
         clearLegacyFields(pmd)
         return true, "Cleaned up legacy data (already migrated)"
@@ -75,7 +82,7 @@ local function migrate_1_to_2(player)
     local oldCreatedTime = pmd.spatialRefuge_createdTime
     
     if not oldRadius then
-        local tierConfig = SpatialRefugeConfig.TIERS[oldTier]
+        local tierConfig = Config.TIERS[oldTier]
         oldRadius = tierConfig and tierConfig.radius or 1
     end
     
@@ -92,13 +99,13 @@ local function migrate_1_to_2(player)
         dataVersion = 2
     }
     
-    local success = SpatialRefugeData.SaveRefugeData(newRefugeData)
+    local success = Data.SaveRefugeData(newRefugeData)
     if not success then
         return false, "Failed to save to global ModData"
     end
     
     if oldReturn and type(oldReturn) == "table" and oldReturn.x and oldReturn.y then
-        SpatialRefugeData.SaveReturnPositionByUsername(username, oldReturn.x, oldReturn.y, oldReturn.z or 0)
+        Data.SaveReturnPositionByUsername(username, oldReturn.x, oldReturn.y, oldReturn.z or 0)
     end
     
     clearLegacyFields(pmd)
@@ -112,14 +119,14 @@ end
 
 local function migrate_2_to_3(player)
     local username = player:getUsername()
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = Data.GetRefugeDataByUsername(username)
     
     if not refugeData then
         return true, "No refuge data - nothing to migrate"
     end
     
     -- Get the new sprite name from config
-    local newSpriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+    local newSpriteName = Config.SPRITES.SACRED_RELIC
     local oldSpriteName = "location_community_cemetary_01_11"  -- Old angel gravestone
     
     -- Find the relic at the refuge center
@@ -137,7 +144,7 @@ local function migrate_2_to_3(player)
         -- Cell not loaded yet - mark for later migration
         refugeData.pendingSpriteMigration = true
         refugeData.dataVersion = 3
-        SpatialRefugeData.SaveRefugeData(refugeData)
+        Data.SaveRefugeData(refugeData)
         return true, "Cell not loaded - marked for deferred sprite migration"
     end
     
@@ -146,7 +153,7 @@ local function migrate_2_to_3(player)
         -- Square not loaded - mark for later
         refugeData.pendingSpriteMigration = true
         refugeData.dataVersion = 3
-        SpatialRefugeData.SaveRefugeData(refugeData)
+        Data.SaveRefugeData(refugeData)
         return true, "Square not loaded - marked for deferred sprite migration"
     end
     
@@ -197,7 +204,7 @@ local function migrate_2_to_3(player)
     -- Update data version
     refugeData.dataVersion = 3
     refugeData.pendingSpriteMigration = nil  -- Clear if we found and updated
-    SpatialRefugeData.SaveRefugeData(refugeData)
+    Data.SaveRefugeData(refugeData)
     
     return true, relicFound and "Updated relic sprite" or "Relic not found - will update on next load"
 end
@@ -209,7 +216,7 @@ end
 
 local function migrate_3_to_4(player)
     local username = player:getUsername()
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = Data.GetRefugeDataByUsername(username)
     
     if not refugeData then
         return true, "No refuge data - nothing to migrate"
@@ -223,7 +230,7 @@ local function migrate_3_to_4(player)
     
     -- Update data version (hardcoded - each migration sets its target version)
     refugeData.dataVersion = 4
-    SpatialRefugeData.SaveRefugeData(refugeData)
+    Data.SaveRefugeData(refugeData)
     
     return true, "Migrated v3 -> v4 (added upgrades table)"
 end
@@ -235,13 +242,13 @@ local MIGRATIONS = {
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)
-function SpatialRefugeMigration.DetectVersion(player)
+function Migration.DetectVersion(player)
     if not player then return nil end
     
     local username = player:getUsername()
     if not username then return nil end
     
-    local globalData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local globalData = Data.GetRefugeDataByUsername(username)
     if globalData then
         -- Default 2: global data always has dataVersion since we stamp it on creation
         return globalData.dataVersion or 2
@@ -259,13 +266,13 @@ function SpatialRefugeMigration.DetectVersion(player)
     return nil
 end
 
-function SpatialRefugeMigration.NeedsMigration(player)
-    local version = SpatialRefugeMigration.DetectVersion(player)
+function Migration.NeedsMigration(player)
+    local version = Migration.DetectVersion(player)
     if version == nil then return false end
-    return version < SpatialRefugeMigration.CURRENT_VERSION
+    return version < Migration.CURRENT_VERSION
 end
 
-function SpatialRefugeMigration.MigratePlayer(player)
+function Migration.MigratePlayer(player)
     if not player then 
         return false, "No player" 
     end
@@ -279,17 +286,17 @@ function SpatialRefugeMigration.MigratePlayer(player)
         return false, "No username" 
     end
     
-    local version = SpatialRefugeMigration.DetectVersion(player)
+    local version = Migration.DetectVersion(player)
     if version == nil then
         return false, "No data to migrate"
     end
     
-    if version >= SpatialRefugeMigration.CURRENT_VERSION then
+    if version >= Migration.CURRENT_VERSION then
         return false, "Already at current version"
     end
     
     local startVersion = version
-    while version < SpatialRefugeMigration.CURRENT_VERSION do
+    while version < Migration.CURRENT_VERSION do
         local migration = MIGRATIONS[version]
         if not migration then
             return false, "No migration for v" .. version
@@ -309,15 +316,15 @@ end
 
 -- Check and apply pending sprite migration when relic becomes accessible
 -- Call this when player enters refuge or when relic is loaded
-function SpatialRefugeMigration.CheckPendingSpriteMigration(username, square)
+function Migration.CheckPendingSpriteMigration(username, square)
     if not username or not square then return false end
     
-    local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local refugeData = Data.GetRefugeDataByUsername(username)
     if not refugeData or not refugeData.pendingSpriteMigration then
         return false  -- No pending migration
     end
     
-    local newSpriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+    local newSpriteName = Config.SPRITES.SACRED_RELIC
     local objects = square:getObjects()
     
     for i = 0, objects:size() - 1 do
@@ -339,7 +346,7 @@ function SpatialRefugeMigration.CheckPendingSpriteMigration(username, square)
                     
                     -- Clear pending flag
                     refugeData.pendingSpriteMigration = nil
-                    SpatialRefugeData.SaveRefugeData(refugeData)
+                    Data.SaveRefugeData(refugeData)
                     
                     print("[Migration] Deferred sprite update completed for " .. username)
                     return true
@@ -351,7 +358,7 @@ function SpatialRefugeMigration.CheckPendingSpriteMigration(username, square)
     return false
 end
 
-function SpatialRefugeMigration.DebugPrintState(player)
+function Migration.DebugPrintState(player)
     if not player then 
         print("[Migration] Debug: No player")
         return 
@@ -359,18 +366,18 @@ function SpatialRefugeMigration.DebugPrintState(player)
     
     local username = player:getUsername() or "unknown"
     local pmd = player:getModData()
-    local version = SpatialRefugeMigration.DetectVersion(player)
+    local version = Migration.DetectVersion(player)
     
     print("[Migration] === " .. username .. " ===")
-    print("  CURRENT_VERSION: " .. SpatialRefugeMigration.CURRENT_VERSION)
+    print("  CURRENT_VERSION: " .. Migration.CURRENT_VERSION)
     print("  Detected version: " .. tostring(version))
-    print("  Needs migration: " .. tostring(SpatialRefugeMigration.NeedsMigration(player)))
+    print("  Needs migration: " .. tostring(Migration.NeedsMigration(player)))
     
     if pmd then
         print("  Legacy v1: centerX=" .. tostring(pmd.spatialRefuge_centerX) .. ", tier=" .. tostring(pmd.spatialRefuge_tier))
     end
     
-    local data = SpatialRefugeData.GetRefugeDataByUsername(username)
+    local data = Data.GetRefugeDataByUsername(username)
     if data then
         print("  Global v2: centerX=" .. tostring(data.centerX) .. ", tier=" .. tostring(data.tier) .. ", dataVersion=" .. tostring(data.dataVersion))
     else
@@ -378,4 +385,4 @@ function SpatialRefugeMigration.DebugPrintState(player)
     end
 end
 
-return SpatialRefugeMigration
+return MSR.Migration

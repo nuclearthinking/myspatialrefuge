@@ -1,29 +1,33 @@
--- Spatial Refuge Integrity Module
+-- MSR_Integrity - Integrity Module
 -- Unified validation and repair system for refuge structures
 -- Consolidates all repair logic into a single, idempotent mechanism
 
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeEnv"
-require "shared/SpatialRefugeData"
+require "shared/MSR"
+require "shared/MSR_Config"
+require "shared/MSR_Env"
+require "shared/MSR_Data"
 
 -- Prevent double-loading
-if SpatialRefugeIntegrity and SpatialRefugeIntegrity._loaded then
-    return SpatialRefugeIntegrity
+if MSR.Integrity and MSR.Integrity._loaded then
+    return MSR.Integrity
 end
 
-SpatialRefugeIntegrity = SpatialRefugeIntegrity or {}
-SpatialRefugeIntegrity._loaded = true
+MSR.Integrity = MSR.Integrity or {}
+MSR.Integrity._loaded = true
+
+-- Local alias
+local Integrity = MSR.Integrity
 
 -----------------------------------------------------------
 -- Environment Helpers
 -----------------------------------------------------------
 
 local function isServer()
-    return SpatialRefugeEnv.isServer()
+    return MSR.Env.isServer()
 end
 
 local function canModifyData()
-    return SpatialRefugeEnv.canModifyData()
+    return MSR.Env.canModifyData()
 end
 
 -----------------------------------------------------------
@@ -37,8 +41,8 @@ local _spritesCached = false
 
 local function getCachedRelicSprites()
     if not _spritesCached then
-        _cachedRelicSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-        _cachedOldFallbackSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+        _cachedRelicSprite = MSR.Config.SPRITES.SACRED_RELIC
+        _cachedOldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
         
         -- Resolve sprite with fallbacks
         local spriteName = _cachedRelicSprite
@@ -254,7 +258,7 @@ local function validateRelicModData(relic, refugeId, report)
         repaired = true
         report.relic.modDataRepaired = true
         if getDebug() then
-            print("[SpatialRefugeIntegrity] Added isSacredRelic flag")
+            print("[Integrity] Added isSacredRelic flag")
         end
     end
     
@@ -264,7 +268,7 @@ local function validateRelicModData(relic, refugeId, report)
         repaired = true
         report.relic.modDataRepaired = true
         if getDebug() then
-            print("[SpatialRefugeIntegrity] Fixed refugeId: " .. tostring(refugeId))
+            print("[Integrity] Fixed refugeId: " .. tostring(refugeId))
         end
     end
     
@@ -287,8 +291,8 @@ end
 local function validateRelicSprite(relic, report)
     if not relic then return false end
     
-    local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+    local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
+    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
     local repaired = false
     
@@ -328,12 +332,12 @@ local function validateRelicSprite(relic, report)
             
             if getDebug() then
                 if not spriteValid then
-                    print("[SpatialRefugeIntegrity] Repaired corrupted relic sprite")
+                    print("[Integrity] Repaired corrupted relic sprite")
                 elseif isOldFallback then
-                    print("[SpatialRefugeIntegrity] Migrated old fallback sprite to new: " .. 
+                    print("[Integrity] Migrated old fallback sprite to new: " .. 
                           tostring(currentSprite) .. " -> " .. expectedSprite)
                 else
-                    print("[SpatialRefugeIntegrity] Migrated relic sprite: " .. 
+                    print("[Integrity] Migrated relic sprite: " .. 
                           tostring(currentSprite) .. " -> " .. expectedSprite)
                 end
             end
@@ -379,7 +383,7 @@ local function ensureSingleRelic(refugeData, report)
     
     -- Multiple relics found - need to pick one and remove others
     if getDebug() then
-        print("[SpatialRefugeIntegrity] Found " .. #allRelics .. " relics - removing duplicates")
+        print("[Integrity] Found " .. #allRelics .. " relics - removing duplicates")
     end
     
     -- Priority for keeping:
@@ -404,7 +408,7 @@ local function ensureSingleRelic(refugeData, report)
                 keepRelic = relicData
                 foundStoredPosition = true
                 if getDebug() then
-                    print("[SpatialRefugeIntegrity] Keeping relic at stored position")
+                    print("[Integrity] Keeping relic at stored position")
                 end
                 break
             end
@@ -423,7 +427,7 @@ local function ensureSingleRelic(refugeData, report)
         end
         
         if maxItems > 0 and getDebug() then
-            print("[SpatialRefugeIntegrity] Keeping relic with " .. maxItems .. " items")
+            print("[Integrity] Keeping relic with " .. maxItems .. " items")
         end
     end
     
@@ -432,7 +436,7 @@ local function ensureSingleRelic(refugeData, report)
     for i, relicData in ipairs(allRelics) do
         if i ~= keepIndex then
             if getDebug() then
-                print("[SpatialRefugeIntegrity] Removing duplicate at " .. relicData.x .. "," .. relicData.y)
+                print("[Integrity] Removing duplicate at " .. relicData.x .. "," .. relicData.y)
             end
             removeObjectFromSquare(relicData.square, relicData.obj)
             removed = removed + 1
@@ -511,11 +515,11 @@ local function syncAll(refugeData, relic, context, report)
     
     -- Save global ModData (works for SP, dedicated server, and coop host)
     if refugeData then
-        SpatialRefugeData.SaveRefugeData(refugeData)
+        MSR.Data.SaveRefugeData(refugeData)
     end
     
     -- In multiplayer (coop host or dedicated server), transmit to connected clients
-    if SpatialRefugeEnv.needsClientSync() then
+    if MSR.Env.needsClientSync() then
         if relic then
             if relic.transmitModData then
                 relic:transmitModData()
@@ -526,12 +530,12 @@ local function syncAll(refugeData, relic, context, report)
         end
         
         if getDebug() then
-            local envType = SpatialRefugeEnv.isCoopHost() and "coop_host" or "dedicated_server"
-            print("[SpatialRefugeIntegrity] Synced ModData to clients (" .. envType .. ")")
+            local envType = MSR.Env.isCoopHost() and "coop_host" or "dedicated_server"
+            print("[Integrity] Synced ModData to clients (" .. envType .. ")")
         end
     else
         if getDebug() then
-            print("[SpatialRefugeIntegrity] Saved ModData (singleplayer)")
+            print("[Integrity] Saved ModData (singleplayer)")
         end
     end
     
@@ -573,7 +577,7 @@ end
 --- @param refugeData table Player's refuge data
 --- @param context table { source = "enter"|"reconnect"|"upgrade"|"periodic", player = IsoPlayer }
 --- @return table IntegrityReport
-function SpatialRefugeIntegrity.ValidateAndRepair(refugeData, context)
+function Integrity.ValidateAndRepair(refugeData, context)
     context = context or {}
     local source = context.source or "unknown"
     local report = createReport(source)
@@ -585,7 +589,7 @@ function SpatialRefugeIntegrity.ValidateAndRepair(refugeData, context)
     end
     
     if getDebug() then
-        print("[SpatialRefugeIntegrity] ValidateAndRepair triggered by: " .. source)
+        print("[Integrity] ValidateAndRepair triggered by: " .. source)
     end
     
     local centerX = refugeData.centerX
@@ -640,7 +644,7 @@ function SpatialRefugeIntegrity.ValidateAndRepair(refugeData, context)
     else
         report.relic.found = false
         if getDebug() then
-            print("[SpatialRefugeIntegrity] WARNING: No relic found in refuge")
+            print("[Integrity] WARNING: No relic found in refuge")
         end
     end
     
@@ -656,7 +660,7 @@ function SpatialRefugeIntegrity.ValidateAndRepair(refugeData, context)
     end
     
     if getDebug() then
-        print("[SpatialRefugeIntegrity] Complete: relic=" .. tostring(report.relic.found) ..
+        print("[Integrity] Complete: relic=" .. tostring(report.relic.found) ..
               " duplicates=" .. report.relic.duplicatesRemoved ..
               " walls=" .. report.walls.repaired ..
               " synced=" .. tostring(report.modData.synced))
@@ -668,7 +672,7 @@ end
 --- Lightweight check - returns true if repair is needed (read-only)
 --- @param refugeData table Player's refuge data
 --- @return boolean needsRepair
-function SpatialRefugeIntegrity.CheckNeedsRepair(refugeData)
+function Integrity.CheckNeedsRepair(refugeData)
     if not refugeData then return true end
     
     local centerX = refugeData.centerX
@@ -690,8 +694,8 @@ function SpatialRefugeIntegrity.CheckNeedsRepair(refugeData)
     end
     
     -- Check if sprite is valid and not the old fallback sprite
-    local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+    local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
+    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
     if not currentSprite or currentSprite ~= expectedSprite then
         local sprite = relic:getSprite()
@@ -716,14 +720,14 @@ end
 --- Client-only sprite fix (for MP clients when ModData is correct but sprite is wrong)
 --- @param relic IsoObject The relic object to fix
 --- @return boolean success
-function SpatialRefugeIntegrity.ClientSpriteRepair(relic)
+function Integrity.ClientSpriteRepair(relic)
     if not relic then return false end
     
     -- Only run on client
     if isServer() then return false end
     
-    local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+    local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
+    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
     
     -- Check if sprite needs repair
@@ -760,9 +764,9 @@ function SpatialRefugeIntegrity.ClientSpriteRepair(relic)
             
             if getDebug() then
                 if isOldFallback then
-                    print("[SpatialRefugeIntegrity] Client sprite repair: migrated old fallback sprite")
+                    print("[Integrity] Client sprite repair: migrated old fallback sprite")
                 else
-                    print("[SpatialRefugeIntegrity] Client sprite repair applied")
+                    print("[Integrity] Client sprite repair applied")
                 end
             end
             return true
@@ -776,7 +780,7 @@ end
 --- Exposed for use by other modules that need to find relics
 --- @param refugeData table Player's refuge data
 --- @return IsoObject|nil relic, string|nil foundBy
-function SpatialRefugeIntegrity.FindRelic(refugeData)
+function Integrity.FindRelic(refugeData)
     if not refugeData then return nil, nil end
     
     local relicX = refugeData.relicX or refugeData.centerX
@@ -795,4 +799,4 @@ function SpatialRefugeIntegrity.FindRelic(refugeData)
     return relic, foundBy
 end
 
-return SpatialRefugeIntegrity
+return MSR.Integrity

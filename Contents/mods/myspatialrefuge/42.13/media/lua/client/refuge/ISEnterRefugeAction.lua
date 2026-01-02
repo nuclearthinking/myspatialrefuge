@@ -1,13 +1,9 @@
--- ISEnterRefugeAction
--- Timed action for entering Spatial Refuge (with progress bar)
-
--- Check if ISBaseTimedAction is available
 if not ISBaseTimedAction then
-    print("[SpatialRefuge] ERROR: ISBaseTimedAction not available! Cannot create ISEnterRefugeAction")
+    print("[MSR] ERROR: ISBaseTimedAction not available! Cannot create ISEnterRefugeAction")
     return
 end
 
--- Create the class
+---@class ISEnterRefugeAction : ISBaseTimedAction
 ISEnterRefugeAction = ISBaseTimedAction:derive("ISEnterRefugeAction")
 
 function ISEnterRefugeAction:isValid()
@@ -15,8 +11,8 @@ function ISEnterRefugeAction:isValid()
     if not self.character then return false end
     
     -- Don't allow entering if already in refuge
-    if SpatialRefuge and SpatialRefuge.IsPlayerInRefuge then
-        if SpatialRefuge.IsPlayerInRefuge(self.character) then
+    if MSR and MSR.IsPlayerInRefuge then
+        if MSR.IsPlayerInRefuge(self.character) then
             return false
         end
     end
@@ -41,8 +37,8 @@ end
 function ISEnterRefugeAction:perform()
     ISBaseTimedAction.perform(self)
     
-    if SpatialRefuge and SpatialRefuge.EnterRefuge then
-        SpatialRefuge.EnterRefuge(self.character)
+    if MSR and MSR.EnterRefuge then
+        MSR.EnterRefuge(self.character)
     end
 end
 
