@@ -3,6 +3,77 @@ IGUI_PTBR = {
     IGUI_SpatialRefuge_Enter = "Entrar no Refúgio Espacial", -- 1.5/31.12.2025
     IGUI_SpatialRefuge_Exit = "Sair do Refúgio Espacial", -- 1.5/31.12.2025
     IGUI_SpatialRefuge_OnCooldown = "Teletransporte em recarga", -- 1.5/31.12.2025
+
+    -- Context Menu
+    IGUI_MoveSacredRelic = "Mover relíquia", -- 1.7/02.01.2026
+    IGUI_RelicDirection_Up = "Cima", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Right = "Direita", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Left = "Esquerda", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Down = "Baixo", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Center = "Centro", -- 1.6/16.01.2026
+    IGUI_UpgradeRefuge = "Melhorar refúgio", -- 1.6/16.01.2026
+    IGUI_UpgradeRefuge_Tooltip = "Expanda seu refúgio e desbloqueie novos recursos", -- 1.6/16.01.2026
+
+    -- Player Messages - Teleportation
+    IGUI_EnteredRefuge = "Entrou no Refúgio Espacial", -- 1.6/16.01.2026
+    IGUI_ExitedRefuge = "Saiu do Refúgio Espacial", -- 1.6/16.01.2026
+    IGUI_AlreadyInRefuge = "Você já está no refúgio!", -- 1.6/16.01.2026
+    IGUI_GeneratingRefuge = "Gerando Refúgio Espacial...", -- 1.6/16.01.2026
+    IGUI_FailedToGenerateRefuge = "Falha ao gerar o refúgio!", -- 1.6/16.01.2026
+    IGUI_ExitingRefuge = "Saindo do Refúgio Espacial...", -- 1.6/16.01.2026
+    IGUI_EnteringRefuge = "Entrando no Refúgio Espacial...", -- 1.6/16.01.2026
+    IGUI_RefugeAreaNotLoaded = "A área do refúgio não foi carregada. Ajuste as coordenadas base.", -- 1.6/16.01.2026
+    IGUI_FailedToLoadRefugeArea = "Falha ao carregar a área do refúgio", -- 1.6/16.01.2026
+    IGUI_ReturnPositionLost = "Posição de retorno perdida — teletransportando para o local padrão", -- 1.6/16.01.2026
+    IGUI_CannotExitNoData = "Não é possível sair — nenhum dado do refúgio foi encontrado", -- 1.6/16.01.2026
+    IGUI_PortalCharging = "Portal do refúgio carregando... (%ds)", -- 1.7/02.01.2026
+    IGUI_CannotTeleportCombat = "Não é possível se teletransportar durante o combate!", -- 1.7/02.01.2026
+
+    -- Player Messages - Relic Movement
+    IGUI_SacredRelicMovedTo = "Relíquia movida para %s.", -- 1.7/02.01.2026
+    IGUI_RefugeWallsSynced = "Paredes do refúgio sincronizadas", -- 1.6/16.01.2026
+    IGUI_CannotMoveRelicYet = "Ainda não é possível mover a relíquia. Aguarde %d segundos.", -- 1.6/16.01.2026
+    IGUI_MovingSacredRelic = "Movendo relíquia...", -- 1.7/02.01.2026
+    IGUI_CannotMoveRelic = "Não é possível mover a relíquia.", -- 1.6/16.01.2026
+    
+    -- Relic Movement Error Messages
+    IGUI_MoveRelic_NoRefugeData = "Dados do refúgio não encontrados.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_RelicNotFound = "Relíquia não encontrada.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_AlreadyAtPosition = "A relíquia já está lá.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_WorldNotReady = "O mundo não está pronto.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_DestinationNotLoaded = "O destino não está carregado.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_CurrentLocationNotLoaded = "A localização atual não está carregada.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByTree = "Há uma árvore no caminho.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByWall = "Há uma parede no caminho.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByStairs = "Há escadas no caminho.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByFurniture = "Há móveis no caminho.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByContainer = "Há um contêiner no caminho.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByEntity = "Tem algo parado ali.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_DestinationBlocked = "O destino está bloqueado.", -- 1.7/02.01.2026
+
+    -- Player Messages - Upgrades
+    IGUI_RefugeUpgradedTo = "Refúgio melhorado para %s!", -- 1.6/16.01.2026
+    IGUI_UpgradedToLevel = "%s melhorado para o nível %d!", -- 1.6/16.01.2026
+    IGUI_Upgrading = "Melhorando...", -- 1.6/16.01.2026
+    IGUI_UpgradeFailed = "Falha na melhoria", -- 1.6/16.01.2026
+    IGUI_RefugeError = "Erro do refúgio", -- 1.6/16.01.2026
+    
+    -- Protected Object Messages (random responses when trying to destroy refuge structures)
+    IGUI_ProtectedObject_1 = "Não quero fazer isso...", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_2 = "Isso parece desnecessário.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_3 = "Algo me diz que não deveria...", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_4 = "Isso não parece certo.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_5 = "Tenho um mau pressentimento.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_6 = "Melhor deixar isso em paz.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_7 = "Não... Eu preciso disso.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_8 = "Por que eu faria isso?", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_9 = "Isso seria um erro.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_10 = "Prefiro não fazer.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_11 = "Isso é importante. Devo deixar como está.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_12 = "Destruir isso seria tolice.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_13 = "Algumas coisas é melhor não tocar.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_14 = "Não consigo me forçar a fazer isso.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_15 = "Isso me dá abrigo. Por que quebrar?", -- 1.7/02.01.2026
 }
 
 Tooltip_PTBR = {

@@ -241,7 +241,8 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
             
             local tierConfig = SpatialRefugeConfig.TIERS[nextTier]
             if tierConfig and player and player.Say then
-                player:Say("Refuge upgraded to " .. tierConfig.displayName .. "!")
+                local message = string.format(getText("IGUI_RefugeUpgradedTo"), tierConfig.displayName)
+                player:Say(message)
             end
         else
             print("[SpatialRefugeUpgradeLogic] SP: ExpandRefuge FAILED")
@@ -256,7 +257,8 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLe
     local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     if player and player.Say then
-        player:Say(string.format("Upgraded %s to level %d!", name, targetLevel))
+        local message = string.format(getText("IGUI_UpgradedToLevel"), name, targetLevel)
+        player:Say(message)
     end
     
     print("[SpatialRefugeUpgradeLogic] SP: Purchase complete")
@@ -287,7 +289,7 @@ function SpatialRefugeUpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLe
     )
     
     if player and player.Say then
-        player:Say("Upgrading...")
+        player:Say(getText("IGUI_Upgrading"))
     end
     
     return true, nil
@@ -414,7 +416,8 @@ function SpatialRefugeUpgradeLogic.onUpgradeComplete(player, upgradeId, targetLe
     local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     if playerObj and playerObj.Say then
-        playerObj:Say(string.format("Upgraded %s to level %d!", name, targetLevel))
+        local message = string.format(getText("IGUI_UpgradedToLevel"), name, targetLevel)
+        playerObj:Say(message)
     end
     print("[SpatialRefugeUpgradeLogic] onUpgradeComplete: Done")
 end
@@ -441,7 +444,7 @@ function SpatialRefugeUpgradeLogic.onUpgradeError(player, transactionId, reason)
     end
     
     if playerObj and playerObj.Say then
-        playerObj:Say(reason or "Upgrade failed")
+        playerObj:Say(reason or getText("IGUI_UpgradeFailed"))
     end
     print("[SpatialRefugeUpgradeLogic] onUpgradeError: Done")
 end

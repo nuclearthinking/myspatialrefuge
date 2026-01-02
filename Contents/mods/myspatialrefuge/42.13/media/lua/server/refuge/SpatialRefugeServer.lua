@@ -9,6 +9,7 @@ require "shared/SpatialRefugeValidation"
 require "shared/SpatialRefugeMigration"
 require "shared/SpatialRefugeUpgradeData"
 require "shared/SpatialRefugeTransaction"
+require "shared/SpatialRefugeIntegrity"
 
 SpatialRefugeServer = SpatialRefugeServer or {}
 SpatialRefuge = SpatialRefuge or {}
@@ -237,7 +238,8 @@ function SpatialRefugeServer.HandleEnterRequest(player, args)
     local canTeleport, remaining = checkTeleportCooldown(username)
     if not canTeleport then
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "Refuge portal charging... (" .. remaining .. "s)"
+            messageKey = "IGUI_PortalCharging",
+            messageArgs = { remaining }
         })
         return
     end
@@ -378,8 +380,36 @@ function SpatialRefugeServer.HandleChunksReady(player, args)
                 print("[SpatialRefugeServer] All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
             end
             
-            -- Now generate structures (pass player for MP zombie sync)
-            SpatialRefugeShared.EnsureRefugeStructures(refugeDataRef, playerRef)
+            -- Check if refuge needs repair/generation using lightweight integrity check
+            local needsFullSetup = false
+            if SpatialRefugeIntegrity and SpatialRefugeIntegrity.CheckNeedsRepair then
+                needsFullSetup = SpatialRefugeIntegrity.CheckNeedsRepair(refugeDataRef)
+            else
+                -- Fallback: always regenerate if integrity module not available
+                needsFullSetup = true
+            end
+            
+            if needsFullSetup then
+                if getDebug() then
+                    print("[SpatialRefugeServer] Refuge needs setup/repair, running EnsureRefugeStructures")
+                end
+                -- Full generation only when needed (first time or after corruption)
+                SpatialRefugeShared.EnsureRefugeStructures(refugeDataRef, playerRef)
+            else
+                if getDebug() then
+                    print("[SpatialRefugeServer] Refuge already set up, skipping full generation")
+                end
+                -- Quick validation via integrity system (lighter than full regeneration)
+                SpatialRefugeIntegrity.ValidateAndRepair(refugeDataRef, {
+                    source = "enter_server",
+                    player = playerRef
+                })
+                -- Clear zombies that may have spawned
+                SpatialRefugeShared.ClearZombiesFromArea(
+                    refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
+                    refugeDataRef.radius or 1, true, playerRef
+                )
+            end
             
             -- Transmit ModData to ensure client has refuge data for context menus
             SpatialRefugeData.TransmitModData()
@@ -439,7 +469,8 @@ function SpatialRefugeServer.HandleExitRequest(player, args)
     local canTeleport, remaining = checkTeleportCooldown(username)
     if not canTeleport then
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "Refuge portal charging... (" .. remaining .. "s)"
+            messageKey = "IGUI_PortalCharging",
+            messageArgs = { remaining }
         })
         return
     end
@@ -486,8 +517,10 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     -- Check cooldown using SERVER-SIDE storage (not client ModData - prevents manipulation)
     local canMove, remaining = checkRelicMoveCooldown(username)
     if not canMove then
+        -- Send translation key with format args for cooldown message
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "Cannot move relic yet. Wait " .. remaining .. " seconds."
+            messageKey = "IGUI_CannotMoveRelicYet",
+            messageArgs = { remaining }
         })
         return
     end
@@ -496,7 +529,7 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     local refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
     if not refugeData then
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "No refuge found"
+            messageKey = "IGUI_MoveRelic_NoRefugeData"
         })
         return
     end
@@ -510,7 +543,7 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     local isValid, sanitizedDx, sanitizedDy = SpatialRefugeValidation.ValidateCornerOffset(cornerDx, cornerDy)
     if not isValid then
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = "Invalid relic position"
+            messageKey = "IGUI_MoveRelic_DestinationBlocked"
         })
         return
     end
@@ -527,9 +560,9 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
     print("[SpatialRefugeServer]   Target position: " .. targetX .. "," .. targetY)
     
     -- Perform the move using shared function
-    local success, message = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
+    local success, errorCode = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
     
-    print("[SpatialRefugeServer]   MoveRelic result: success=" .. tostring(success) .. " message=" .. tostring(message))
+    print("[SpatialRefugeServer]   MoveRelic result: success=" .. tostring(success) .. " errorCode=" .. tostring(errorCode))
     
     if success then
         -- Update cooldown using SERVER-SIDE storage (authoritative)
@@ -556,8 +589,10 @@ function SpatialRefugeServer.HandleMoveRelicRequest(player, args)
             print("[SpatialRefugeServer] Moved relic for " .. username .. " to " .. cornerName)
         end
     else
+        -- Send translation key for error message
+        local translationKey = SpatialRefugeShared.GetMoveRelicTranslationKey(errorCode)
         sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.ERROR, {
-            message = message or "Move failed"
+            messageKey = translationKey
         })
     end
 end
@@ -775,6 +810,12 @@ function SpatialRefugeServer.HandleFeatureUpgradeRequest(player, args)
             end
             
             print("[SpatialRefugeServer] expand_refuge: " .. username .. " expanded to tier " .. newTier)
+            
+            -- Run integrity check after expansion to ensure everything is valid
+            SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+                source = "upgrade",
+                player = player
+            })
             
             -- Save updated refuge data
             SpatialRefugeData.SaveRefugeData(refugeData)
