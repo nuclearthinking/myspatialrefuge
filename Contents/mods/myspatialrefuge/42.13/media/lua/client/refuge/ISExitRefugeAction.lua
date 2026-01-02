@@ -1,13 +1,9 @@
--- ISExitRefugeAction
--- Timed action for exiting Spatial Refuge (with progress bar)
-
--- Check if ISBaseTimedAction is available
 if not ISBaseTimedAction then
-    print("[SpatialRefuge] ERROR: ISBaseTimedAction not available! Cannot create ISExitRefugeAction")
+    print("[MSR] ERROR: ISBaseTimedAction not available! Cannot create ISExitRefugeAction")
     return
 end
 
--- Create the class
+---@class ISExitRefugeAction : ISBaseTimedAction
 ISExitRefugeAction = ISBaseTimedAction:derive("ISExitRefugeAction")
 
 function ISExitRefugeAction:isValid()
@@ -31,8 +27,8 @@ end
 
 function ISExitRefugeAction:perform()
     -- Action completed - teleport player back
-    if SpatialRefuge and SpatialRefuge.ExitRefuge then
-        SpatialRefuge.ExitRefuge(self.character)
+    if MSR and MSR.ExitRefuge then
+        MSR.ExitRefuge(self.character)
     end
     ISBaseTimedAction.perform(self)
 end

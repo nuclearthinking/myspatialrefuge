@@ -148,8 +148,8 @@ function SRU_IngredientList:findAvailableItems(itemTypes)
     if not self.player then return end
     
     -- Get item sources (inventory + relic storage)
-    local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
-    local sources = SpatialRefugeUpgradeLogic.getItemSources(self.player)
+    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
+    local sources = UpgradeLogic.getItemSources(self.player)
     
     for _, itemType in ipairs(itemTypes) do
         local count = 0

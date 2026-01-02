@@ -1,0 +1,14 @@
+{
+    "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+    "workspace.library": [
+        "./.luals"
+    ],
+    "diagnostics.globals": [
+        "MSR",
+        "require"
+    ],
+    "runtime.version": "Lua 5.1",
+    "runtime.builtin": {
+        "basic": "enable"
+    }
+}

@@ -2,11 +2,12 @@
 -- Thin wrapper around SpatialRefugeShared for client-side use
 -- In multiplayer, server handles generation; this is used for singleplayer
 
-require "shared/SpatialRefugeShared"
-require "shared/SpatialRefugeConfig"
+require "shared/MSR_Shared"
+require "shared/MSR_Config"
+require "shared/MSR_PlayerMessage"
 
 -- Assume SpatialRefuge is already loaded
-SpatialRefuge = SpatialRefuge or {}
+
 
 -----------------------------------------------------------
 -- Delegate to Shared Module
@@ -16,30 +17,30 @@ SpatialRefuge = SpatialRefuge or {}
 -- Clear all zombies and zombie corpses from an area
 -- @param forceClean: if true, clears zombies even in remote areas
 -- @param player: optional player for MP sync (server only)
-function SpatialRefuge.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
-    return SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
+function MSR.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
+    return MSR.Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
 end
 
 -- NOTE: Floor generation removed - natural terrain should remain
 
 -- Create or find Sacred Relic
-function SpatialRefuge.CreateSacredRelic(x, y, z, refugeId, searchRadius)
-    return SpatialRefugeShared.CreateSacredRelic(x, y, z, refugeId, searchRadius)
+function MSR.CreateSacredRelic(x, y, z, refugeId, searchRadius)
+    return MSR.Shared.CreateSacredRelic(x, y, z, refugeId, searchRadius)
 end
 
 -- Create boundary wall at coordinates
-function SpatialRefuge.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
-    return SpatialRefugeShared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
+function MSR.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
+    return MSR.Shared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
 end
 
 -- Create solid boundary walls around a refuge area
-function SpatialRefuge.CreateBoundaryWalls(centerX, centerY, z, radius)
-    return SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, z, radius)
+function MSR.CreateBoundaryWalls(centerX, centerY, z, radius)
+    return MSR.Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
 end
 
 -- Remove boundary walls (for expansion)
-function SpatialRefuge.RemoveBoundaryWalls(centerX, centerY, z, radius)
-    return SpatialRefugeShared.RemoveBoundaryWalls(centerX, centerY, z, radius)
+function MSR.RemoveBoundaryWalls(centerX, centerY, z, radius)
+    return MSR.Shared.RemoveBoundaryWalls(centerX, centerY, z, radius)
     end
     
 -----------------------------------------------------------
@@ -49,31 +50,32 @@ function SpatialRefuge.RemoveBoundaryWalls(centerX, centerY, z, radius)
 
 -- Generate a new refuge for a player (singleplayer only)
 -- In multiplayer, server handles this via RequestEnter command
-function SpatialRefuge.GenerateNewRefuge(player)
+function MSR.GenerateNewRefuge(player)
     if not player then return nil end
     
     -- Check if world is ready
-    if not SpatialRefuge.worldReady then return nil end
+    if not MSR.worldReady then return nil end
     
     -- Get or create refuge data (allocates coordinates)
-    local refugeData = SpatialRefuge.GetOrCreateRefugeData(player)
+    local refugeData = MSR.GetOrCreateRefugeData(player)
     if not refugeData then return nil end
     
-    player:Say("Spatial Refuge initializing...")
+    local PM = MSR.PlayerMessage
+    PM.Say(player, PM.REFUGE_INITIALIZING)
     
     return refugeData
 end
 
 -- Expand an existing refuge to a new tier
-function SpatialRefuge.ExpandRefuge(refugeData, newTier)
+function MSR.ExpandRefuge(refugeData, newTier)
     if not refugeData then return false end
     
     -- Use shared expansion logic
-    local success = SpatialRefugeShared.ExpandRefuge(refugeData, newTier)
+    local success = MSR.Shared.ExpandRefuge(refugeData, newTier)
     
     if success then
         -- Save the updated refuge data
-    SpatialRefuge.SaveRefugeData(refugeData)
+    MSR.SaveRefugeData(refugeData)
     end
     
     return success
@@ -82,12 +84,12 @@ end
 -- Delete a refuge completely (for death penalty)
 -- NOTE: In multiplayer, the SERVER handles refuge deletion via OnPlayerDeath event
 -- This function only runs fully in singleplayer to avoid desync issues
-function SpatialRefuge.DeleteRefuge(player)
+function MSR.DeleteRefuge(player)
     -- In multiplayer CLIENT mode, do NOT delete physical structures
     -- Server handles this authoritatively via OnPlayerDeathServer
     if isClient() and not isServer() then
         if getDebug() then
-            print("[SpatialRefuge] DeleteRefuge called on MP client - skipping (server handles this)")
+            print("[MSR] DeleteRefuge called on MP client - skipping (server handles this)")
         end
         -- Only clear local ModData cache (server will transmit authoritative data)
         -- Don't remove physical objects - server is authoritative for that
@@ -95,7 +97,7 @@ function SpatialRefuge.DeleteRefuge(player)
     end
     
     -- SINGLEPLAYER ONLY: Delete physical structures
-    local refugeData = SpatialRefuge.GetRefugeData(player)
+    local refugeData = MSR.GetRefugeData(player)
     if not refugeData then return end
     
     local cell = getCell and getCell()
@@ -105,7 +107,7 @@ function SpatialRefuge.DeleteRefuge(player)
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius
-    local wallHeight = SpatialRefugeConfig.WALL_HEIGHT or 1  -- Use config default, not 3
+    local wallHeight = MSR.Config.WALL_HEIGHT or 1  -- Use config default, not 3
     
     -- Remove all world objects in refuge area at all z-levels (including buffer zone)
     for level = 0, wallHeight - 1 do
@@ -129,7 +131,7 @@ function SpatialRefuge.DeleteRefuge(player)
     end
     
     -- Remove from ModData
-    SpatialRefuge.DeleteRefugeData(player)
+    MSR.DeleteRefugeData(player)
 end
 
-return SpatialRefuge
+return MSR

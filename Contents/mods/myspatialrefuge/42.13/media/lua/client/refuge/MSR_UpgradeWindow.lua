@@ -4,9 +4,10 @@
 
 require "ISUI/ISPanel"
 require "ui/framework/CUI_Framework"
-require "shared/SpatialRefugeUpgradeData"
+require "shared/MSR_UpgradeData"
+require "shared/MSR_PlayerMessage"
 
-SpatialRefugeUpgradeWindow = ISPanel:derive("SpatialRefugeUpgradeWindow")
+MSR_UpgradeWindow = ISPanel:derive("MSR_UpgradeWindow")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
@@ -18,25 +19,25 @@ local FONT_HGT_LARGE = getTextManager():getFontHeight(UIFont.Large)
 
 local Config = require "ui/framework/CUI_Config"
 
-SpatialRefugeUpgradeWindow.WINDOW_WIDTH = math.floor(FONT_HGT_SMALL * 55)
-SpatialRefugeUpgradeWindow.WINDOW_HEIGHT = math.floor(FONT_HGT_SMALL * 35)
-SpatialRefugeUpgradeWindow.MIN_WIDTH = math.floor(FONT_HGT_SMALL * 45)
-SpatialRefugeUpgradeWindow.MIN_HEIGHT = math.floor(FONT_HGT_SMALL * 28)
+MSR_UpgradeWindow.WINDOW_WIDTH = math.floor(FONT_HGT_SMALL * 55)
+MSR_UpgradeWindow.WINDOW_HEIGHT = math.floor(FONT_HGT_SMALL * 35)
+MSR_UpgradeWindow.MIN_WIDTH = math.floor(FONT_HGT_SMALL * 45)
+MSR_UpgradeWindow.MIN_HEIGHT = math.floor(FONT_HGT_SMALL * 28)
 
 -- Layout proportions
-SpatialRefugeUpgradeWindow.GRID_WIDTH_RATIO = 0.35
-SpatialRefugeUpgradeWindow.DETAILS_WIDTH_RATIO = 0.40
-SpatialRefugeUpgradeWindow.INGREDIENTS_WIDTH_RATIO = 0.25
+MSR_UpgradeWindow.GRID_WIDTH_RATIO = 0.35
+MSR_UpgradeWindow.DETAILS_WIDTH_RATIO = 0.40
+MSR_UpgradeWindow.INGREDIENTS_WIDTH_RATIO = 0.25
 
 -----------------------------------------------------------
 -- Static Instance Management
 -----------------------------------------------------------
 
-SpatialRefugeUpgradeWindow.instance = nil
+MSR_UpgradeWindow.instance = nil
 
-function SpatialRefugeUpgradeWindow.Open(player)
-    if SpatialRefugeUpgradeWindow.instance and SpatialRefugeUpgradeWindow.instance:isVisible() then
-        SpatialRefugeUpgradeWindow.instance:close()
+function MSR_UpgradeWindow.Open(player)
+    if MSR_UpgradeWindow.instance and MSR_UpgradeWindow.instance:isVisible() then
+        MSR_UpgradeWindow.instance:close()
         return
     end
     
@@ -49,24 +50,24 @@ function SpatialRefugeUpgradeWindow.Open(player)
     
     local screenW = getCore():getScreenWidth()
     local screenH = getCore():getScreenHeight()
-    local w = SpatialRefugeUpgradeWindow.WINDOW_WIDTH
-    local h = SpatialRefugeUpgradeWindow.WINDOW_HEIGHT
+    local w = MSR_UpgradeWindow.WINDOW_WIDTH
+    local h = MSR_UpgradeWindow.WINDOW_HEIGHT
     local x = (screenW - w) / 2
     local y = (screenH - h) / 2
     
-    local window = SpatialRefugeUpgradeWindow:new(x, y, w, h, playerObj)
+    local window = MSR_UpgradeWindow:new(x, y, w, h, playerObj)
     window:initialise()
     window:addToUIManager()
     window:setVisible(true)
     
-    SpatialRefugeUpgradeWindow.instance = window
+    MSR_UpgradeWindow.instance = window
     
     return window
 end
 
-function SpatialRefugeUpgradeWindow.Close()
-    if SpatialRefugeUpgradeWindow.instance then
-        SpatialRefugeUpgradeWindow.instance:close()
+function MSR_UpgradeWindow.Close()
+    if MSR_UpgradeWindow.instance then
+        MSR_UpgradeWindow.instance:close()
     end
 end
 
@@ -74,7 +75,7 @@ end
 -- Constructor
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:new(x, y, width, height, player)
+function MSR_UpgradeWindow:new(x, y, width, height, player)
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -104,7 +105,7 @@ function SpatialRefugeUpgradeWindow:new(x, y, width, height, player)
     return o
 end
 
-function SpatialRefugeUpgradeWindow:initialise()
+function MSR_UpgradeWindow:initialise()
     ISPanel.initialise(self)
     self:setWantKeyEvents(true)
 end
@@ -113,7 +114,7 @@ end
 -- Child Panel Creation
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:createChildren()
+function MSR_UpgradeWindow:createChildren()
     -- Calculate panel dimensions
     local contentY = self.headerHeight
     local contentHeight = self.height - self.headerHeight - self.padding
@@ -182,7 +183,7 @@ function SpatialRefugeUpgradeWindow:createChildren()
     self:refreshUpgradeList()
 end
 
-function SpatialRefugeUpgradeWindow:createResizeWidget()
+function MSR_UpgradeWindow:createResizeWidget()
     local resizeSize = math.floor(FONT_HGT_SMALL * 0.8)
     self.resizeWidget = ISResizeWidget:new(
         self.width - resizeSize - 2,
@@ -206,7 +207,7 @@ end
 -- Resize Handling
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:onResize(newWidth, newHeight)
+function MSR_UpgradeWindow:onResize(newWidth, newHeight)
     -- Enforce minimum size
     newWidth = math.max(self.MIN_WIDTH, newWidth)
     newHeight = math.max(self.MIN_HEIGHT, newHeight)
@@ -271,12 +272,12 @@ end
 -- Upgrade Selection
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:selectUpgrade(upgradeId)
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+function MSR_UpgradeWindow:selectUpgrade(upgradeId)
+    local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return end
     
     self.selectedUpgrade = upgrade
-    self.selectedLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(self.player, upgradeId) + 1
+    self.selectedLevel = MSR.UpgradeData.getPlayerUpgradeLevel(self.player, upgradeId) + 1
     
     -- Clamp to max level
     if self.selectedLevel > upgrade.maxLevel then
@@ -289,7 +290,7 @@ function SpatialRefugeUpgradeWindow:selectUpgrade(upgradeId)
     end
     
     if self.ingredientList then
-        local requirements = SpatialRefugeUpgradeData.getLevelData(upgradeId, self.selectedLevel)
+        local requirements = MSR.UpgradeData.getLevelData(upgradeId, self.selectedLevel)
         if requirements then
             self.ingredientList:setRequirements(requirements.requirements or {})
         else
@@ -298,13 +299,13 @@ function SpatialRefugeUpgradeWindow:selectUpgrade(upgradeId)
     end
 end
 
-function SpatialRefugeUpgradeWindow:refreshUpgradeList()
+function MSR_UpgradeWindow:refreshUpgradeList()
     if self.upgradeGrid then
         self.upgradeGrid:refreshUpgrades()
     end
 end
 
-function SpatialRefugeUpgradeWindow:refreshCurrentUpgrade()
+function MSR_UpgradeWindow:refreshCurrentUpgrade()
     if self.selectedUpgrade then
         self:selectUpgrade(self.selectedUpgrade.id)
     end
@@ -314,15 +315,15 @@ end
 -- Upgrade Purchase
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:onUpgradeClick()
+function MSR_UpgradeWindow:onUpgradeClick()
     if not self.selectedUpgrade then return end
     
     local upgradeId = self.selectedUpgrade.id
     local targetLevel = self.selectedLevel
     
     -- Attempt upgrade via logic module
-    local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
-    local success, err = SpatialRefugeUpgradeLogic.purchaseUpgrade(self.player, upgradeId, targetLevel)
+    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
+    local success, err = UpgradeLogic.purchaseUpgrade(self.player, upgradeId, targetLevel)
     
     if success then
         -- Refresh UI
@@ -330,8 +331,13 @@ function SpatialRefugeUpgradeWindow:onUpgradeClick()
         self:refreshCurrentUpgrade()
     else
         -- Show error (player say or UI feedback)
-        if self.player and self.player.Say then
-            self.player:Say(err or "Upgrade failed")
+        if self.player then
+            local PM = MSR.PlayerMessage
+            if err then
+                PM.SayRaw(self.player, err)
+            else
+                PM.Say(self.player, PM.UPGRADE_FAILED)
+            end
         end
     end
 end
@@ -340,21 +346,21 @@ end
 -- Input Handling
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:onCloseClick()
+function MSR_UpgradeWindow:onCloseClick()
     self:close()
 end
 
-function SpatialRefugeUpgradeWindow:close()
+function MSR_UpgradeWindow:close()
     self:setVisible(false)
     self:removeFromUIManager()
-    SpatialRefugeUpgradeWindow.instance = nil
+    MSR_UpgradeWindow.instance = nil
 end
 
-function SpatialRefugeUpgradeWindow:isKeyConsumed(key)
+function MSR_UpgradeWindow:isKeyConsumed(key)
     return key == Keyboard.KEY_ESCAPE
 end
 
-function SpatialRefugeUpgradeWindow:onKeyRelease(key)
+function MSR_UpgradeWindow:onKeyRelease(key)
     if key == Keyboard.KEY_ESCAPE then
         self:close()
         return true
@@ -366,7 +372,7 @@ end
 -- Rendering
 -----------------------------------------------------------
 
-function SpatialRefugeUpgradeWindow:prerender()
+function MSR_UpgradeWindow:prerender()
     -- Background
     self:drawRect(0, 0, self.width, self.height, 0.95, 0.06, 0.05, 0.08)
     
@@ -400,11 +406,11 @@ function SpatialRefugeUpgradeWindow:prerender()
     self:drawRectBorder(0, 0, self.width, self.height, 0.8, 0.30, 0.25, 0.38)
 end
 
-function SpatialRefugeUpgradeWindow:render()
+function MSR_UpgradeWindow:render()
     -- Render is called after children
 end
 
-function SpatialRefugeUpgradeWindow:update()
+function MSR_UpgradeWindow:update()
     ISPanel.update(self)
     
     -- Check if player is still valid
@@ -424,7 +430,7 @@ end
 -- Module Export
 -----------------------------------------------------------
 
-print("[SpatialRefugeUpgradeWindow] Upgrade window loaded")
+print("[MSR_UpgradeWindow] Upgrade window loaded")
 
-return SpatialRefugeUpgradeWindow
+return MSR_UpgradeWindow
 

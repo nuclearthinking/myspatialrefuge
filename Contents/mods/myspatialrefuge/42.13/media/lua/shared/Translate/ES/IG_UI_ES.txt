@@ -19,6 +19,7 @@ IGUI_ES = {
     IGUI_ExitedRefuge = "Has salido del Refugio Espacial", -- 1.6/16.01.2026
     IGUI_AlreadyInRefuge = "¡Ya estás en el refugio!", -- 1.6/16.01.2026
     IGUI_GeneratingRefuge = "Generando Refugio Espacial...", -- 1.6/16.01.2026
+    IGUI_RefugeInitializing = "Inicializando Refugio Espacial...", -- 1.7/02.01.2026
     IGUI_FailedToGenerateRefuge = "¡No se pudo generar el refugio!", -- 1.6/16.01.2026
     IGUI_ExitingRefuge = "Saliendo del Refugio Espacial...", -- 1.6/16.01.2026
     IGUI_EnteringRefuge = "Entrando al Refugio Espacial...", -- 1.6/16.01.2026
@@ -57,6 +58,10 @@ IGUI_ES = {
     IGUI_Upgrading = "Mejorando...", -- 1.6/16.01.2026
     IGUI_UpgradeFailed = "Falló la mejora", -- 1.6/16.01.2026
     IGUI_RefugeError = "Error del refugio", -- 1.6/16.01.2026
+    IGUI_RefugeActionNotAvailable = "Error: acción del refugio no disponible", -- 1.7/02.01.2026
+    IGUI_RefugeExitActionNotAvailable = "Error: acción de salida del refugio no disponible", -- 1.7/02.01.2026
+    IGUI_CannotLeaveBoundary = "¡No puedes salir del límite del refugio!", -- 1.7/02.01.2026
+    IGUI_ActionTimeoutItemsUnlocked = "Acción agotada - objetos desbloqueados", -- 1.7/02.01.2026
     
     -- Protected Object Messages (random responses when trying to destroy refuge structures)
     IGUI_ProtectedObject_1 = "No quiero hacer eso...", -- 1.7/02.01.2026

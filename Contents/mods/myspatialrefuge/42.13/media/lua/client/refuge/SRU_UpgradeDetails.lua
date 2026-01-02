@@ -4,7 +4,7 @@
 
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
-require "shared/SpatialRefugeUpgradeData"
+require "shared/MSR_UpgradeData"
 
 SRU_UpgradeDetails = ISPanel:derive("SRU_UpgradeDetails")
 
@@ -105,9 +105,9 @@ function SRU_UpgradeDetails:setUpgrade(upgrade, level)
     self.level = level
     
     if upgrade and level then
-        self.levelData = SpatialRefugeUpgradeData.getLevelData(upgrade.id, level)
+        self.levelData = MSR.UpgradeData.getLevelData(upgrade.id, level)
         -- Check if upgrade is locked (dependencies not met)
-        self.isLocked = not SpatialRefugeUpgradeData.isUpgradeUnlocked(self.player, upgrade.id)
+        self.isLocked = not MSR.UpgradeData.isUpgradeUnlocked(self.player, upgrade.id)
         -- Get missing dependencies
         self.missingDependencies = self:getMissingDependencies()
     else
@@ -136,9 +136,9 @@ function SRU_UpgradeDetails:getMissingDependencies()
     end
     
     for _, depId in ipairs(self.upgrade.dependencies) do
-        local depUpgrade = SpatialRefugeUpgradeData.getUpgrade(depId)
+        local depUpgrade = MSR.UpgradeData.getUpgrade(depId)
         if depUpgrade then
-            local depLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(self.player, depId)
+            local depLevel = MSR.UpgradeData.getPlayerUpgradeLevel(self.player, depId)
             local depMaxLevel = depUpgrade.maxLevel or 1
             -- Dependencies must be at MAX level (matching isUpgradeUnlocked logic)
             if depLevel < depMaxLevel then
@@ -162,14 +162,14 @@ function SRU_UpgradeDetails:updateUpgradeButton()
     end
     
     -- Check if already at max level
-    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(self.player, self.upgrade.id)
+    local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(self.player, self.upgrade.id)
     if currentLevel >= self.upgrade.maxLevel then
         self.upgradeButton:setVisible(false)
         return
     end
     
     -- Check if can upgrade
-    local canUpgrade, err = SpatialRefugeUpgradeData.canUpgrade(self.player, self.upgrade.id)
+    local canUpgrade, err = MSR.UpgradeData.canUpgrade(self.player, self.upgrade.id)
     
     -- Check if has required items
     local hasItems = self:checkHasRequiredItems()
@@ -195,8 +195,8 @@ function SRU_UpgradeDetails:checkHasRequiredItems()
     end
     
     -- Use upgrade logic to check items
-    local SpatialRefugeUpgradeLogic = require "refuge/SpatialRefugeUpgradeLogic"
-    return SpatialRefugeUpgradeLogic.hasRequiredItems(self.player, self.levelData.requirements)
+    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
+    return UpgradeLogic.hasRequiredItems(self.player, self.levelData.requirements)
 end
 
 -----------------------------------------------------------
@@ -277,7 +277,7 @@ function SRU_UpgradeDetails:render()
     textY = textY + FONT_HGT_LARGE + 4
     
     -- Level indicator
-    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(self.player, self.upgrade.id)
+    local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(self.player, self.upgrade.id)
     local maxLevel = self.upgrade.maxLevel or 1
     
     local levelText

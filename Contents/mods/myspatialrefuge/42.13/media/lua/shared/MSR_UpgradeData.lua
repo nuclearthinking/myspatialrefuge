@@ -1,21 +1,25 @@
--- Spatial Refuge Upgrade Data
+-- MSR_UpgradeData - Upgrade Data
 -- Data loader and query API for the upgrade system
 -- Tries YAML first, falls back to Lua definitions
 
+require "shared/MSR"
 require "shared/CUI_YamlParser"
-require "shared/SpatialRefugeData"
+require "shared/MSR_Data"
 
 -- Prevent double-loading
-if SpatialRefugeUpgradeData and SpatialRefugeUpgradeData._loaded then
-    return SpatialRefugeUpgradeData
+if MSR.UpgradeData and MSR.UpgradeData._loaded then
+    return MSR.UpgradeData
 end
 
-SpatialRefugeUpgradeData = {
+MSR.UpgradeData = {
     _loaded = true,
     _upgrades = {},      -- All upgrade definitions by ID
     _categories = {},    -- Upgrades grouped by category
     _initialized = false
 }
+
+-- Local alias
+local UpgradeData = MSR.UpgradeData
 
 -----------------------------------------------------------
 -- Upgrade Definitions (Lua)
@@ -118,8 +122,8 @@ local function getRefugeUpgradeData(player)
     
     -- Get refugeData from GlobalModData
     local refugeData = nil
-    if SpatialRefugeData and SpatialRefugeData.GetRefugeDataByUsername then
-        refugeData = SpatialRefugeData.GetRefugeDataByUsername(username)
+    if MSR.Data and MSR.Data.GetRefugeDataByUsername then
+        refugeData = MSR.Data.GetRefugeDataByUsername(username)
     end
     
     if not refugeData then return nil, nil end
@@ -127,12 +131,12 @@ local function getRefugeUpgradeData(player)
     -- Ensure upgrades table exists (for existing refuges created before upgrade system)
     -- Must explicitly save to GlobalModData as PZ doesn't track nested table additions automatically
     if not refugeData.upgrades then
-        print("[SpatialRefugeUpgradeData] Initializing missing upgrades table for " .. username)
+        print("[UpgradeData] Initializing missing upgrades table for " .. username)
         refugeData.upgrades = {}
         -- Save to persist the new upgrades field to GlobalModData
-        if SpatialRefugeData and SpatialRefugeData.SaveRefugeData then
-            SpatialRefugeData.SaveRefugeData(refugeData)
-            print("[SpatialRefugeUpgradeData] Saved initialized upgrades table to GlobalModData")
+        if MSR.Data and MSR.Data.SaveRefugeData then
+            MSR.Data.SaveRefugeData(refugeData)
+            print("[UpgradeData] Saved initialized upgrades table to GlobalModData")
         end
     end
     
@@ -178,49 +182,49 @@ local function processUpgrade(id, upgrade, source)
     upgrade.levels = upgrade.levels or {}
     
     -- Check if upgrade already exists (YAML overriding Lua)
-    local isOverride = SpatialRefugeUpgradeData._upgrades[id] ~= nil
+    local isOverride = UpgradeData._upgrades[id] ~= nil
     
     -- Store upgrade
-    SpatialRefugeUpgradeData._upgrades[id] = upgrade
+    UpgradeData._upgrades[id] = upgrade
     
     -- Index by category (only if not already indexed)
     local cat = upgrade.category
-    if not SpatialRefugeUpgradeData._categories[cat] then
-        SpatialRefugeUpgradeData._categories[cat] = {}
+    if not UpgradeData._categories[cat] then
+        UpgradeData._categories[cat] = {}
     end
     
     -- Check if already in category list
     if not isOverride then
-        table.insert(SpatialRefugeUpgradeData._categories[cat], id)
+        table.insert(UpgradeData._categories[cat], id)
     end
     
     return isOverride
 end
 
 -- Load upgrades: Lua definitions first, then extend with YAML
-function SpatialRefugeUpgradeData.initialize()
-    if SpatialRefugeUpgradeData._initialized then
+function UpgradeData.initialize()
+    if UpgradeData._initialized then
         return true
     end
     
-    print("[SpatialRefugeUpgradeData] ========================================")
-    print("[SpatialRefugeUpgradeData] Initializing upgrade data...")
+    print("[UpgradeData] ========================================")
+    print("[UpgradeData] Initializing upgrade data...")
     
     local luaCount = 0
     local yamlCount = 0
     local yamlOverrides = 0
     
     -- Step 1: Load Lua definitions (primary/base upgrades)
-    print("[SpatialRefugeUpgradeData] Loading Lua definitions...")
+    print("[UpgradeData] Loading Lua definitions...")
     for id, upgrade in pairs(UPGRADE_DEFINITIONS) do
         processUpgrade(id, upgrade, "Lua")
         luaCount = luaCount + 1
-        print("[SpatialRefugeUpgradeData]   Lua upgrade: " .. tostring(id))
+        print("[UpgradeData]   Lua upgrade: " .. tostring(id))
     end
-    print("[SpatialRefugeUpgradeData] Loaded " .. luaCount .. " upgrades from Lua")
+    print("[UpgradeData] Loaded " .. luaCount .. " upgrades from Lua")
     
     -- Step 2: Try to extend with YAML upgrades (optional/additional)
-    print("[SpatialRefugeUpgradeData] Attempting to load YAML extensions...")
+    print("[UpgradeData] Attempting to load YAML extensions...")
     local yamlPath = "media/lua/shared/upgrades.yaml"
     
     local ok, result = pcall(function()
@@ -238,38 +242,38 @@ function SpatialRefugeUpgradeData.initialize()
             yamlCount = yamlCount + 1
             if isOverride then
                 yamlOverrides = yamlOverrides + 1
-                print("[SpatialRefugeUpgradeData]   YAML override: " .. tostring(id))
+                print("[UpgradeData]   YAML override: " .. tostring(id))
             else
-                print("[SpatialRefugeUpgradeData]   YAML extension: " .. tostring(id))
+                print("[UpgradeData]   YAML extension: " .. tostring(id))
             end
         end
-        print("[SpatialRefugeUpgradeData] Loaded " .. yamlCount .. " upgrades from YAML (" .. yamlOverrides .. " overrides)")
+        print("[UpgradeData] Loaded " .. yamlCount .. " upgrades from YAML (" .. yamlOverrides .. " overrides)")
     else
         if ok then
-            print("[SpatialRefugeUpgradeData] No YAML upgrades found (file missing or empty)")
+            print("[UpgradeData] No YAML upgrades found (file missing or empty)")
         else
-            print("[SpatialRefugeUpgradeData] YAML parse failed: " .. tostring(result))
+            print("[UpgradeData] YAML parse failed: " .. tostring(result))
         end
     end
     
-    SpatialRefugeUpgradeData._initialized = true
+    UpgradeData._initialized = true
     
     local totalCount = 0
-    for _ in pairs(SpatialRefugeUpgradeData._upgrades) do
+    for _ in pairs(UpgradeData._upgrades) do
         totalCount = totalCount + 1
     end
-    print("[SpatialRefugeUpgradeData] Total upgrades loaded: " .. totalCount)
-    print("[SpatialRefugeUpgradeData] ========================================")
+    print("[UpgradeData] Total upgrades loaded: " .. totalCount)
+    print("[UpgradeData] ========================================")
     
     return true
 end
 
 -- Reload upgrades (for development/debugging)
-function SpatialRefugeUpgradeData.reload()
-    SpatialRefugeUpgradeData._upgrades = {}
-    SpatialRefugeUpgradeData._categories = {}
-    SpatialRefugeUpgradeData._initialized = false
-    return SpatialRefugeUpgradeData.initialize()
+function UpgradeData.reload()
+    UpgradeData._upgrades = {}
+    UpgradeData._categories = {}
+    UpgradeData._initialized = false
+    return MSR.UpgradeData.initialize()
 end
 
 -----------------------------------------------------------
@@ -277,22 +281,22 @@ end
 -----------------------------------------------------------
 
 -- Get a single upgrade by ID
-function SpatialRefugeUpgradeData.getUpgrade(id)
-    SpatialRefugeUpgradeData.initialize()
-    return SpatialRefugeUpgradeData._upgrades[id]
+function UpgradeData.getUpgrade(id)
+    UpgradeData.initialize()
+    return MSR.UpgradeData._upgrades[id]
 end
 
 -- Get all upgrades as a table
-function SpatialRefugeUpgradeData.getAllUpgrades()
-    SpatialRefugeUpgradeData.initialize()
-    return SpatialRefugeUpgradeData._upgrades
+function UpgradeData.getAllUpgrades()
+    UpgradeData.initialize()
+    return MSR.UpgradeData._upgrades
 end
 
 -- Get all upgrade IDs as an array (for iteration)
-function SpatialRefugeUpgradeData.getAllUpgradeIds()
-    SpatialRefugeUpgradeData.initialize()
+function UpgradeData.getAllUpgradeIds()
+    UpgradeData.initialize()
     local ids = {}
-    for id, _ in pairs(SpatialRefugeUpgradeData._upgrades) do
+    for id, _ in pairs(UpgradeData._upgrades) do
         table.insert(ids, id)
     end
     -- Sort alphabetically for consistent ordering
@@ -301,21 +305,21 @@ function SpatialRefugeUpgradeData.getAllUpgradeIds()
 end
 
 -- Get upgrades by category
-function SpatialRefugeUpgradeData.getUpgradesByCategory(category)
-    SpatialRefugeUpgradeData.initialize()
-    local ids = SpatialRefugeUpgradeData._categories[category] or {}
+function UpgradeData.getUpgradesByCategory(category)
+    UpgradeData.initialize()
+    local ids = UpgradeData._categories[category] or {}
     local upgrades = {}
     for _, id in ipairs(ids) do
-        table.insert(upgrades, SpatialRefugeUpgradeData._upgrades[id])
+        table.insert(upgrades, UpgradeData._upgrades[id])
     end
     return upgrades
 end
 
 -- Get all category names
-function SpatialRefugeUpgradeData.getCategories()
-    SpatialRefugeUpgradeData.initialize()
+function UpgradeData.getCategories()
+    UpgradeData.initialize()
     local categories = {}
-    for cat, _ in pairs(SpatialRefugeUpgradeData._categories) do
+    for cat, _ in pairs(UpgradeData._categories) do
         table.insert(categories, cat)
     end
     table.sort(categories)
@@ -323,8 +327,8 @@ function SpatialRefugeUpgradeData.getCategories()
 end
 
 -- Get level data for an upgrade
-function SpatialRefugeUpgradeData.getLevelData(upgradeId, level)
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+function UpgradeData.getLevelData(upgradeId, level)
+    local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return nil end
     
     -- Try numeric key first, then string
@@ -338,7 +342,7 @@ end
 -----------------------------------------------------------
 
 -- Get player's current level for an upgrade (0 = not purchased)
-function SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
+function UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return 0 end
     
@@ -361,7 +365,7 @@ end
 
 -- Set player's upgrade level (used after successful purchase)
 -- NOTE: Only server/singleplayer can modify GlobalModData
-function SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
+function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     local playerObj = resolvePlayer(player)
     if not playerObj then 
         return false 
@@ -369,7 +373,7 @@ function SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, level
     
     -- expand_refuge level is determined by refuge tier, not stored separately
     if upgradeId == "expand_refuge" then
-        -- Tier is updated by SpatialRefugeShared.ExpandRefuge, not here
+        -- Tier is updated by MSR.Shared.ExpandRefuge, not here
         return true
     end
     
@@ -383,30 +387,30 @@ function SpatialRefugeUpgradeData.setPlayerUpgradeLevel(player, upgradeId, level
     upgradeData[upgradeId] = level
     
     if getDebug and getDebug() then
-        print("[SpatialRefugeUpgradeData] setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level) .. 
-              " | Current: " .. SpatialRefugeData.FormatUpgradesTable(upgradeData))
+        print("[UpgradeData] setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level) .. 
+              " | Current: " .. MSR.Data.FormatUpgradesTable(upgradeData))
     end
     
     -- Save refugeData to persist the change (only works on server/SP)
-    if SpatialRefugeData and SpatialRefugeData.SaveRefugeData then
-        SpatialRefugeData.SaveRefugeData(refugeData)
+    if MSR.Data and MSR.Data.SaveRefugeData then
+        MSR.Data.SaveRefugeData(refugeData)
     end
     
     return true
 end
 
 -- Check if an upgrade is unlocked (dependencies met)
-function SpatialRefugeUpgradeData.isUpgradeUnlocked(player, upgradeId)
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+function UpgradeData.isUpgradeUnlocked(player, upgradeId)
+    local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return false end
     
     -- Check all dependencies
     if upgrade.dependencies and #upgrade.dependencies > 0 then
         for _, depId in ipairs(upgrade.dependencies) do
-            local depUpgrade = SpatialRefugeUpgradeData.getUpgrade(depId)
+            local depUpgrade = UpgradeData.getUpgrade(depId)
             if depUpgrade then
                 -- Dependency must be at max level
-                local playerLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, depId)
+                local playerLevel = UpgradeData.getPlayerUpgradeLevel(player, depId)
                 if playerLevel < (depUpgrade.maxLevel or 1) then
                     return false
                 end
@@ -418,17 +422,17 @@ function SpatialRefugeUpgradeData.isUpgradeUnlocked(player, upgradeId)
 end
 
 -- Check if player can purchase next level of an upgrade
-function SpatialRefugeUpgradeData.canUpgrade(player, upgradeId)
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+function UpgradeData.canUpgrade(player, upgradeId)
+    local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return false, "Unknown upgrade" end
     
     -- Check if upgrade is unlocked
-    if not SpatialRefugeUpgradeData.isUpgradeUnlocked(player, upgradeId) then
+    if not UpgradeData.isUpgradeUnlocked(player, upgradeId) then
         return false, "Dependencies not met"
     end
     
     -- Check if already at max level
-    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
+    local currentLevel = UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     if currentLevel >= upgrade.maxLevel then
         return false, "Already at max level"
     end
@@ -437,33 +441,33 @@ function SpatialRefugeUpgradeData.canUpgrade(player, upgradeId)
 end
 
 -- Get requirements for the next level of an upgrade
-function SpatialRefugeUpgradeData.getNextLevelRequirements(player, upgradeId)
-    local upgrade = SpatialRefugeUpgradeData.getUpgrade(upgradeId)
+function UpgradeData.getNextLevelRequirements(player, upgradeId)
+    local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return nil end
     
-    local currentLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(player, upgradeId)
+    local currentLevel = UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     local nextLevel = currentLevel + 1
     
     if nextLevel > upgrade.maxLevel then
         return nil
     end
     
-    local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, nextLevel)
+    local levelData = UpgradeData.getLevelData(upgradeId, nextLevel)
     if not levelData then return nil end
     
     return levelData.requirements or {}
 end
 
 -- Get effects for a specific level
-function SpatialRefugeUpgradeData.getLevelEffects(upgradeId, level)
-    local levelData = SpatialRefugeUpgradeData.getLevelData(upgradeId, level)
+function UpgradeData.getLevelEffects(upgradeId, level)
+    local levelData = UpgradeData.getLevelData(upgradeId, level)
     if not levelData then return {} end
     return levelData.effects or {}
 end
 
 -- Get all active effects for a player (sum of all purchased upgrades)
-function SpatialRefugeUpgradeData.getPlayerActiveEffects(player)
-    SpatialRefugeUpgradeData.initialize()
+function UpgradeData.getPlayerActiveEffects(player)
+    UpgradeData.initialize()
     
     local playerObj = resolvePlayer(player)
     if not playerObj then return {} end
@@ -513,12 +517,12 @@ function SpatialRefugeUpgradeData.getPlayerActiveEffects(player)
     
     local effects = {}
     
-    for id, _ in pairs(SpatialRefugeUpgradeData._upgrades) do
-        local playerLevel = SpatialRefugeUpgradeData.getPlayerUpgradeLevel(playerObj, id)
+    for id, _ in pairs(UpgradeData._upgrades) do
+        local playerLevel = UpgradeData.getPlayerUpgradeLevel(playerObj, id)
         
         -- Accumulate effects from all purchased levels (with per-effect aggregation)
         for level = 1, playerLevel do
-            local levelEffects = SpatialRefugeUpgradeData.getLevelEffects(id, level)
+            local levelEffects = UpgradeData.getLevelEffects(id, level)
             for effectName, effectValue in pairs(levelEffects) do
                 applyEffect(effects, effectName, effectValue)
             end
@@ -533,12 +537,12 @@ end
 -----------------------------------------------------------
 
 local function onGameStart()
-    SpatialRefugeUpgradeData.initialize()
+    UpgradeData.initialize()
 end
 
 Events.OnGameStart.Add(onGameStart)
 
-print("[SpatialRefugeUpgradeData] Upgrade data module loaded")
+print("[UpgradeData] Upgrade data module loaded")
 
-return SpatialRefugeUpgradeData
+return MSR.UpgradeData
 

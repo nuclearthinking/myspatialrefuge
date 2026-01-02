@@ -1,4 +1,4 @@
--- Spatial Refuge Transaction Module
+-- MSR_Transaction - Transaction Module
 -- Provides transactional item consumption for client-server actions
 -- 
 -- Pattern:
@@ -14,13 +14,19 @@
 -- - Transaction IDs prevent duplicate processing
 -- - Works for any item type (cores, materials, etc.)
 
+require "shared/MSR"
+require "shared/MSR_PlayerMessage"
+
 -- Prevent double-loading
-if SpatialRefugeTransaction and SpatialRefugeTransaction._loaded then
-    return SpatialRefugeTransaction
+if MSR.Transaction and MSR.Transaction._loaded then
+    return MSR.Transaction
 end
 
-SpatialRefugeTransaction = SpatialRefugeTransaction or {}
-SpatialRefugeTransaction._loaded = true
+MSR.Transaction = MSR.Transaction or {}
+MSR.Transaction._loaded = true
+
+-- Local alias
+local Transaction = MSR.Transaction
 
 -----------------------------------------------------------
 -- Configuration
@@ -30,7 +36,7 @@ SpatialRefugeTransaction._loaded = true
 local TRANSACTION_TIMEOUT_TICKS = 300
 
 -- Transaction states
-SpatialRefugeTransaction.STATE = {
+Transaction.STATE = {
     PENDING = "PENDING",
     COMMITTED = "COMMITTED",
     ROLLED_BACK = "ROLLED_BACK"
@@ -39,7 +45,7 @@ SpatialRefugeTransaction.STATE = {
 -- Debug logger (silent unless getDebug() is true)
 local function logDebug(message)
     if getDebug and getDebug() then
-        print("[SpatialRefugeTransaction] " .. tostring(message))
+        print("[Transaction] " .. tostring(message))
     end
 end
 
@@ -153,8 +159,8 @@ local function lockItems(player, itemType, count)
     end
     
     -- Add Sacred Relic container if available (bypass cache for transaction safety)
-    if SpatialRefuge and SpatialRefuge.GetRelicContainer then
-        local relicContainer = SpatialRefuge.GetRelicContainer(player, true)  -- bypassCache = true
+    if MSR and MSR.GetRelicContainer then
+        local relicContainer = MSR.GetRelicContainer(player, true)  -- bypassCache = true
         if relicContainer then
             table.insert(sources, relicContainer)
         end
@@ -266,8 +272,8 @@ local function consumeLockedItems(player, itemType, itemIds)
     end
     
     -- Add Sacred Relic container if available (bypass cache for transaction safety)
-    if SpatialRefuge and SpatialRefuge.GetRelicContainer then
-        local relicContainer = SpatialRefuge.GetRelicContainer(player, true)  -- bypassCache = true
+    if MSR and MSR.GetRelicContainer then
+        local relicContainer = MSR.GetRelicContainer(player, true)  -- bypassCache = true
         if relicContainer then
             table.insert(sources, relicContainer)
         end
@@ -326,7 +332,7 @@ end
 -- @param itemRequirements: Table of {itemType = count} pairs
 -- @return: transaction object on success, nil on failure
 -- @return: error message if failed
-function SpatialRefugeTransaction.Begin(player, transactionType, itemRequirements)
+function Transaction.Begin(player, transactionType, itemRequirements)
     -- Validate player
     local playerObj = resolvePlayer(player)
     if not playerObj then return nil, "Invalid player" end
@@ -349,7 +355,7 @@ function SpatialRefugeTransaction.Begin(player, transactionType, itemRequirement
     if not hasItems then return nil, "No items specified" end
     
     -- Check for existing transaction
-    local existing = SpatialRefugeTransaction.GetPending(playerObj, transactionType)
+    local existing = Transaction.GetPending(playerObj, transactionType)
     if existing then return nil, "Transaction already in progress" end
     
     -- Lock items
@@ -373,7 +379,7 @@ function SpatialRefugeTransaction.Begin(player, transactionType, itemRequirement
         type = transactionType,
         lockedItems = lockedItems,
         createdAt = getTimestamp and getTimestamp() or 0,
-        status = SpatialRefugeTransaction.STATE.PENDING
+        status = Transaction.STATE.PENDING
     }
     
     -- Store transaction
@@ -383,7 +389,7 @@ function SpatialRefugeTransaction.Begin(player, transactionType, itemRequirement
     activeTransactions[playerObj][transactionType] = transaction
     
     -- Start timeout handler
-    SpatialRefugeTransaction._startTimeoutHandler(playerObj, transactionType, transactionId)
+    Transaction._startTimeoutHandler(playerObj, transactionType, transactionId)
     
     logDebug("BEGIN " .. transactionId .. " for " .. username)
     
@@ -394,7 +400,7 @@ end
 -- @param player: The player
 -- @param transactionId: The transaction ID to commit
 -- @return: true on success, false on failure
-function SpatialRefugeTransaction.Commit(player, transactionId)
+function Transaction.Commit(player, transactionId)
     local playerObj = resolvePlayer(player)
     if not playerObj or not transactionId then return false end
     
@@ -418,7 +424,7 @@ function SpatialRefugeTransaction.Commit(player, transactionId)
         return false
     end
     
-    if transaction.status ~= SpatialRefugeTransaction.STATE.PENDING then
+    if transaction.status ~= Transaction.STATE.PENDING then
         logDebug("COMMIT failed - transaction not pending: " .. tostring(transactionId) .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
@@ -434,7 +440,7 @@ function SpatialRefugeTransaction.Commit(player, transactionId)
     end
     
     -- Update transaction status
-    transaction.status = SpatialRefugeTransaction.STATE.COMMITTED
+    transaction.status = Transaction.STATE.COMMITTED
     
     -- Remove from active transactions
     playerTransactions[transactionType] = nil
@@ -449,7 +455,7 @@ end
 -- @param transactionId: The transaction ID to rollback (optional - can use transactionType)
 -- @param transactionType: The transaction type (used if transactionId is nil)
 -- @return: true on success, false on failure
-function SpatialRefugeTransaction.Rollback(player, transactionId, transactionType)
+function Transaction.Rollback(player, transactionId, transactionType)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
@@ -478,7 +484,7 @@ function SpatialRefugeTransaction.Rollback(player, transactionId, transactionTyp
         return false
     end
     
-    if transaction.status ~= SpatialRefugeTransaction.STATE.PENDING then
+    if transaction.status ~= Transaction.STATE.PENDING then
         logDebug("ROLLBACK - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
@@ -489,7 +495,7 @@ function SpatialRefugeTransaction.Rollback(player, transactionId, transactionTyp
     end
     
     -- Update transaction status
-    transaction.status = SpatialRefugeTransaction.STATE.ROLLED_BACK
+    transaction.status = Transaction.STATE.ROLLED_BACK
     
     -- Remove from active transactions
     if tType then
@@ -505,7 +511,7 @@ end
 -- @param player: The player
 -- @param transactionType: The transaction type to look for
 -- @return: transaction object or nil
-function SpatialRefugeTransaction.GetPending(player, transactionType)
+function Transaction.GetPending(player, transactionType)
     local playerObj = resolvePlayer(player)
     if not playerObj or not transactionType then return nil end
     
@@ -513,7 +519,7 @@ function SpatialRefugeTransaction.GetPending(player, transactionType)
     if not playerTransactions then return nil end
     
     local transaction = playerTransactions[transactionType]
-    if transaction and transaction.status == SpatialRefugeTransaction.STATE.PENDING then
+    if transaction and transaction.status == Transaction.STATE.PENDING then
         return transaction
     end
     
@@ -524,7 +530,7 @@ end
 -- @param player: The player
 -- @param itemType: The item type to check
 -- @return: count of available items
-function SpatialRefugeTransaction.GetAvailableCount(player, itemType)
+function Transaction.GetAvailableCount(player, itemType)
     local playerObj = resolvePlayer(player)
     if not playerObj or not itemType then return 0 end
     
@@ -547,7 +553,7 @@ end
 -- Auto-rollback transactions that don't complete in time
 -----------------------------------------------------------
 
-function SpatialRefugeTransaction._startTimeoutHandler(player, transactionType, transactionId)
+function Transaction._startTimeoutHandler(player, transactionType, transactionId)
     local tickCount = 0
     local playerRef = player
     local typeRef = transactionType
@@ -557,7 +563,7 @@ function SpatialRefugeTransaction._startTimeoutHandler(player, transactionType, 
         tickCount = tickCount + 1
         
         -- Check if transaction still exists and is pending
-        local transaction = SpatialRefugeTransaction.GetPending(playerRef, typeRef)
+        local transaction = Transaction.GetPending(playerRef, typeRef)
         
         if not transaction or transaction.id ~= idRef then
             -- Transaction was committed or rolled back elsewhere
@@ -572,11 +578,12 @@ function SpatialRefugeTransaction._startTimeoutHandler(player, transactionType, 
             logDebug("TIMEOUT - Auto-rollback: " .. idRef)
             
             -- Auto-rollback
-            SpatialRefugeTransaction.Rollback(playerRef, idRef)
+            Transaction.Rollback(playerRef, idRef)
             
             -- Notify player
-            if playerRef and playerRef.Say then
-                local ok, _ = pcall(function() playerRef:Say("Action timed out - items unlocked") end)
+            if playerRef then
+                local PM = MSR.PlayerMessage
+                PM.Say(playerRef, PM.ACTION_TIMEOUT_ITEMS_UNLOCKED)
             end
         end
     end
@@ -596,8 +603,8 @@ local function OnPlayerDisconnect(player)
     local playerTransactions = activeTransactions[playerObj]
     if playerTransactions then
         for transactionType, transaction in pairs(playerTransactions) do
-            if transaction.status == SpatialRefugeTransaction.STATE.PENDING then
-                SpatialRefugeTransaction.Rollback(playerObj, transaction.id)
+            if transaction.status == Transaction.STATE.PENDING then
+                Transaction.Rollback(playerObj, transaction.id)
             end
         end
     end
@@ -627,7 +634,7 @@ end
 -- @param player: The player
 -- @param bypassCache: (optional) If true, bypass container cache (for transactions)
 -- @return: Array of ItemContainer objects
-function SpatialRefugeTransaction.GetItemSources(player, bypassCache)
+function Transaction.GetItemSources(player, bypassCache)
     local playerObj = resolvePlayer(player)
     if not playerObj then return {} end
     
@@ -641,8 +648,8 @@ function SpatialRefugeTransaction.GetItemSources(player, bypassCache)
     
     -- Sacred Relic storage (if player is in refuge and has access)
     -- This requires SpatialRefuge module to be loaded
-    if SpatialRefuge and SpatialRefuge.GetRelicContainer then
-        local relicContainer = SpatialRefuge.GetRelicContainer(playerObj, bypassCache)
+    if MSR and MSR.GetRelicContainer then
+        local relicContainer = MSR.GetRelicContainer(playerObj, bypassCache)
         if relicContainer then
             table.insert(sources, relicContainer)
         end
@@ -655,11 +662,11 @@ end
 -- @param player: The player
 -- @param itemType: The item type to count
 -- @return: Total count across all sources
-function SpatialRefugeTransaction.GetMultiSourceCount(player, itemType)
+function Transaction.GetMultiSourceCount(player, itemType)
     local playerObj = resolvePlayer(player)
     if not playerObj or not itemType then return 0 end
     
-    local sources = SpatialRefugeTransaction.GetItemSources(playerObj)
+    local sources = Transaction.GetItemSources(playerObj)
     local totalCount = 0
     
     for _, container in ipairs(sources) do
@@ -682,7 +689,7 @@ end
 -- @param player: The player
 -- @param requirement: Requirement table with type and substitutes
 -- @return: Total count of matching items, table of {itemType = count}
-function SpatialRefugeTransaction.GetSubstitutionCount(player, requirement)
+function Transaction.GetSubstitutionCount(player, requirement)
     local playerObj = resolvePlayer(player)
     if not playerObj or not requirement then return 0, {} end
     
@@ -690,7 +697,7 @@ function SpatialRefugeTransaction.GetSubstitutionCount(player, requirement)
     local total = 0
     
     -- Primary type
-    local primaryCount = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, requirement.type)
+    local primaryCount = Transaction.GetMultiSourceCount(playerObj, requirement.type)
     if primaryCount > 0 then
         counts[requirement.type] = primaryCount
         total = total + primaryCount
@@ -699,7 +706,7 @@ function SpatialRefugeTransaction.GetSubstitutionCount(player, requirement)
     -- Substitutes
     if requirement.substitutes then
         for _, subType in ipairs(requirement.substitutes) do
-            local subCount = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, subType)
+            local subCount = Transaction.GetMultiSourceCount(playerObj, subType)
             if subCount > 0 then
                 counts[subType] = subCount
                 total = total + subCount
@@ -714,7 +721,7 @@ end
 -- @param player: The player
 -- @param requirements: Array of requirement tables
 -- @return: Table of {itemType = count} for transaction, or nil if not enough items
-function SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
+function Transaction.ResolveSubstitutions(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj or not requirements then return nil end
     
@@ -725,13 +732,13 @@ function SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
     for _, req in ipairs(requirements) do
         -- Track primary type
         if req.type and not initialCounts[req.type] then
-            initialCounts[req.type] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, req.type)
+            initialCounts[req.type] = Transaction.GetMultiSourceCount(playerObj, req.type)
         end
         -- Track substitutes
         if req.substitutes then
             for _, subType in ipairs(req.substitutes) do
                 if not initialCounts[subType] then
-                    initialCounts[subType] = SpatialRefugeTransaction.GetMultiSourceCount(playerObj, subType)
+                    initialCounts[subType] = Transaction.GetMultiSourceCount(playerObj, subType)
                 end
             end
         end
@@ -793,17 +800,17 @@ end
 -- @param requirements: Array of requirement tables (with type, count, substitutes)
 -- @return: transaction object on success, nil on failure
 -- @return: error message if failed
-function SpatialRefugeTransaction.BeginWithSubstitutions(player, transactionType, requirements)
+function Transaction.BeginWithSubstitutions(player, transactionType, requirements)
     -- Resolve substitutions first
-    local resolved, err = SpatialRefugeTransaction.ResolveSubstitutions(player, requirements)
+    local resolved, err = Transaction.ResolveSubstitutions(player, requirements)
     if not resolved then
         return nil, err
     end
     
     -- Use standard Begin with resolved items
-    return SpatialRefugeTransaction.Begin(player, transactionType, resolved)
+    return MSR.Transaction.Begin(player, transactionType, resolved)
 end
 
-return SpatialRefugeTransaction
+return MSR.Transaction
 
 

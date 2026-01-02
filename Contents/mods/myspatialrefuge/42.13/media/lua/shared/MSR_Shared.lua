@@ -1,25 +1,29 @@
--- Spatial Refuge Shared Module
+-- MSR_Shared - Shared Module
 -- Generation functions accessible by both client and server
 -- For multiplayer persistence, server uses these functions to create objects that save to map
 
-require "shared/SpatialRefugeConfig"
-require "shared/SpatialRefugeEnv"
-require "shared/SpatialRefugeIntegrity"
+require "shared/MSR"
+require "shared/MSR_Config"
+require "shared/MSR_Env"
+require "shared/MSR_Integrity"
 
 -- Prevent double-loading
-if SpatialRefugeShared and SpatialRefugeShared._loaded then
-    return SpatialRefugeShared
+if MSR.Shared and MSR.Shared._loaded then
+    return MSR.Shared
 end
 
-SpatialRefugeShared = SpatialRefugeShared or {}
-SpatialRefugeShared._loaded = true
+MSR.Shared = MSR.Shared or {}
+MSR.Shared._loaded = true
+
+-- Local alias
+local Shared = MSR.Shared
 
 -----------------------------------------------------------
 -- Move Relic Error Codes (enum-like table)
 -- Use these constants instead of hardcoded strings
 -----------------------------------------------------------
 
-SpatialRefugeShared.MoveRelicError = {
+Shared.MoveRelicError = {
     -- Success (not an error)
     SUCCESS = "SUCCESS",
 
@@ -45,32 +49,32 @@ SpatialRefugeShared.MoveRelicError = {
 
 -- Mapping from error code to translation key
 local MoveRelicErrorToTranslationKey = {
-    [SpatialRefugeShared.MoveRelicError.SUCCESS] = "IGUI_SacredRelicMovedTo",
-    [SpatialRefugeShared.MoveRelicError.NO_REFUGE_DATA] = "IGUI_MoveRelic_NoRefugeData",
-    [SpatialRefugeShared.MoveRelicError.RELIC_NOT_FOUND] = "IGUI_MoveRelic_RelicNotFound",
-    [SpatialRefugeShared.MoveRelicError.ALREADY_AT_POSITION] = "IGUI_MoveRelic_AlreadyAtPosition",
-    [SpatialRefugeShared.MoveRelicError.WORLD_NOT_READY] = "IGUI_MoveRelic_WorldNotReady",
-    [SpatialRefugeShared.MoveRelicError.DESTINATION_NOT_LOADED] = "IGUI_MoveRelic_DestinationNotLoaded",
-    [SpatialRefugeShared.MoveRelicError.CURRENT_LOCATION_NOT_LOADED] = "IGUI_MoveRelic_CurrentLocationNotLoaded",
-    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_TREE] = "IGUI_MoveRelic_BlockedByTree",
-    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_WALL] = "IGUI_MoveRelic_BlockedByWall",
-    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_STAIRS] = "IGUI_MoveRelic_BlockedByStairs",
-    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_FURNITURE] = "IGUI_MoveRelic_BlockedByFurniture",
-    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_CONTAINER] = "IGUI_MoveRelic_BlockedByContainer",
-    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_ENTITY] = "IGUI_MoveRelic_BlockedByEntity",
-    [SpatialRefugeShared.MoveRelicError.DESTINATION_BLOCKED] = "IGUI_MoveRelic_DestinationBlocked",
+    [Shared.MoveRelicError.SUCCESS] = "IGUI_SacredRelicMovedTo",
+    [Shared.MoveRelicError.NO_REFUGE_DATA] = "IGUI_MoveRelic_NoRefugeData",
+    [Shared.MoveRelicError.RELIC_NOT_FOUND] = "IGUI_MoveRelic_RelicNotFound",
+    [Shared.MoveRelicError.ALREADY_AT_POSITION] = "IGUI_MoveRelic_AlreadyAtPosition",
+    [Shared.MoveRelicError.WORLD_NOT_READY] = "IGUI_MoveRelic_WorldNotReady",
+    [Shared.MoveRelicError.DESTINATION_NOT_LOADED] = "IGUI_MoveRelic_DestinationNotLoaded",
+    [Shared.MoveRelicError.CURRENT_LOCATION_NOT_LOADED] = "IGUI_MoveRelic_CurrentLocationNotLoaded",
+    [Shared.MoveRelicError.BLOCKED_BY_TREE] = "IGUI_MoveRelic_BlockedByTree",
+    [Shared.MoveRelicError.BLOCKED_BY_WALL] = "IGUI_MoveRelic_BlockedByWall",
+    [Shared.MoveRelicError.BLOCKED_BY_STAIRS] = "IGUI_MoveRelic_BlockedByStairs",
+    [Shared.MoveRelicError.BLOCKED_BY_FURNITURE] = "IGUI_MoveRelic_BlockedByFurniture",
+    [Shared.MoveRelicError.BLOCKED_BY_CONTAINER] = "IGUI_MoveRelic_BlockedByContainer",
+    [Shared.MoveRelicError.BLOCKED_BY_ENTITY] = "IGUI_MoveRelic_BlockedByEntity",
+    [Shared.MoveRelicError.DESTINATION_BLOCKED] = "IGUI_MoveRelic_DestinationBlocked",
 }
 
 --- Get translation key for a MoveRelic error code
--- @param errorCode string - one of SpatialRefugeShared.MoveRelicError constants
+-- @param errorCode string - one of Shared.MoveRelicError constants
 -- @return string - the translation key (e.g., "IGUI_MoveRelic_BlockedByTree")
-function SpatialRefugeShared.GetMoveRelicTranslationKey(errorCode)
+function Shared.GetMoveRelicTranslationKey(errorCode)
     return MoveRelicErrorToTranslationKey[errorCode] or "IGUI_CannotMoveRelic"
 end
 
 -- Use shared environment helpers
 local function getCachedIsServer()
-    return SpatialRefugeEnv.isServer()
+    return MSR.Env.isServer()
 end
 
 -----------------------------------------------------------
@@ -114,8 +118,8 @@ local TREE_CLEAR_BUFFER = 4
 -- Utility Functions
 -----------------------------------------------------------
 
-function SpatialRefugeShared.ResolveRelicSprite()
-    local spriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+function Shared.ResolveRelicSprite()
+    local spriteName = MSR.Config.SPRITES.SACRED_RELIC
 
     if getSprite and getSprite(spriteName) then return spriteName end
 
@@ -127,10 +131,10 @@ function SpatialRefugeShared.ResolveRelicSprite()
         if getSprite and getSprite(padded3) then return padded3 end
     end
 
-    local fallback = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+    local fallback = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     if fallback and getSprite and getSprite(fallback) then
         if getDebug() then
-            print("[SpatialRefugeShared] Using fallback sprite: " .. fallback)
+            print("[Shared] Using fallback sprite: " .. fallback)
         end
         return fallback
     end
@@ -139,7 +143,7 @@ function SpatialRefugeShared.ResolveRelicSprite()
 end
 
 -- Find relic on a specific square by ModData
-function SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
+function Shared.FindRelicOnSquare(square, refugeId)
     if not square then return nil end
     local objects = square:getObjects()
     if not objects then return nil end
@@ -163,8 +167,8 @@ local _spritesCached = false
 
 local function getCachedRelicSprites()
     if not _spritesCached then
-        _cachedRelicSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-        _cachedResolvedSprite = SpatialRefugeShared.ResolveRelicSprite()
+        _cachedRelicSprite = MSR.Config.SPRITES.SACRED_RELIC
+        _cachedResolvedSprite = Shared.ResolveRelicSprite()
         _spritesCached = true
     end
     return _cachedRelicSprite, _cachedResolvedSprite
@@ -190,7 +194,7 @@ local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
     return nil
 end
 
-function SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
+function Shared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
     local cell = getCell()
     if not cell then return nil end
 
@@ -202,7 +206,7 @@ function SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, z, radius, refu
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
             if square then
-                local relic = SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
+                local relic = Shared.FindRelicOnSquare(square, refugeId)
                 if relic then
                     return relic
                 end
@@ -226,9 +230,9 @@ function SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, z, radius, refu
     return nil
 end
 
-function SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
+function Shared.SyncRelicPositionToModData(refugeData)
     if not refugeData then return false end
-    if not SpatialRefugeData.CanModifyData() then return false end
+    if not MSR.Data.CanModifyData() then return false end
     if refugeData.relicX ~= nil then return false end
 
     local centerX = refugeData.centerX
@@ -237,7 +241,7 @@ function SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
 
-    local relic = SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
+    local relic = Shared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
 
     if relic then
         local square = relic:getSquare()
@@ -256,14 +260,14 @@ function SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
         refugeData.relicZ = centerZ
     end
 
-    SpatialRefugeData.SaveRefugeData(refugeData)
+    MSR.Data.SaveRefugeData(refugeData)
     return true
 end
 
 -- Shorthand for error codes
-local Err = SpatialRefugeShared.MoveRelicError
+local Err = Shared.MoveRelicError
 
-function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRelic)
+function Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRelic)
     if not refugeData then return false, Err.NO_REFUGE_DATA end
 
     local centerX = refugeData.centerX
@@ -280,7 +284,7 @@ function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerNam
     -- Use provided relic or search for it
     local relic = existingRelic
     if not relic then
-        relic = SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
+        relic = Shared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
     end
     if not relic then
         return false, Err.RELIC_NOT_FOUND
@@ -367,7 +371,7 @@ function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerNam
 
     if hasBlockingObject then
         if getDebug() then
-            print("[SpatialRefugeShared] MoveRelic: Blocked - " .. tostring(blockingErrorCode))
+            print("[Shared] MoveRelic: Blocked - " .. tostring(blockingErrorCode))
         end
         return false, blockingErrorCode or Err.DESTINATION_BLOCKED
     end
@@ -400,7 +404,7 @@ function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerNam
     end
 
     if getDebug() then
-        print("[SpatialRefugeShared] Moved relic to " .. cornerName .. " (" .. targetX .. "," .. targetY .. ")")
+        print("[Shared] Moved relic to " .. cornerName .. " (" .. targetX .. "," .. targetY .. ")")
     end
 
     return true, Err.SUCCESS
@@ -421,7 +425,7 @@ local function createWallObject(square, spriteName, isNorthWall)
                 local md = obj:getModData()
                 if md and md.isRefugeBoundary and md.refugeBoundarySprite == spriteName then
                     if getDebug() then
-                        print("[SpatialRefugeShared] Wall already exists at " .. square:getX() .. "," .. square:getY())
+                        print("[Shared] Wall already exists at " .. square:getX() .. "," .. square:getY())
                     end
                     return obj
                 end
@@ -464,7 +468,7 @@ local function createWallObject(square, spriteName, isNorthWall)
     return nil
 end
 
-function SpatialRefugeShared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
+function Shared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
     local cell = getCell()
     if not cell then return nil end
 
@@ -472,10 +476,10 @@ function SpatialRefugeShared.CreateWall(x, y, z, addNorth, addWest, cornerSprite
     if not square or not square:getChunk() then return nil end
 
     local created = false
-    if addNorth and createWallObject(square, SpatialRefugeConfig.SPRITES.WALL_NORTH, true) then
+    if addNorth and createWallObject(square, MSR.Config.SPRITES.WALL_NORTH, true) then
         created = true
     end
-    if addWest and createWallObject(square, SpatialRefugeConfig.SPRITES.WALL_WEST, false) then
+    if addWest and createWallObject(square, MSR.Config.SPRITES.WALL_WEST, false) then
         created = true
     end
     if cornerSprite and createWallObject(square, cornerSprite, false) then
@@ -485,9 +489,9 @@ function SpatialRefugeShared.CreateWall(x, y, z, addNorth, addWest, cornerSprite
     return created and square or nil
 end
 
-function SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, z, radius)
+function Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
     local wallsCreated = 0
-    local wallHeight = SpatialRefugeConfig.WALL_HEIGHT or 1
+    local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local minX = centerX - radius
     local maxX = centerX + radius
     local minY = centerY - radius
@@ -497,34 +501,34 @@ function SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, z, radius)
         local currentZ = z + level
 
         for x = minX, maxX do
-            if SpatialRefugeShared.CreateWall(x, minY, currentZ, true, false, nil) then wallsCreated = wallsCreated + 1 end
-            if SpatialRefugeShared.CreateWall(x, maxY + 1, currentZ, true, false, nil) then wallsCreated = wallsCreated +
+            if Shared.CreateWall(x, minY, currentZ, true, false, nil) then wallsCreated = wallsCreated + 1 end
+            if Shared.CreateWall(x, maxY + 1, currentZ, true, false, nil) then wallsCreated = wallsCreated +
                 1 end
         end
 
         for y = minY, maxY do
-            if SpatialRefugeShared.CreateWall(minX, y, currentZ, false, true, nil) then wallsCreated = wallsCreated + 1 end
-            if SpatialRefugeShared.CreateWall(maxX + 1, y, currentZ, false, true, nil) then wallsCreated = wallsCreated +
+            if Shared.CreateWall(minX, y, currentZ, false, true, nil) then wallsCreated = wallsCreated + 1 end
+            if Shared.CreateWall(maxX + 1, y, currentZ, false, true, nil) then wallsCreated = wallsCreated +
                 1 end
         end
 
-        SpatialRefugeShared.CreateWall(minX, minY, currentZ, false, false, SpatialRefugeConfig.SPRITES.WALL_CORNER_NW)
-        SpatialRefugeShared.CreateWall(maxX + 1, maxY + 1, currentZ, false, false,
-            SpatialRefugeConfig.SPRITES.WALL_CORNER_SE)
+        Shared.CreateWall(minX, minY, currentZ, false, false, MSR.Config.SPRITES.WALL_CORNER_NW)
+        Shared.CreateWall(maxX + 1, maxY + 1, currentZ, false, false,
+            MSR.Config.SPRITES.WALL_CORNER_SE)
     end
 
     if getDebug() then
-        print("[SpatialRefugeShared] Created " .. wallsCreated .. " wall segments")
+        print("[Shared] Created " .. wallsCreated .. " wall segments")
     end
     return wallsCreated
 end
 
-function SpatialRefugeShared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
+function Shared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
     local cell = getCell()
     if not cell then return 0 end
 
     local wallsRemoved = 0
-    local wallHeight = SpatialRefugeConfig.WALL_HEIGHT or 1
+    local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local scanRadius = maxRadius + 2
     local modifiedSquares = {}
 
@@ -563,17 +567,17 @@ function SpatialRefugeShared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius
     end
 
     if getDebug() then
-        print("[SpatialRefugeShared] RemoveAllRefugeWalls: removed " .. wallsRemoved .. " wall segments")
+        print("[Shared] RemoveAllRefugeWalls: removed " .. wallsRemoved .. " wall segments")
     end
     return wallsRemoved
 end
 
-function SpatialRefugeShared.RemoveBoundaryWalls(centerX, centerY, z, radius)
+function Shared.RemoveBoundaryWalls(centerX, centerY, z, radius)
     local cell = getCell()
     if not cell then return 0 end
 
     local wallsRemoved = 0
-    local wallHeight = SpatialRefugeConfig.WALL_HEIGHT or 1
+    local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local minX = centerX - radius
     local maxX = centerX + radius
     local minY = centerY - radius
@@ -617,7 +621,7 @@ function SpatialRefugeShared.RemoveBoundaryWalls(centerX, centerY, z, radius)
     end
 
     if getDebug() then
-        print("[SpatialRefugeShared] Removed " .. wallsRemoved .. " wall segments")
+        print("[Shared] Removed " .. wallsRemoved .. " wall segments")
     end
     return wallsRemoved
 end
@@ -632,13 +636,13 @@ local function createRelicObject(square, refugeId)
     local cell = getCell()
     if not cell then return nil end
 
-    local spriteName = SpatialRefugeShared.ResolveRelicSprite()
+    local spriteName = Shared.ResolveRelicSprite()
     if not spriteName then return nil end
 
     local sprite = getSprite(spriteName)
     if not sprite then
         if getDebug() then
-            print("[SpatialRefugeShared] ERROR: Sprite object is nil: " .. tostring(spriteName))
+            print("[Shared] ERROR: Sprite object is nil: " .. tostring(spriteName))
         end
         return nil
     end
@@ -652,7 +656,7 @@ local function createRelicObject(square, refugeId)
         createdSprite = relic:getSprite()
         if not createdSprite or not createdSprite:getName() then
             if getDebug() then
-                print("[SpatialRefugeShared] ERROR: Failed to repair relic sprite - removing invalid relic")
+                print("[Shared] ERROR: Failed to repair relic sprite - removing invalid relic")
             end
             removeObjectFromSquare(square, relic)
             return nil
@@ -682,7 +686,7 @@ local function createRelicObject(square, refugeId)
     relic:setIsContainer(true)
     local container = relic:getContainer()
     if container then
-        container:setCapacity(SpatialRefugeConfig.RELIC_STORAGE_CAPACITY or 20)
+        container:setCapacity(MSR.Config.RELIC_STORAGE_CAPACITY or 20)
     end
 
     if addSpecialObjectToSquare(square, relic) then
@@ -691,7 +695,7 @@ local function createRelicObject(square, refugeId)
         end
 
         if getDebug() then
-            print("[SpatialRefugeShared] Created Sacred Relic at " .. square:getX() .. "," .. square:getY())
+            print("[Shared] Created Sacred Relic at " .. square:getX() .. "," .. square:getY())
         end
         return relic, spriteName
     end
@@ -699,11 +703,11 @@ local function createRelicObject(square, refugeId)
     return nil, nil
 end
 
-function SpatialRefugeShared.CreateSacredRelic(x, y, z, refugeId, searchRadius)
-    return SpatialRefugeShared.CreateSacredRelicAtPosition(x, y, z, x, y, z, refugeId, searchRadius)
+function Shared.CreateSacredRelic(x, y, z, refugeId, searchRadius)
+    return MSR.Shared.CreateSacredRelicAtPosition(x, y, z, x, y, z, refugeId, searchRadius)
 end
 
-function SpatialRefugeShared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, createY, createZ, refugeId,
+function Shared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, createY, createZ, refugeId,
                                                          searchRadius)
     local cell = getCell()
     if not cell then return nil end
@@ -711,20 +715,20 @@ function SpatialRefugeShared.CreateSacredRelicAtPosition(searchX, searchY, searc
     local radius = (searchRadius or 10) + 1
 
     -- Check for existing relic (no inline repairs - let integrity system handle that)
-    local existing = SpatialRefugeShared.FindRelicInRefuge(searchX, searchY, searchZ, radius, refugeId)
+    local existing = Shared.FindRelicInRefuge(searchX, searchY, searchZ, radius, refugeId)
     if existing then
         if getDebug() then
-            print("[SpatialRefugeShared] Found existing Sacred Relic")
+            print("[Shared] Found existing Sacred Relic")
         end
         return existing
     end
 
     -- Final duplicate check with wider radius
     local finalCheckRadius = radius + 2
-    local duplicateCheck = SpatialRefugeShared.FindRelicInRefuge(searchX, searchY, searchZ, finalCheckRadius, refugeId)
+    local duplicateCheck = Shared.FindRelicInRefuge(searchX, searchY, searchZ, finalCheckRadius, refugeId)
     if duplicateCheck then
         if getDebug() then
-            print("[SpatialRefugeShared] Found relic in extended search")
+            print("[Shared] Found relic in extended search")
         end
         return duplicateCheck
     end
@@ -734,7 +738,7 @@ function SpatialRefugeShared.CreateSacredRelicAtPosition(searchX, searchY, searc
     if not square or not square:getChunk() then return nil end
 
     if getDebug() then
-        print("[SpatialRefugeShared] Creating Sacred Relic at stored position: " .. createX .. "," .. createY)
+        print("[Shared] Creating Sacred Relic at stored position: " .. createX .. "," .. createY)
     end
 
     return createRelicObject(square, refugeId)
@@ -744,10 +748,10 @@ end
 -- Zombie Clearing
 -----------------------------------------------------------
 
-function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
+function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
     if not forceClean and centerX < 2000 and centerY < 2000 then
         if getDebug() then
-            print("[SpatialRefugeShared] Skipping zombie clearing - remote refuge area")
+            print("[Shared] Skipping zombie clearing - remote refuge area")
         end
         return 0
     end
@@ -822,17 +826,17 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
     end
 
     if isMPServer and player and #zombieOnlineIDs > 0 then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE,
-            SpatialRefugeConfig.COMMANDS.CLEAR_ZOMBIES, {
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE,
+            MSR.Config.COMMANDS.CLEAR_ZOMBIES, {
                 zombieIDs = zombieOnlineIDs
             })
         if getDebug() then
-            print("[SpatialRefugeShared] Sent " .. #zombieOnlineIDs .. " zombie IDs to client for removal")
+            print("[Shared] Sent " .. #zombieOnlineIDs .. " zombie IDs to client for removal")
         end
     end
 
     if cleared > 0 and getDebug() then
-        print("[SpatialRefugeShared] Cleared " .. cleared .. " zombies/corpses from refuge area")
+        print("[Shared] Cleared " .. cleared .. " zombies/corpses from refuge area")
     end
 
     return cleared
@@ -842,14 +846,14 @@ end
 -- Tree Clearing
 -----------------------------------------------------------
 
-function SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
+function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
     local cell = getCell()
     if not cell then return 0 end
 
     local isMP = isClient() or isServer()
     if isMP and not getCachedIsServer() then
         if getDebug() then
-            print("[SpatialRefugeShared] ClearTreesFromArea: Skipping on client")
+            print("[Shared] ClearTreesFromArea: Skipping on client")
         end
         return 0
     end
@@ -882,7 +886,7 @@ function SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, z, radius, dro
     end
 
     if getDebug() and cleared > 0 then
-        print("[SpatialRefugeShared] Cleared " ..
+        print("[Shared] Cleared " ..
         cleared .. " trees from refuge area" .. (isMP and " (MP server)" or " (SP)"))
     end
 
@@ -893,10 +897,10 @@ end
 -- Refuge Expansion
 -----------------------------------------------------------
 
-function SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
+function Shared.ExpandRefuge(refugeData, newTier, player)
     if not refugeData then return false end
 
-    local tierConfig = SpatialRefugeConfig.TIERS[newTier]
+    local tierConfig = MSR.Config.TIERS[newTier]
     if not tierConfig then return false end
 
     local centerX = refugeData.centerX
@@ -906,19 +910,19 @@ function SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
     local newRadius = tierConfig.radius
 
     if getDebug() then
-        print("[SpatialRefugeShared] ExpandRefuge: tier " ..
+        print("[Shared] ExpandRefuge: tier " ..
         (refugeData.tier or 0) .. " -> " .. newTier .. " radius " .. oldRadius .. " -> " .. newRadius)
     end
 
-    SpatialRefugeShared.RemoveAllRefugeWalls(centerX, centerY, centerZ, newRadius)
-    SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, centerZ, newRadius)
-    SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, centerZ, newRadius, false)
+    Shared.RemoveAllRefugeWalls(centerX, centerY, centerZ, newRadius)
+    Shared.CreateBoundaryWalls(centerX, centerY, centerZ, newRadius)
+    Shared.ClearTreesFromArea(centerX, centerY, centerZ, newRadius, false)
 
     refugeData.tier = newTier
     refugeData.radius = newRadius
     refugeData.lastExpanded = getTimestamp and getTimestamp() or os.time()
 
-    SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, centerZ, newRadius, true, player)
+    Shared.ClearZombiesFromArea(centerX, centerY, centerZ, newRadius, true, player)
 
     return true
 end
@@ -927,7 +931,7 @@ end
 -- Full Refuge Generation
 -----------------------------------------------------------
 
-function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
+function Shared.EnsureRefugeStructures(refugeData, player)
     if not refugeData then return false end
 
     local centerX = refugeData.centerX
@@ -940,42 +944,42 @@ function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
     local relicZ = refugeData.relicZ or centerZ
 
     -- Create/verify boundary walls
-    SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
-    SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
+    Shared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
+    Shared.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
 
     -- Create relic if needed
-    local relic = SpatialRefugeShared.CreateSacredRelicAtPosition(
+    local relic = Shared.CreateSacredRelicAtPosition(
         centerX, centerY, centerZ,
         relicX, relicY, relicZ,
         refugeId, radius
     )
 
     -- Use integrity system for validation and repair
-    local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+    local report = MSR.Integrity.ValidateAndRepair(refugeData, {
         source = "generation",
         player = player
     })
 
-    SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
-    SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, centerZ, radius, true, player)
+    Shared.SyncRelicPositionToModData(refugeData)
+    Shared.ClearZombiesFromArea(centerX, centerY, centerZ, radius, true, player)
 
     if getDebug() then
-        print("[SpatialRefugeShared] Ensured refuge structures for " .. tostring(refugeId))
+        print("[Shared] Ensured refuge structures for " .. tostring(refugeId))
     end
 
     return report.relic.found or relic ~= nil
 end
 
 -----------------------------------------------------------
--- Property Repair (DEPRECATED - use SpatialRefugeIntegrity.ValidateAndRepair)
+-- Property Repair (DEPRECATED - use MSR.Integrity.ValidateAndRepair)
 -----------------------------------------------------------
 
--- @deprecated Use SpatialRefugeIntegrity.ValidateAndRepair() instead
+-- @deprecated Use MSR.Integrity.ValidateAndRepair() instead
 -- This function is kept for backwards compatibility but delegates to the new system
-function SpatialRefugeShared.RepairRefugeProperties(refugeData)
+function Shared.RepairRefugeProperties(refugeData)
     if not refugeData then return 0 end
 
-    local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+    local report = MSR.Integrity.ValidateAndRepair(refugeData, {
         source = "legacy_repair"
     })
 
@@ -986,16 +990,16 @@ function SpatialRefugeShared.RepairRefugeProperties(refugeData)
     return repaired
 end
 
--- @deprecated Use SpatialRefugeIntegrity.ValidateAndRepair() instead
+-- @deprecated Use MSR.Integrity.ValidateAndRepair() instead
 -- Duplicate removal is now handled internally by the integrity system
-function SpatialRefugeShared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
+function Shared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
     if not refugeData then return 0 end
 
-    local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+    local report = MSR.Integrity.ValidateAndRepair(refugeData, {
         source = "legacy_duplicate_removal"
     })
 
     return report.relic.duplicatesRemoved
 end
 
-return SpatialRefugeShared
+return MSR.Shared

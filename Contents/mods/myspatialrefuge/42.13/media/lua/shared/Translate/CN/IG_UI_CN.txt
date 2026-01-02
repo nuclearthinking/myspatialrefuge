@@ -19,6 +19,7 @@ IGUI_CN = {
     IGUI_ExitedRefuge = "已离开空间避难所", -- 1.6/16.01.2026
     IGUI_AlreadyInRefuge = "已经在避难所里！", -- 1.6/16.01.2026
     IGUI_GeneratingRefuge = "正在生成空间避难所...", -- 1.6/16.01.2026
+    IGUI_RefugeInitializing = "空间避难所初始化中...", -- 1.7/02.01.2026
     IGUI_FailedToGenerateRefuge = "生成避难所失败！", -- 1.6/16.01.2026
     IGUI_ExitingRefuge = "正在离开空间避难所...", -- 1.6/16.01.2026
     IGUI_EnteringRefuge = "正在进入空间避难所...", -- 1.6/16.01.2026
@@ -57,6 +58,10 @@ IGUI_CN = {
     IGUI_Upgrading = "正在升级...", -- 1.6/16.01.2026
     IGUI_UpgradeFailed = "升级失败", -- 1.6/16.01.2026
     IGUI_RefugeError = "避难所错误", -- 1.6/16.01.2026
+    IGUI_RefugeActionNotAvailable = "错误：避难所操作不可用", -- 1.7/02.01.2026
+    IGUI_RefugeExitActionNotAvailable = "错误：离开避难所操作不可用", -- 1.7/02.01.2026
+    IGUI_CannotLeaveBoundary = "无法离开避难所边界！", -- 1.7/02.01.2026
+    IGUI_ActionTimeoutItemsUnlocked = "操作超时 - 物品已解锁", -- 1.7/02.01.2026
     
     -- Protected Object Messages (random responses when trying to destroy refuge structures)
     IGUI_ProtectedObject_1 = "我不想这么做...", -- 1.7/02.01.2026

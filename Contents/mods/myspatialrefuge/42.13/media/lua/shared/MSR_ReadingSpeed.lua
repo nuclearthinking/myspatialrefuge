@@ -1,4 +1,4 @@
--- Spatial Refuge Reading Speed Hook (Shared - Client & Server)
+-- MSR_ReadingSpeed - Reading Speed Hook (Shared - Client & Server)
 -- Modifies reading action time when player is in refuge with faster_reading upgrade
 -- Must be in shared/ to work in multiplayer (ISReadABook runs on both sides)
 --
@@ -6,18 +6,22 @@
 -- This ensures both client AND server use the same reduced duration, including
 -- the server's page reading schedule in serverStart().
 
-require "shared/SpatialRefugeData"
-require "shared/SpatialRefugeUpgradeData"
+require "shared/MSR"
+require "shared/MSR_Data"
+require "shared/MSR_UpgradeData"
 
 -- Prevent double-loading
-if SpatialRefugeReadingSpeed and SpatialRefugeReadingSpeed._loaded then
-    return SpatialRefugeReadingSpeed
+if MSR.ReadingSpeed and MSR.ReadingSpeed._loaded then
+    return MSR.ReadingSpeed
 end
 
-SpatialRefugeReadingSpeed = SpatialRefugeReadingSpeed or {}
-SpatialRefugeReadingSpeed._loaded = true
-SpatialRefugeReadingSpeed._initialized = false
-SpatialRefugeReadingSpeed._originalGetDuration = nil
+MSR.ReadingSpeed = MSR.ReadingSpeed or {}
+MSR.ReadingSpeed._loaded = true
+MSR.ReadingSpeed._initialized = false
+MSR.ReadingSpeed._originalGetDuration = nil
+
+-- Local alias
+local ReadingSpeed = MSR.ReadingSpeed
 
 -----------------------------------------------------------
 -- Reading Speed Calculation
@@ -33,21 +37,21 @@ local function getReadingSpeedMultiplier(player)
     if not player then return 1.0 end
     
     -- Check if player is in refuge
-    if not SpatialRefugeData or not SpatialRefugeData.IsPlayerInRefugeCoords then
+    if not MSR.Data or not MSR.Data.IsPlayerInRefugeCoords then
         return 1.0
     end
     
-    local isInRefuge = SpatialRefugeData.IsPlayerInRefugeCoords(player)
+    local isInRefuge = MSR.Data.IsPlayerInRefugeCoords(player)
     if not isInRefuge then
         return 1.0
     end
     
     -- Get active effects from upgrades
-    if not SpatialRefugeUpgradeData or not SpatialRefugeUpgradeData.getPlayerActiveEffects then
+    if not MSR.UpgradeData or not MSR.UpgradeData.getPlayerActiveEffects then
         return 1.0
     end
     
-    local effects = SpatialRefugeUpgradeData.getPlayerActiveEffects(player)
+    local effects = MSR.UpgradeData.getPlayerActiveEffects(player)
     if not effects or not effects.readingSpeedMultiplier then
         return 1.0
     end
@@ -75,7 +79,7 @@ local function hookReadABook()
         return false
     end
     
-    if SpatialRefugeReadingSpeed._originalGetDuration then
+    if ReadingSpeed._originalGetDuration then
         return true -- Already hooked
     end
     
@@ -84,14 +88,14 @@ local function hookReadABook()
         return false
     end
     
-    SpatialRefugeReadingSpeed._originalGetDuration = originalGetDuration
+    ReadingSpeed._originalGetDuration = originalGetDuration
     
     -- Hook getDuration() - signature is: getDuration(self)
     -- self = the action being created
     -- self.character = the player
     ISReadABook.getDuration = function(self)
         -- Call original to get base duration
-        local baseDuration = SpatialRefugeReadingSpeed._originalGetDuration(self)
+        local baseDuration = ReadingSpeed._originalGetDuration(self)
         
         if not baseDuration or baseDuration <= 0 then
             return baseDuration
@@ -129,18 +133,18 @@ end
 -----------------------------------------------------------
 
 local function initialize()
-    if SpatialRefugeReadingSpeed._initialized then
+    if ReadingSpeed._initialized then
         return
     end
     
     local success = hookReadABook()
     if success then
-        SpatialRefugeReadingSpeed._initialized = true
+        ReadingSpeed._initialized = true
     end
 end
 
 local function scheduleInitialize()
-    if SpatialRefugeReadingSpeed._initialized then
+    if ReadingSpeed._initialized then
         return
     end
     
@@ -150,11 +154,11 @@ local function scheduleInitialize()
     local function tickInit()
         tickCount = tickCount + 1
         
-        if not SpatialRefugeReadingSpeed._initialized then
+        if not ReadingSpeed._initialized then
             initialize()
         end
         
-        if SpatialRefugeReadingSpeed._initialized or tickCount >= maxTicks then
+        if ReadingSpeed._initialized or tickCount >= maxTicks then
             Events.OnTick.Remove(tickInit)
         end
     end
@@ -179,4 +183,4 @@ if getDebug and getDebug() then
     print("[SRU_ReadingSpeed] Module loaded on " .. side)
 end
 
-return SpatialRefugeReadingSpeed
+return MSR.ReadingSpeed

@@ -1,14 +1,19 @@
--- Spatial Refuge Environment Helpers
+-- MSR_Env - Environment Helpers
 -- Cached environment detection for server/client/singleplayer
 -- Use these instead of calling isServer()/isClient() directly for performance
 
+require "shared/MSR"
+
 -- Prevent double-loading
-if SpatialRefugeEnv and SpatialRefugeEnv._loaded then
-    return SpatialRefugeEnv
+if MSR.Env and MSR.Env._loaded then
+    return MSR.Env
 end
 
-SpatialRefugeEnv = {}
-SpatialRefugeEnv._loaded = true
+MSR.Env = {}
+MSR.Env._loaded = true
+
+-- Local alias for internal use
+local Env = MSR.Env
 
 -----------------------------------------------------------
 -- Cached Environment Detection
@@ -26,7 +31,7 @@ local function isGameReady()
 end
 
 -- Invalidate cache (for testing or if game state changes)
-function SpatialRefugeEnv.invalidateCache()
+function Env.invalidateCache()
     _cachedIsServer = nil
     _cachedIsClient = nil
     _cachedCanModify = nil
@@ -34,7 +39,7 @@ function SpatialRefugeEnv.invalidateCache()
 end
 
 -- Check if running on server (cached after game is ready)
-function SpatialRefugeEnv.isServer()
+function Env.isServer()
     -- Only cache once game is ready, otherwise return fresh value
     if not _cacheValid and isGameReady() then
         _cachedIsServer = isServer()
@@ -53,7 +58,7 @@ function SpatialRefugeEnv.isServer()
                 envType = "mp_client"
             end
             
-            print("[SpatialRefugeEnv] Environment: " .. envType .. 
+            print("[MSR.Env] Environment: " .. envType .. 
                   " (isServer=" .. tostring(_cachedIsServer) .. 
                   ", isClient=" .. tostring(_cachedIsClient) .. 
                   ", canModify=" .. tostring(_cachedCanModify) .. ")")
@@ -68,10 +73,10 @@ function SpatialRefugeEnv.isServer()
 end
 
 -- Check if running on client (cached after game is ready)
-function SpatialRefugeEnv.isClient()
+function Env.isClient()
     if not _cacheValid and isGameReady() then
         -- Trigger cache population via isServer()
-        SpatialRefugeEnv.isServer()
+        Env.isServer()
     end
     
     if _cacheValid then
@@ -83,10 +88,10 @@ end
 -- Check if this context can modify data (server or singleplayer)
 -- In MP: only server should modify shared ModData
 -- In SP: client can modify (there is no server)
-function SpatialRefugeEnv.canModifyData()
+function Env.canModifyData()
     if not _cacheValid and isGameReady() then
         -- Trigger cache population via isServer()
-        SpatialRefugeEnv.isServer()
+        Env.isServer()
     end
     
     if _cacheValid then
@@ -108,48 +113,48 @@ end
 
 -- Check if running as coop host (self-hosted multiplayer)
 -- Coop host is unique: both isServer() AND isClient() are true
-function SpatialRefugeEnv.isCoopHost()
-    return SpatialRefugeEnv.isServer() and SpatialRefugeEnv.isClient()
+function Env.isCoopHost()
+    return Env.isServer() and Env.isClient()
 end
 
 -- Check if running in singleplayer
 -- Singleplayer: isServer() = true, isClient() = false
-function SpatialRefugeEnv.isSingleplayer()
-    return SpatialRefugeEnv.isServer() and not SpatialRefugeEnv.isClient()
+function Env.isSingleplayer()
+    return Env.isServer() and not Env.isClient()
 end
 
 -- Check if running as dedicated server (no local player)
 -- Same signature as singleplayer, but we can't distinguish without checking for connected clients
-function SpatialRefugeEnv.isDedicatedServer()
+function Env.isDedicatedServer()
     -- Note: This returns same as isSingleplayer() - both have isServer=true, isClient=false
     -- To truly distinguish, you'd need to check getOnlinePlayers() or similar
-    return SpatialRefugeEnv.isServer() and not SpatialRefugeEnv.isClient()
+    return Env.isServer() and not Env.isClient()
 end
 
 -- Check if running as multiplayer client (NOT host/server)
-function SpatialRefugeEnv.isMultiplayerClient()
-    return SpatialRefugeEnv.isClient() and not SpatialRefugeEnv.isServer()
+function Env.isMultiplayerClient()
+    return Env.isClient() and not Env.isServer()
 end
 
 -- Check if running in multiplayer (coop host or MP client)
-function SpatialRefugeEnv.isMultiplayer()
-    return SpatialRefugeEnv.isClient()
+function Env.isMultiplayer()
+    return Env.isClient()
 end
 
 -- Check if this instance has server authority (can modify world/data authoritatively)
 -- True for: Singleplayer, Dedicated Server, Coop Host
-function SpatialRefugeEnv.hasServerAuthority()
-    return SpatialRefugeEnv.isServer()
+function Env.hasServerAuthority()
+    return Env.isServer()
 end
 
 -- Check if this instance needs to sync to clients (MP server or coop host)
-function SpatialRefugeEnv.needsClientSync()
+function Env.needsClientSync()
     -- Only need to sync if we're the server AND there are clients
     -- Coop host: isServer=true, isClient=true (needs sync)
     -- Dedicated: isServer=true, isClient=false (needs sync)
     -- SP: isServer=true, isClient=false (but no clients to sync to)
     -- The isMultiplayer() check handles this
-    return SpatialRefugeEnv.isServer() and SpatialRefugeEnv.isMultiplayer()
+    return Env.isServer() and Env.isMultiplayer()
 end
 
 -----------------------------------------------------------
@@ -158,7 +163,7 @@ end
 
 -- Get current timestamp with fallback
 -- NOTE: os.time() does NOT exist in Kahlua, use PZ functions only
-function SpatialRefugeEnv.getTimestamp()
+function Env.getTimestamp()
     if getTimestamp then
         return getTimestamp()
     elseif getTimestampMs then
@@ -168,5 +173,4 @@ function SpatialRefugeEnv.getTimestamp()
     return 0
 end
 
-return SpatialRefugeEnv
-
+return MSR.Env
