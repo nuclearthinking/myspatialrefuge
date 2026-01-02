@@ -31,7 +31,7 @@ local UPGRADE_DEFINITIONS = {
     expand_refuge = {
         id = "expand_refuge",
         name = "UI_Upgrade_ExpandRefuge",
-        icon = "media/textures/expand_refuge_64x64.png",
+        icon = "media/textures/expand_icon_128.png",
         category = "shelter",
         maxLevel = 8,
         dependencies = {},
@@ -481,6 +481,7 @@ function UpgradeData.getPlayerActiveEffects(player)
     local AGGREGATORS = {
         refugeSize = "max",              -- expand_refuge defines absolute size per level
         readingSpeedMultiplier = "min",  -- faster_reading defines time multiplier per level (lower = faster)
+        refugeCastTimeMultiplier = "min", -- faster_refuge_cast defines time multiplier per level (lower = faster)
     }
     
     local function applyEffect(effects, effectName, effectValue)

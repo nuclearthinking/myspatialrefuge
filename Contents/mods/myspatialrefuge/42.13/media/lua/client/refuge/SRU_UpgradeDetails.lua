@@ -389,8 +389,8 @@ function SRU_UpgradeDetails:formatEffect(name, value)
         -- Special handling for time multipliers (lower = faster)
         -- readingSpeedMultiplier: 0.85 means 15% faster (1 - 0.85 = 0.15)
         -- If value > 1, it means slower reading (negative speed bonus)
-        if name == "readingSpeedMultiplier" then
-            local speedBonus = math.floor((1 - value) * 100)
+        if name == "readingSpeedMultiplier" or name == "refugeCastTimeMultiplier" then
+            local speedBonus = math.floor((1 - value) * 100 + 0.5)
             -- Handle sign properly: positive shows +, negative shows -, zero shows no sign
             local sign = ""
             if speedBonus > 0 then

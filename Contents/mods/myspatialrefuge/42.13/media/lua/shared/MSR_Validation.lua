@@ -49,34 +49,43 @@ function Validation.IsFalling(player)
     return player.isFalling and player:isFalling()
 end
 
+-- Manual weight check for MP consistency (isOverEncumbered() can desync between client/server)
 function Validation.IsOverEncumbered(player)
     if not player then return false end
     
-    if player.isOverEncumbered then
-        local ok, res = pcall(function() return player:isOverEncumbered() end)
-        if ok then
-            return res == true
+    local invWeight, maxWeight
+    local debugMode = getDebug and getDebug()
+    
+    -- Primary: getInventory():getCapacityWeight() - matches game's internal check
+    if player.getInventory then
+        local ok, inv = pcall(function() return player:getInventory() end)
+        if ok and inv and inv.getCapacityWeight then
+            local ok2, w = pcall(function() return inv:getCapacityWeight() end)
+            if ok2 then invWeight = w end
         end
     end
     
-    -- Fallback: compare carried weight vs max carry capacity.
-    -- Different PZ builds/mod stacks may not expose isOverEncumbered() to Lua consistently.
-    local invWeight = nil
-    if player.getInventoryWeight then
+    -- Fallback for older API
+    if not invWeight and player.getInventoryWeight then
         local ok, w = pcall(function() return player:getInventoryWeight() end)
         if ok then invWeight = w end
     end
     
-    local maxWeight = nil
     if player.getMaxWeight then
         local ok, w = pcall(function() return player:getMaxWeight() end)
         if ok then maxWeight = w end
     end
     
-    if invWeight ~= nil and maxWeight ~= nil then
-        return invWeight > maxWeight
+    if debugMode then
+        local username = player.getUsername and player:getUsername() or "?"
+        print("[MSR_Validation] Encumbrance: " .. tostring(invWeight) .. "/" .. tostring(maxWeight) .. " (" .. username .. ")")
     end
     
+    if invWeight and maxWeight and maxWeight > 0 then
+        return invWeight / maxWeight > 1.0
+    end
+    
+    -- Fail-open: can't determine weight, allow action
     return false
 end
 

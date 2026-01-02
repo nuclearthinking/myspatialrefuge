@@ -626,6 +626,42 @@ if Events.OnPlayerDeath then
 end
 
 -----------------------------------------------------------
+-- Startup Cleanup
+-- Clears stale locked items from crashed/disconnected sessions
+-----------------------------------------------------------
+
+local function cleanupStaleLocksOnGameStart()
+    local ticksWaited = 0
+    local STARTUP_DELAY_TICKS = 120  -- 2 seconds for player to fully load
+    
+    local function doCleanup()
+        ticksWaited = ticksWaited + 1
+        if ticksWaited < STARTUP_DELAY_TICKS then return end
+        
+        Events.OnTick.Remove(doCleanup)
+        
+        local player = getPlayer and getPlayer()
+        if not player then return end
+        
+        local pmd = safePlayerCall(player, "getModData")
+        if not pmd then return end
+        
+        if pmd._lockedTransactionItems then
+            logDebug("Startup cleanup: Clearing stale locked items")
+            pmd._lockedTransactionItems = nil
+        end
+        
+        activeTransactions[player] = nil
+    end
+    
+    Events.OnTick.Add(doCleanup)
+end
+
+if Events.OnGameStart then
+    Events.OnGameStart.Add(cleanupStaleLocksOnGameStart)
+end
+
+-----------------------------------------------------------
 -- Multi-Source Item Support (for Upgrade System)
 -- Extends transaction to work with multiple item containers
 -----------------------------------------------------------
@@ -703,13 +739,15 @@ function Transaction.GetSubstitutionCount(player, requirement)
         total = total + primaryCount
     end
     
-    -- Substitutes
+    -- Substitutes (dedupe: skip types already counted)
     if requirement.substitutes then
         for _, subType in ipairs(requirement.substitutes) do
-            local subCount = Transaction.GetMultiSourceCount(playerObj, subType)
-            if subCount > 0 then
-                counts[subType] = subCount
-                total = total + subCount
+            if not counts[subType] then
+                local subCount = Transaction.GetMultiSourceCount(playerObj, subType)
+                if subCount > 0 then
+                    counts[subType] = subCount
+                    total = total + subCount
+                end
             end
         end
     end
