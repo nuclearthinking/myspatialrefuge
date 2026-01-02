@@ -34,7 +34,6 @@ MSR.Config = {
     TELEPORT_CAST_TIME = 3,
     
     SPRITES = {
-        FLOOR = "blends_natural_01_16",
         WALL_WEST = "walls_exterior_house_01_0",
         WALL_NORTH = "walls_exterior_house_01_1",
         WALL_CORNER_NW = "walls_exterior_house_01_2",

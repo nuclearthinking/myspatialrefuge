@@ -144,6 +144,31 @@ itemGroups:
     - Base.BookLongBlade5
     - Base.BookMaintenance5
 
+  # Any wristwatch variants (PZ base game) - classic, digital, and expensive.
+  wristwatches:
+    # Classic watches
+    - Base.WristWatch_Right_ClassicBlack
+    - Base.WristWatch_Left_ClassicBlack
+    - Base.WristWatch_Right_ClassicBrown
+    - Base.WristWatch_Left_ClassicBrown
+    - Base.WristWatch_Right_ClassicMilitary
+    - Base.WristWatch_Left_ClassicMilitary
+    - Base.WristWatch_Right_ClassicGold
+    - Base.WristWatch_Left_ClassicGold
+    # Digital watches
+    - Base.WristWatch_Right_DigitalBlack
+    - Base.WristWatch_Left_DigitalBlack
+    - Base.WristWatch_Right_DigitalRed
+    - Base.WristWatch_Left_DigitalRed
+    - Base.WristWatch_Right_DigitalDress
+    - Base.WristWatch_Left_DigitalDress
+    # Expensive watches
+    - Base.WristWatch_Right_Expensive
+    - Base.WristWatch_Left_Expensive
+
+  alarm_clocks:
+    - Base.AlarmClock2
+
 upgrades:
   faster_reading:
     id: faster_reading
@@ -208,6 +233,82 @@ upgrades:
             count: 5
             substitutes:
               - $skillbooks_5
+
+  faster_refuge_cast:
+    id: faster_refuge_cast
+    name: UI_Upgrade_FasterRefugeCast
+    icon: media/textures/teleportation_speedup_128.png
+    category: general
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_FasterRefugeCast_L1
+        effects:
+          refugeCastTimeMultiplier: 0.90 # 10% faster (0.90x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.WristWatch_Right_DigitalBlack
+            count: 3
+            substitutes:
+              - $wristwatches
+      2:
+        description: UI_Upgrade_FasterRefugeCast_L2
+        effects:
+          refugeCastTimeMultiplier: 0.80 # 20% faster (0.80x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 12
+          - type: Base.WristWatch_Right_DigitalBlack
+            count: 5
+            substitutes:
+              - $wristwatches
+      3:
+        description: UI_Upgrade_FasterRefugeCast_L3
+        effects:
+          refugeCastTimeMultiplier: 0.70 # 30% faster (0.70x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 25
+          - type: Base.WristWatch_Right_DigitalBlack
+            count: 8
+            substitutes:
+              - $wristwatches
+          - type: Base.AlarmClock2
+            count: 1
+            substitutes:
+              - $alarm_clocks
+      4:
+        description: UI_Upgrade_FasterRefugeCast_L4
+        effects:
+          refugeCastTimeMultiplier: 0.60 # 40% faster (0.60x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 40
+          - type: Base.WristWatch_Right_DigitalBlack
+            count: 10
+            substitutes:
+              - $wristwatches
+          - type: Base.AlarmClock2
+            count: 2
+            substitutes:
+              - $alarm_clocks
+      5:
+        description: UI_Upgrade_FasterRefugeCast_L5
+        effects:
+          refugeCastTimeMultiplier: 0.50 # 50% faster (0.50x time)
+        requirements:
+          - type: Base.MagicalCore
+            count: 60
+          - type: Base.WristWatch_Right_DigitalBlack
+            count: 15
+            substitutes:
+              - $wristwatches
+          - type: Base.AlarmClock2
+            count: 5
+            substitutes:
+              - $alarm_clocks
 
 # =============================================================================
 # EXAMPLE UPGRADE (uncomment and modify to add new upgrades)

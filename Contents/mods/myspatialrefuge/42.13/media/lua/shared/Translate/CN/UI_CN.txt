@@ -34,7 +34,16 @@ UI_CN = {
     UI_Upgrade_FasterReading_L3 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
     UI_Upgrade_FasterReading_L4 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
     UI_Upgrade_FasterReading_L5 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+
+    -- Faster Teleportation Cast
+    UI_Upgrade_FasterRefugeCast = "更快的传送施法", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L1 = "传送施法时间减少 10%。", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L2 = "传送施法时间减少 20%。", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L3 = "传送施法时间减少 30%。", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L4 = "传送施法时间减少 40%。", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L5 = "传送施法时间减少 50%。", -- 1.8/02.01.2026
     
     UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026
+    UI_Effect_refugeCastTimeMultiplier = "传送速度", -- 1.8/02.01.2026
 }
