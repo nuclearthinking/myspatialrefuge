@@ -3,6 +3,77 @@ IGUI_CN = {
     IGUI_SpatialRefuge_Enter = "进入空间避难所", -- 1.5/31.12.2025
     IGUI_SpatialRefuge_Exit = "离开空间避难所", -- 1.5/31.12.2025
     IGUI_SpatialRefuge_OnCooldown = "传送冷却中", -- 1.5/31.12.2025
+
+    -- Context Menu
+    IGUI_MoveSacredRelic = "移动遗物", -- 1.7/02.01.2026
+    IGUI_RelicDirection_Up = "上", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Right = "右", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Left = "左", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Down = "下", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Center = "中心", -- 1.6/16.01.2026
+    IGUI_UpgradeRefuge = "升级避难所", -- 1.6/16.01.2026
+    IGUI_UpgradeRefuge_Tooltip = "扩展你的避难所并解锁新功能", -- 1.6/16.01.2026
+
+    -- Player Messages - Teleportation
+    IGUI_EnteredRefuge = "已进入空间避难所", -- 1.6/16.01.2026
+    IGUI_ExitedRefuge = "已离开空间避难所", -- 1.6/16.01.2026
+    IGUI_AlreadyInRefuge = "已经在避难所里！", -- 1.6/16.01.2026
+    IGUI_GeneratingRefuge = "正在生成空间避难所...", -- 1.6/16.01.2026
+    IGUI_FailedToGenerateRefuge = "生成避难所失败！", -- 1.6/16.01.2026
+    IGUI_ExitingRefuge = "正在离开空间避难所...", -- 1.6/16.01.2026
+    IGUI_EnteringRefuge = "正在进入空间避难所...", -- 1.6/16.01.2026
+    IGUI_RefugeAreaNotLoaded = "避难所区域未加载。请调整基础坐标。", -- 1.6/16.01.2026
+    IGUI_FailedToLoadRefugeArea = "加载避难所区域失败", -- 1.6/16.01.2026
+    IGUI_ReturnPositionLost = "返回位置丢失——将传送到默认位置", -- 1.6/16.01.2026
+    IGUI_CannotExitNoData = "无法离开——未找到避难所数据", -- 1.6/16.01.2026
+    IGUI_PortalCharging = "避难所传送门充能中... (%d秒)", -- 1.7/02.01.2026
+    IGUI_CannotTeleportCombat = "战斗中无法传送！", -- 1.7/02.01.2026
+
+    -- Player Messages - Relic Movement
+    IGUI_SacredRelicMovedTo = "遗物已移动到 %s。", -- 1.7/02.01.2026
+    IGUI_RefugeWallsSynced = "避难所墙壁已同步", -- 1.6/16.01.2026
+    IGUI_CannotMoveRelicYet = "暂时无法移动遗物。请等待 %d 秒。", -- 1.6/16.01.2026
+    IGUI_MovingSacredRelic = "正在移动遗物...", -- 1.7/02.01.2026
+    IGUI_CannotMoveRelic = "无法移动遗物。", -- 1.6/16.01.2026
+    
+    -- Relic Movement Error Messages
+    IGUI_MoveRelic_NoRefugeData = "未找到避难所数据。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_RelicNotFound = "未找到遗物。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_AlreadyAtPosition = "遗物已经在那里了。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_WorldNotReady = "世界尚未准备好。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_DestinationNotLoaded = "目的地未加载。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_CurrentLocationNotLoaded = "当前位置未加载。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByTree = "有树挡着。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByWall = "有墙挡着。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByStairs = "有楼梯挡着。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByFurniture = "有家具挡着。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByContainer = "有容器挡着。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByEntity = "有东西站在那里。", -- 1.7/02.01.2026
+    IGUI_MoveRelic_DestinationBlocked = "目的地被阻挡。", -- 1.7/02.01.2026
+
+    -- Player Messages - Upgrades
+    IGUI_RefugeUpgradedTo = "避难所已升级到 %s！", -- 1.6/16.01.2026
+    IGUI_UpgradedToLevel = "%s 已升级到等级 %d！", -- 1.6/16.01.2026
+    IGUI_Upgrading = "正在升级...", -- 1.6/16.01.2026
+    IGUI_UpgradeFailed = "升级失败", -- 1.6/16.01.2026
+    IGUI_RefugeError = "避难所错误", -- 1.6/16.01.2026
+    
+    -- Protected Object Messages (random responses when trying to destroy refuge structures)
+    IGUI_ProtectedObject_1 = "我不想这么做...", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_2 = "这似乎没有必要。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_3 = "直觉告诉我不应该这样做...", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_4 = "这感觉不对。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_5 = "我有种不好的预感。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_6 = "还是别动它了。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_7 = "不... 我需要这个。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_8 = "我为什么要这样做？", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_9 = "那将是个错误。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_10 = "我宁愿不这样做。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_11 = "这很重要。我应该别动它。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_12 = "摧毁这个太愚蠢了。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_13 = "有些东西最好不要碰。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_14 = "我做不到。", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_15 = "这给我提供庇护。为什么要破坏它？", -- 1.7/02.01.2026
 }
 
 Tooltip_CN = {

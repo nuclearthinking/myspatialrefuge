@@ -3,6 +3,77 @@ IGUI_RU = {
     IGUI_SpatialRefuge_Enter = "Войти в Пространственное Убежище", -- 1.5/31.12.2025
     IGUI_SpatialRefuge_Exit = "Выйти из Пространственного Убежища", -- 1.5/31.12.2025
     IGUI_SpatialRefuge_OnCooldown = "Телепортация перезаряжается", -- 1.5/31.12.2025
+
+    -- Context Menu
+    IGUI_MoveSacredRelic = "Переместить реликвию", -- 1.7/02.01.2026
+    IGUI_RelicDirection_Up = "Вверх", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Right = "Вправо", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Left = "Влево", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Down = "Вниз", -- 1.6/16.01.2026
+    IGUI_RelicDirection_Center = "Центр", -- 1.6/16.01.2026
+    IGUI_UpgradeRefuge = "Улучшить убежище", -- 1.6/16.01.2026
+    IGUI_UpgradeRefuge_Tooltip = "Расширьте убежище и откройте новые возможности", -- 1.6/16.01.2026
+
+    -- Player Messages - Teleportation
+    IGUI_EnteredRefuge = "Вы вошли в Пространственное Убежище", -- 1.6/16.01.2026
+    IGUI_ExitedRefuge = "Вы покинули Пространственное Убежище", -- 1.6/16.01.2026
+    IGUI_AlreadyInRefuge = "Вы уже в убежище!", -- 1.6/16.01.2026
+    IGUI_GeneratingRefuge = "Создание Пространственного Убежища...", -- 1.6/16.01.2026
+    IGUI_FailedToGenerateRefuge = "Не удалось создать убежище!", -- 1.6/16.01.2026
+    IGUI_ExitingRefuge = "Выход из Пространственного Убежища...", -- 1.6/16.01.2026
+    IGUI_EnteringRefuge = "Вход в Пространственное Убежище...", -- 1.6/16.01.2026
+    IGUI_RefugeAreaNotLoaded = "Область убежища не загружена. Измените базовые координаты.", -- 1.6/16.01.2026
+    IGUI_FailedToLoadRefugeArea = "Не удалось загрузить область убежища", -- 1.6/16.01.2026
+    IGUI_ReturnPositionLost = "Точка возврата потеряна — телепортация в место по умолчанию", -- 1.6/16.01.2026
+    IGUI_CannotExitNoData = "Нельзя выйти — данные убежища не найдены", -- 1.6/16.01.2026
+    IGUI_PortalCharging = "Портал убежища заряжается... (%dс)", -- 1.7/02.01.2026
+    IGUI_CannotTeleportCombat = "Нельзя телепортироваться во время боя!", -- 1.7/02.01.2026
+
+    -- Player Messages - Relic Movement
+    IGUI_SacredRelicMovedTo = "Реликвия перемещена в %s.", -- 1.7/02.01.2026
+    IGUI_RefugeWallsSynced = "Стены убежища синхронизированы", -- 1.6/16.01.2026
+    IGUI_CannotMoveRelicYet = "Реликвию пока нельзя переместить. Подождите %d сек.", -- 1.6/16.01.2026
+    IGUI_MovingSacredRelic = "Перемещение реликвии...", -- 1.7/02.01.2026
+    IGUI_CannotMoveRelic = "Нельзя переместить реликвию.", -- 1.6/16.01.2026
+    
+    -- Relic Movement Error Messages
+    IGUI_MoveRelic_NoRefugeData = "Данные убежища не найдены.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_RelicNotFound = "Реликвия не найдена.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_AlreadyAtPosition = "Реликвия уже там.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_WorldNotReady = "Мир не готов.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_DestinationNotLoaded = "Место назначения не загружено.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_CurrentLocationNotLoaded = "Текущее местоположение не загружено.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByTree = "На пути дерево.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByWall = "На пути стена.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByStairs = "На пути лестница.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByFurniture = "На пути мебель.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByContainer = "На пути контейнер.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_BlockedByEntity = "Там кто-то стоит.", -- 1.7/02.01.2026
+    IGUI_MoveRelic_DestinationBlocked = "Место назначения заблокировано.", -- 1.7/02.01.2026
+
+    -- Player Messages - Upgrades
+    IGUI_RefugeUpgradedTo = "Убежище улучшено до %s!", -- 1.6/16.01.2026
+    IGUI_UpgradedToLevel = "Улучшено %s до уровня %d!", -- 1.6/16.01.2026
+    IGUI_Upgrading = "Улучшение...", -- 1.6/16.01.2026
+    IGUI_UpgradeFailed = "Улучшение не удалось", -- 1.6/16.01.2026
+    IGUI_RefugeError = "Ошибка убежища", -- 1.6/16.01.2026
+    
+    -- Protected Object Messages (random responses when trying to destroy refuge structures)
+    IGUI_ProtectedObject_1 = "Не хочу этого делать...", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_2 = "Это кажется лишним.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_3 = "Что-то подсказывает мне, что не стоит...", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_4 = "Что-то тут не так.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_5 = "У меня плохое предчувствие.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_6 = "Лучше оставить это в покое.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_7 = "Нет... Мне это нужно.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_8 = "Зачем мне это делать?", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_9 = "Это было бы ошибкой.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_10 = "Лучше не буду.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_11 = "Это важно. Лучше не трогать.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_12 = "Разрушить это было бы глупо.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_13 = "Некоторые вещи лучше не трогать.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_14 = "Я не могу заставить себя это сделать.", -- 1.7/02.01.2026
+    IGUI_ProtectedObject_15 = "Это даёт мне укрытие. Зачем ломать?", -- 1.7/02.01.2026
 }
 
 Tooltip_RU = {

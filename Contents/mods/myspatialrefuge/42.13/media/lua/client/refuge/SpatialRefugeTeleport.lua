@@ -6,6 +6,7 @@ require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeValidation"
 require "shared/SpatialRefugeShared"
 require "shared/SpatialRefugeEnv"
+require "shared/SpatialRefugeIntegrity"
 
 -- Assume dependencies are already loaded
 SpatialRefuge = SpatialRefuge or {}
@@ -48,7 +49,7 @@ function SpatialRefuge.CanEnterRefuge(player)
     local canTeleport, remaining = SpatialRefugeValidation.CheckCooldown(lastTeleport, cooldown, now)
     
     if not canTeleport then
-        return false, SpatialRefugeValidation.FormatCooldownMessage("Refuge portal charging...", remaining)
+        return false, string.format(getText("IGUI_PortalCharging"), remaining)
     end
     
     -- Check combat teleport blocking (if recently damaged)
@@ -57,7 +58,7 @@ function SpatialRefuge.CanEnterRefuge(player)
     local canCombat, _ = SpatialRefugeValidation.CheckCooldown(lastDamage, combatBlock, now)
     
     if not canCombat then
-        return false, "Cannot teleport during combat!"
+        return false, getText("IGUI_CannotTeleportCombat")
     end
     
     return true, nil
@@ -216,7 +217,7 @@ local function doSingleplayerEnter(player, refugeData)
         -- Stop if everything is done or max time reached
         if (floorPrepared and relicCreated and wallsCreated) or tickCount >= maxTicks then
             if tickCount >= maxTicks and not centerSquareSeen then
-                teleportPlayer:Say("Refuge area not loaded. Adjust base coordinates.")
+                teleportPlayer:Say(getText("IGUI_RefugeAreaNotLoaded"))
             end
             Events.OnTick.Remove(doTeleport)
         end
@@ -230,7 +231,7 @@ local function doSingleplayerEnter(player, refugeData)
     
     -- Visual/audio feedback
     addSound(player, refugeData.centerX, refugeData.centerY, refugeData.centerZ, 10, 1)
-    player:Say("Entered Spatial Refuge")
+    player:Say(getText("IGUI_EnteredRefuge"))
     
     return true
 end
@@ -272,7 +273,7 @@ local function doSingleplayerExit(player, returnPos)
             
             -- Visual/audio feedback
             addSound(teleportPlayer, teleportX, teleportY, teleportZ, 10, 1)
-            teleportPlayer:Say("Exited Spatial Refuge")
+            teleportPlayer:Say(getText("IGUI_ExitedRefuge"))
             return
         end
         
@@ -304,7 +305,7 @@ function SpatialRefuge.EnterRefuge(player)
     -- CRITICAL: Double-check we're not already in refuge
     -- This prevents overwriting return position if somehow called while inside
     if SpatialRefuge.IsPlayerInRefuge and SpatialRefuge.IsPlayerInRefuge(player) then
-        player:Say("Already in refuge!")
+        player:Say(getText("IGUI_AlreadyInRefuge"))
         return false
     end
     
@@ -348,11 +349,11 @@ function SpatialRefuge.EnterRefuge(player)
         
         -- If no refuge exists, generate it first
         if not refugeData then
-            player:Say("Generating Spatial Refuge...")
+            player:Say(getText("IGUI_GeneratingRefuge"))
             refugeData = SpatialRefuge.GenerateNewRefuge(player)
             
             if not refugeData then
-                player:Say("Failed to generate refuge!")
+                player:Say(getText("IGUI_FailedToGenerateRefuge"))
                 return false
             end
         end
@@ -378,7 +379,7 @@ function SpatialRefuge.ExitRefuge(player)
         -- Send request to server, server validates and sends return coords
         
         sendClientCommand(SpatialRefugeConfig.COMMAND_NAMESPACE, SpatialRefugeConfig.COMMANDS.REQUEST_EXIT, {})
-        player:Say("Exiting Spatial Refuge...")
+        player:Say(getText("IGUI_ExitingRefuge"))
         
         if getDebug() then
             print("[SpatialRefuge] Sent RequestExit to server")
@@ -394,13 +395,13 @@ function SpatialRefuge.ExitRefuge(player)
         if not returnPos then
             -- No return position - player may have died or data was cleared
             -- Fall back to default location
-            player:Say("Return position lost - teleporting to default location")
+            player:Say(getText("IGUI_ReturnPositionLost"))
             local refugeData = SpatialRefuge.GetRefugeData(player)
             if refugeData then
                 -- Teleport to a default safe location in the world
                 returnPos = { x = 10000, y = 10000, z = 0 }
             else
-                player:Say("Cannot exit - no refuge data found")
+                player:Say(getText("IGUI_CannotExitNoData"))
                 return false
             end
         end
@@ -465,7 +466,7 @@ local function OnServerCommand(module, command, args)
             
             -- Teleport immediately
             player:teleportTo(teleportX, teleportY, teleportZ)
-            player:Say("Entering Spatial Refuge...")
+            player:Say(getText("IGUI_EnteringRefuge"))
             
             -- Wait for chunks to load, then notify server
             local tickCount = 0
@@ -511,7 +512,7 @@ local function OnServerCommand(module, command, args)
                 -- Timeout
                 if tickCount >= maxTicks and not chunksSent then
                     Events.OnTick.Remove(waitForChunks)
-                    teleportPlayer:Say("Failed to load refuge area")
+                    teleportPlayer:Say(getText("IGUI_FailedToLoadRefugeArea"))
                 end
             end
             
@@ -520,27 +521,33 @@ local function OnServerCommand(module, command, args)
         end
         
     elseif command == SpatialRefugeConfig.COMMANDS.GENERATION_COMPLETE then
-        -- Phase 2 complete: Server finished generating structures
-        -- Confirm to player (structures should now be visible)
+        -- Phase 2 complete: Server finished generating/validating structures
         if getDebug() then
             print("[SpatialRefuge] GENERATION_COMPLETE received")
         end
         if args and args.centerX then
-            player:Say("Entered Spatial Refuge")
+            player:Say(getText("IGUI_EnteredRefuge"))
             
-            -- Repair wall/relic properties that may not persist in map save
-            -- (PZ map serialization doesn't preserve all IsoThumpable properties)
-            local refugeData = SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(player)
-            if refugeData and SpatialRefugeShared and SpatialRefugeShared.RepairRefugeProperties then
-                -- Delay slightly to ensure chunks are fully synced
-                local repairTicks = 0
-                local function delayedRepair()
-                    repairTicks = repairTicks + 1
-                    if repairTicks < 30 then return end -- ~0.5 sec delay
-                    Events.OnTick.Remove(delayedRepair)
-                    SpatialRefugeShared.RepairRefugeProperties(refugeData)
+            -- For MP clients (not coop host), run a lightweight integrity check
+            -- Coop host and SP already ran the check server-side, so skip
+            if SpatialRefugeEnv and SpatialRefugeEnv.isMultiplayerClient and SpatialRefugeEnv.isMultiplayerClient() then
+                local refugeData = SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(player)
+                if refugeData and SpatialRefugeIntegrity then
+                    -- Delay slightly to ensure chunks are fully synced from server
+                    local repairTicks = 0
+                    local function delayedIntegrityCheck()
+                        repairTicks = repairTicks + 1
+                        if repairTicks < 30 then return end -- ~0.5 sec delay
+                        Events.OnTick.Remove(delayedIntegrityCheck)
+                        SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+                            source = "enter_client",
+                            player = player
+                        })
+                    end
+                    Events.OnTick.Add(delayedIntegrityCheck)
                 end
-                Events.OnTick.Add(delayedRepair)
+            elseif getDebug() then
+                print("[SpatialRefuge] Skipping client-side integrity check (server already handled)")
             end
             
             -- Visual/audio feedback
@@ -558,7 +565,7 @@ local function OnServerCommand(module, command, args)
             player:setLastX(args.returnX)
             player:setLastY(args.returnY)
             player:setLastZ(args.returnZ)
-            player:Say("Exited Spatial Refuge")
+            player:Say(getText("IGUI_ExitedRefuge"))
             SpatialRefuge.UpdateTeleportTime(player)
             
             -- Visual/audio feedback
@@ -572,7 +579,12 @@ local function OnServerCommand(module, command, args)
     elseif command == SpatialRefugeConfig.COMMANDS.MOVE_RELIC_COMPLETE then
         -- Server confirmed relic move
         if args and args.cornerName then
-            player:Say("Sacred Relic moved to " .. args.cornerName .. ".")
+            -- Translate canonical corner name for display (cornerName is canonical from server)
+            -- Ensure SpatialRefugeContext is loaded to get TranslateCornerName function
+            require "refuge/SpatialRefugeContext"
+            local translatedCornerName = SpatialRefuge.TranslateCornerName(args.cornerName)
+            local message = string.format(getText("IGUI_SacredRelicMovedTo"), translatedCornerName)
+            player:Say(message)
             
             -- Invalidate relic container cache (relic moved to new position)
             if SpatialRefuge.InvalidateRelicContainerCache then
@@ -788,7 +800,7 @@ local function OnServerCommand(module, command, args)
                     if delayedRemoved > 0 then
                         local playerObj = getPlayer()
                         if playerObj then
-                            playerObj:Say("Refuge walls synced")
+                            playerObj:Say(getText("IGUI_RefugeWallsSynced"))
                         end
                     end
                 end
@@ -819,7 +831,21 @@ local function OnServerCommand(module, command, args)
         
     elseif command == SpatialRefugeConfig.COMMANDS.ERROR then
         -- Server reported an error
-        local message = args and args.message or "Refuge error"
+        local message
+        if args and args.messageKey then
+            -- New format: translation key with optional args
+            local translatedText = getText(args.messageKey)
+            if args.messageArgs and #args.messageArgs > 0 then
+                message = string.format(translatedText, unpack(args.messageArgs))
+            else
+                message = translatedText
+            end
+        elseif args and args.message then
+            -- Legacy format: raw message string
+            message = args.message
+        else
+            message = getText("IGUI_RefugeError")
+        end
         player:Say(message)
         
         if getDebug() then
@@ -878,14 +904,14 @@ local function OnGameStartMP()
         Events.OnTick.Remove(requestAfterDelay)
         RequestModDataFromServer()
         
-        -- After ModData is received, check if player is in refuge and repair properties
+        -- After ModData is received, check if player is in refuge and validate integrity
         -- This handles the case where player reconnects while already inside refuge
-        local repairTickCount = 0
-        local function repairAfterModData()
-            repairTickCount = repairTickCount + 1
-            if repairTickCount < 120 then return end -- Wait ~2 seconds for ModData sync
+        local integrityTickCount = 0
+        local function integrityCheckAfterModData()
+            integrityTickCount = integrityTickCount + 1
+            if integrityTickCount < 120 then return end -- Wait ~2 seconds for ModData sync
             
-            Events.OnTick.Remove(repairAfterModData)
+            Events.OnTick.Remove(integrityCheckAfterModData)
             
             local player = getPlayer()
             if not player then return end
@@ -893,21 +919,64 @@ local function OnGameStartMP()
             -- Check if player is in refuge coordinates
             if SpatialRefugeData and SpatialRefugeData.IsPlayerInRefugeCoords and 
                SpatialRefugeData.IsPlayerInRefugeCoords(player) then
-                -- Player reconnected while in refuge - repair properties
+                -- Player reconnected while in refuge - check if repair needed first
                 local refugeData = SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(player)
-                if refugeData and SpatialRefugeShared and SpatialRefugeShared.RepairRefugeProperties then
-                    local repaired = SpatialRefugeShared.RepairRefugeProperties(refugeData)
-                    if getDebug() and repaired > 0 then
-                        print("[SpatialRefuge] Repaired " .. repaired .. " refuge objects on reconnect")
+                if refugeData and SpatialRefugeIntegrity then
+                    -- Only run full repair if lightweight check detects issues
+                    if SpatialRefugeIntegrity.CheckNeedsRepair(refugeData) then
+                        local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+                            source = "reconnect",
+                            player = player
+                        })
+                        if getDebug() then
+                            print("[SpatialRefuge] Reconnect repair: relic=" .. tostring(report.relic.found) ..
+                                  " walls=" .. report.walls.repaired .. " synced=" .. tostring(report.modData.synced))
+                        end
+                    elseif getDebug() then
+                        print("[SpatialRefuge] Reconnect: refuge intact, no repair needed")
                     end
                 end
             end
         end
         
-        Events.OnTick.Add(repairAfterModData)
+        Events.OnTick.Add(integrityCheckAfterModData)
     end
     
     Events.OnTick.Add(requestAfterDelay)
+end
+
+-----------------------------------------------------------
+-- Periodic Integrity Check (runs every in-game minute)
+-----------------------------------------------------------
+
+-- Lightweight periodic check runs while player is in refuge
+-- Only triggers full repair if CheckNeedsRepair() returns true
+local function onPeriodicIntegrityCheck()
+    local player = getPlayer()
+    if not player then return end
+    
+    -- Only check if player is in refuge
+    if not SpatialRefugeData or not SpatialRefugeData.IsPlayerInRefugeCoords then
+        return
+    end
+    
+    if not SpatialRefugeData.IsPlayerInRefugeCoords(player) then
+        return
+    end
+    
+    -- Lightweight check first
+    local refugeData = SpatialRefuge.GetRefugeData and SpatialRefuge.GetRefugeData(player)
+    if refugeData and SpatialRefugeIntegrity and SpatialRefugeIntegrity.CheckNeedsRepair then
+        if SpatialRefugeIntegrity.CheckNeedsRepair(refugeData) then
+            if getDebug() then
+                print("[SpatialRefuge] Periodic check detected issues, running integrity repair")
+            end
+            SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+                source = "periodic",
+                player = player
+            })
+        end
+    end
 end
 
 -----------------------------------------------------------
@@ -919,5 +988,8 @@ Events.OnServerCommand.Add(OnServerCommand)
 
 -- Request ModData when game starts in MP
 Events.OnGameStart.Add(OnGameStartMP)
+
+-- Periodic integrity check while in refuge (every in-game minute)
+Events.EveryOneMinute.Add(onPeriodicIntegrityCheck)
 
 return SpatialRefuge

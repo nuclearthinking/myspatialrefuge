@@ -4,6 +4,7 @@
 
 require "shared/SpatialRefugeConfig"
 require "shared/SpatialRefugeEnv"
+require "shared/SpatialRefugeIntegrity"
 
 -- Prevent double-loading
 if SpatialRefugeShared and SpatialRefugeShared._loaded then
@@ -12,6 +13,60 @@ end
 
 SpatialRefugeShared = SpatialRefugeShared or {}
 SpatialRefugeShared._loaded = true
+
+-----------------------------------------------------------
+-- Move Relic Error Codes (enum-like table)
+-- Use these constants instead of hardcoded strings
+-----------------------------------------------------------
+
+SpatialRefugeShared.MoveRelicError = {
+    -- Success (not an error)
+    SUCCESS = "SUCCESS",
+
+    -- Input/data errors
+    NO_REFUGE_DATA = "NO_REFUGE_DATA",
+    RELIC_NOT_FOUND = "RELIC_NOT_FOUND",
+    ALREADY_AT_POSITION = "ALREADY_AT_POSITION",
+
+    -- World/loading errors
+    WORLD_NOT_READY = "WORLD_NOT_READY",
+    DESTINATION_NOT_LOADED = "DESTINATION_NOT_LOADED",
+    CURRENT_LOCATION_NOT_LOADED = "CURRENT_LOCATION_NOT_LOADED",
+
+    -- Blocking objects
+    BLOCKED_BY_TREE = "BLOCKED_BY_TREE",
+    BLOCKED_BY_WALL = "BLOCKED_BY_WALL",
+    BLOCKED_BY_STAIRS = "BLOCKED_BY_STAIRS",
+    BLOCKED_BY_FURNITURE = "BLOCKED_BY_FURNITURE",
+    BLOCKED_BY_CONTAINER = "BLOCKED_BY_CONTAINER",
+    BLOCKED_BY_ENTITY = "BLOCKED_BY_ENTITY",
+    DESTINATION_BLOCKED = "DESTINATION_BLOCKED",
+}
+
+-- Mapping from error code to translation key
+local MoveRelicErrorToTranslationKey = {
+    [SpatialRefugeShared.MoveRelicError.SUCCESS] = "IGUI_SacredRelicMovedTo",
+    [SpatialRefugeShared.MoveRelicError.NO_REFUGE_DATA] = "IGUI_MoveRelic_NoRefugeData",
+    [SpatialRefugeShared.MoveRelicError.RELIC_NOT_FOUND] = "IGUI_MoveRelic_RelicNotFound",
+    [SpatialRefugeShared.MoveRelicError.ALREADY_AT_POSITION] = "IGUI_MoveRelic_AlreadyAtPosition",
+    [SpatialRefugeShared.MoveRelicError.WORLD_NOT_READY] = "IGUI_MoveRelic_WorldNotReady",
+    [SpatialRefugeShared.MoveRelicError.DESTINATION_NOT_LOADED] = "IGUI_MoveRelic_DestinationNotLoaded",
+    [SpatialRefugeShared.MoveRelicError.CURRENT_LOCATION_NOT_LOADED] = "IGUI_MoveRelic_CurrentLocationNotLoaded",
+    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_TREE] = "IGUI_MoveRelic_BlockedByTree",
+    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_WALL] = "IGUI_MoveRelic_BlockedByWall",
+    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_STAIRS] = "IGUI_MoveRelic_BlockedByStairs",
+    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_FURNITURE] = "IGUI_MoveRelic_BlockedByFurniture",
+    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_CONTAINER] = "IGUI_MoveRelic_BlockedByContainer",
+    [SpatialRefugeShared.MoveRelicError.BLOCKED_BY_ENTITY] = "IGUI_MoveRelic_BlockedByEntity",
+    [SpatialRefugeShared.MoveRelicError.DESTINATION_BLOCKED] = "IGUI_MoveRelic_DestinationBlocked",
+}
+
+--- Get translation key for a MoveRelic error code
+-- @param errorCode string - one of SpatialRefugeShared.MoveRelicError constants
+-- @return string - the translation key (e.g., "IGUI_MoveRelic_BlockedByTree")
+function SpatialRefugeShared.GetMoveRelicTranslationKey(errorCode)
+    return MoveRelicErrorToTranslationKey[errorCode] or "IGUI_CannotMoveRelic"
+end
 
 -- Use shared environment helpers
 local function getCachedIsServer()
@@ -24,7 +79,7 @@ end
 
 local function addSpecialObjectToSquare(square, obj)
     if not square or not obj or not square:getChunk() then return false end
-    
+
     if getCachedIsServer() then
         square:transmitAddObjectToSquare(obj, -1)
     else
@@ -36,7 +91,7 @@ end
 
 local function removeObjectFromSquare(square, obj)
     if not square or not obj then return false end
-    
+
     if getCachedIsServer() then
         square:transmitRemoveItemFromSquare(obj)
     else
@@ -44,7 +99,7 @@ local function removeObjectFromSquare(square, obj)
         if obj.removeFromSquare then pcall(function() obj:removeFromSquare() end) end
         if obj.removeFromWorld then pcall(function() obj:removeFromWorld() end) end
     end
-    
+
     square:RecalcAllWithNeighbours(true)
     return true
 end
@@ -61,9 +116,9 @@ local TREE_CLEAR_BUFFER = 4
 
 function SpatialRefugeShared.ResolveRelicSprite()
     local spriteName = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-    
+
     if getSprite and getSprite(spriteName) then return spriteName end
-    
+
     local digits = spriteName:match("_(%d+)$")
     if digits then
         local padded2 = spriteName:gsub("_(%d+)$", "_0" .. digits)
@@ -71,7 +126,7 @@ function SpatialRefugeShared.ResolveRelicSprite()
         local padded3 = spriteName:gsub("_(%d+)$", "_00" .. digits)
         if getSprite and getSprite(padded3) then return padded3 end
     end
-    
+
     local fallback = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
     if fallback and getSprite and getSprite(fallback) then
         if getDebug() then
@@ -79,7 +134,7 @@ function SpatialRefugeShared.ResolveRelicSprite()
         end
         return fallback
     end
-    
+
     return nil
 end
 
@@ -88,7 +143,7 @@ function SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
     if not square then return nil end
     local objects = square:getObjects()
     if not objects then return nil end
-    
+
     for i = 0, objects:size() - 1 do
         local obj = objects:get(i)
         if obj then
@@ -119,7 +174,7 @@ end
 local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
     local objects = square:getObjects()
     if not objects then return nil end
-    
+
     for i = 0, objects:size() - 1 do
         local obj = objects:get(i)
         if obj and obj.getSprite then
@@ -138,45 +193,36 @@ end
 function SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
     local cell = getCell()
     if not cell then return nil end
-    
+
     local relicSprite, resolvedSprite = getCachedRelicSprites()
     local searchRadius = (radius or 1) + 1
-    
+
+    -- First pass: find by ModData (preferred)
     for dx = -searchRadius, searchRadius do
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
             if square then
                 local relic = SpatialRefugeShared.FindRelicOnSquare(square, refugeId)
-                if relic then 
-                    if relic.getSprite then
-                        local sprite = relic:getSprite()
-                        if not sprite or not sprite:getName() then
-                            local expectedSprite = SpatialRefugeShared.ResolveRelicSprite()
-                            if expectedSprite then
-                                relic:setSprite(expectedSprite)
-                                local md = relic:getModData()
-                                if md then md.relicSprite = expectedSprite end
-                                if getDebug() then
-                                    print("[SpatialRefugeShared] Repaired corrupted relic sprite")
-                                end
-                            end
-                        end
-                    end
-                    return relic 
-                end
-                
-                relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
                 if relic then
-                    local md = relic:getModData()
-                    md.isSacredRelic = true
-                    md.refugeId = refugeId
-                    md.isProtectedRefugeObject = true
                     return relic
                 end
             end
         end
     end
-    
+
+    -- Second pass: find by sprite (fallback for old saves)
+    for dx = -searchRadius, searchRadius do
+        for dy = -searchRadius, searchRadius do
+            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
+            if square then
+                local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
+                if relic then
+                    return relic
+                end
+            end
+        end
+    end
+
     return nil
 end
 
@@ -184,15 +230,15 @@ function SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
     if not refugeData then return false end
     if not SpatialRefugeData.CanModifyData() then return false end
     if refugeData.relicX ~= nil then return false end
-    
+
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
-    
+
     local relic = SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
-    
+
     if relic then
         local square = relic:getSquare()
         if square then
@@ -209,68 +255,71 @@ function SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
         refugeData.relicY = centerY
         refugeData.relicZ = centerZ
     end
-    
+
     SpatialRefugeData.SaveRefugeData(refugeData)
     return true
 end
 
+-- Shorthand for error codes
+local Err = SpatialRefugeShared.MoveRelicError
+
 function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRelic)
-    if not refugeData then return false, "No refuge data" end
-    
+    if not refugeData then return false, Err.NO_REFUGE_DATA end
+
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
-    
+
     -- Calculate target position
     local targetX = centerX + (cornerDx * radius)
     local targetY = centerY + (cornerDy * radius)
     local targetZ = centerZ
-    
+
     -- Use provided relic or search for it
     local relic = existingRelic
     if not relic then
         relic = SpatialRefugeShared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
     end
     if not relic then
-        return false, "Sacred Relic not found"
+        return false, Err.RELIC_NOT_FOUND
     end
-    
+
     -- Get current position
     local currentSquare = relic:getSquare()
     if currentSquare and currentSquare:getX() == targetX and currentSquare:getY() == targetY then
-        return false, "Relic already at " .. cornerName
+        return false, Err.ALREADY_AT_POSITION
     end
-    
+
     -- Get target square
     local cell = getCell()
-    if not cell then return false, "World not ready" end
-    
+    if not cell then return false, Err.WORLD_NOT_READY end
+
     -- Only use getGridSquare - don't create empty cells
     local targetSquare = cell:getGridSquare(targetX, targetY, targetZ)
-    if not targetSquare then return false, "Destination not loaded" end
-    
+    if not targetSquare then return false, Err.DESTINATION_NOT_LOADED end
+
     -- Verify chunk is loaded
     local targetChunk = targetSquare:getChunk()
-    if not targetChunk then return false, "Destination chunk not loaded" end
-    
+    if not targetChunk then return false, Err.DESTINATION_NOT_LOADED end
+
     local hasBlockingObject = false
-    local blockingReason = nil
-    
+    local blockingErrorCode = nil
+
     if targetSquare:getTree() then
         hasBlockingObject = true
-        blockingReason = "Tree in the way"
+        blockingErrorCode = Err.BLOCKED_BY_TREE
     end
-    
+
     if not hasBlockingObject then
         local movingObjects = targetSquare:getMovingObjects()
         if movingObjects and movingObjects:size() > 0 then
             hasBlockingObject = true
-            blockingReason = "Something is standing there"
+            blockingErrorCode = Err.BLOCKED_BY_ENTITY
         end
     end
-    
+
     if not hasBlockingObject then
         local objects = targetSquare:getObjects()
         if objects then
@@ -281,28 +330,32 @@ function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerNam
                     local isFloor = (objType == IsoObjectType.FloorTile)
                     local md = obj.getModData and obj:getModData() or nil
                     local isRefugeObject = md and (md.isRefugeBoundary or md.isSacredRelic or md.isProtectedRefugeObject)
-                    
+
                     if not isFloor and not isRefugeObject then
                         if objType == IsoObjectType.wall then
                             hasBlockingObject = true
-                            blockingReason = "Wall in the way"
+                            blockingErrorCode = Err.BLOCKED_BY_WALL
                             break
                         elseif objType == IsoObjectType.tree then
                             hasBlockingObject = true
-                            blockingReason = "Tree in the way"
+                            blockingErrorCode = Err.BLOCKED_BY_TREE
                             break
-                        elseif objType == IsoObjectType.stairsTW or objType == IsoObjectType.stairsMW or 
-                               objType == IsoObjectType.stairsNW or objType == IsoObjectType.stairsBN then
+                        elseif objType == IsoObjectType.stairsTW or objType == IsoObjectType.stairsMW or
+                            objType == IsoObjectType.stairsNW or objType == IsoObjectType.stairsBN then
                             hasBlockingObject = true
-                            blockingReason = "Stairs in the way"
+                            blockingErrorCode = Err.BLOCKED_BY_STAIRS
                             break
                         else
                             local isFurniture = instanceof and instanceof(obj, "IsoThumpable") or false
                             local isContainer = obj.getContainer and obj:getContainer() ~= nil or false
-                            
-                            if isFurniture or isContainer then
+
+                            if isContainer then
                                 hasBlockingObject = true
-                                blockingReason = isContainer and "Container in the way" or "Furniture in the way"
+                                blockingErrorCode = Err.BLOCKED_BY_CONTAINER
+                                break
+                            elseif isFurniture then
+                                hasBlockingObject = true
+                                blockingErrorCode = Err.BLOCKED_BY_FURNITURE
                                 break
                             end
                         end
@@ -311,215 +364,46 @@ function SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerNam
             end
         end
     end
-    
+
     if hasBlockingObject then
         if getDebug() then
-            print("[SpatialRefugeShared] MoveRelic: Blocked - " .. tostring(blockingReason))
+            print("[SpatialRefugeShared] MoveRelic: Blocked - " .. tostring(blockingErrorCode))
         end
-        return false, blockingReason or "Destination blocked"
+        return false, blockingErrorCode or Err.DESTINATION_BLOCKED
     end
-    
+
     if currentSquare and not currentSquare:getChunk() then
-        return false, "Current location not loaded"
+        return false, Err.CURRENT_LOCATION_NOT_LOADED
     end
-    
+
     if not targetChunk then
-        return false, "Destination not loaded"
+        return false, Err.DESTINATION_NOT_LOADED
     end
-    
+
     if currentSquare then
         currentSquare:transmitRemoveItemFromSquare(relic)
     end
-    
+
     relic:setSquare(targetSquare)
     targetSquare:transmitAddObjectToSquare(relic, -1)
-    
+
     if currentSquare then currentSquare:RecalcAllWithNeighbours(true) end
     targetSquare:RecalcAllWithNeighbours(true)
-    
+
     local md = relic:getModData()
     md.assignedCorner = cornerName
     md.assignedCornerDx = cornerDx
     md.assignedCornerDy = cornerDy
-    
+
     if getCachedIsServer() and relic.transmitModData then
         relic:transmitModData()
     end
-    
+
     if getDebug() then
         print("[SpatialRefugeShared] Moved relic to " .. cornerName .. " (" .. targetX .. "," .. targetY .. ")")
     end
-    
-    return true, "Moved to " .. cornerName
-end
 
-function SpatialRefugeShared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
-    local cell = getCell()
-    if not cell then return 0 end
-    
-    local relicSprite, resolvedSprite = getCachedRelicSprites()
-    local searchRadius = (radius or 1) + 2
-    local foundRelics = {}
-    local duplicatesRemoved = 0
-    
-    local function countRelicItems(relic)
-        if not relic or not relic.getContainer then return 0 end
-        local container = relic:getContainer()
-        if not container then return 0 end
-        local items = container:getItems()
-        return items and items:size() or 0
-    end
-    
-    -- First pass: find all relics in the area and count their items
-    for dx = -searchRadius, searchRadius do
-        for dy = -searchRadius, searchRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, centerZ)
-            if square then
-                local objects = square:getObjects()
-                if objects then
-                    for i = 0, objects:size() - 1 do
-                        local obj = objects:get(i)
-                        if obj then
-                            local md = obj:getModData()
-                            local isRelic = false
-                            
-                            if md and md.isSacredRelic and md.refugeId == refugeId then
-                                isRelic = true
-                            elseif obj.getSprite then
-                                local sprite = obj:getSprite()
-                                if sprite then
-                                    local spriteName = sprite:getName()
-                                    if spriteName == relicSprite or spriteName == resolvedSprite then
-                                        isRelic = true
-                                        if not md then md = obj:getModData() end
-                                        md.isSacredRelic = true
-                                        md.refugeId = refugeId
-                                    end
-                                end
-                            end
-                            
-                            if isRelic then
-                                local itemCount = countRelicItems(obj)
-                                table.insert(foundRelics, {
-                                    obj = obj, 
-                                    square = square,
-                                    itemCount = itemCount,
-                                    x = square:getX(),
-                                    y = square:getY(),
-                                    z = square:getZ()
-                                })
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    if #foundRelics > 1 then
-        if getDebug() then
-            print("[SpatialRefugeShared] Found " .. #foundRelics .. " relics - removing " .. (#foundRelics - 1) .. " duplicates")
-        end
-        
-        local storedX = refugeData and refugeData.relicX or nil
-        local storedY = refugeData and refugeData.relicY or nil
-        local storedZ = refugeData and refugeData.relicZ or nil
-        
-        local maxItems = -1
-        local relicWithItems = nil
-        local relicWithItemsIndex = nil
-        
-        for i = 1, #foundRelics do
-            local itemCount = foundRelics[i].itemCount or 0
-            if itemCount > maxItems then
-                maxItems = itemCount
-                relicWithItems = foundRelics[i]
-                relicWithItemsIndex = i
-            end
-        end
-        
-        local keepIndex = 1
-        local keepRelic = foundRelics[1]
-        
-        if not keepRelic then
-            if getDebug() then
-                print("[SpatialRefugeShared] ERROR: No relics found to keep")
-            end
-            return 0
-        end
-        
-        if maxItems > 0 then
-            local hasRelicsWithoutItems = false
-            for i = 1, #foundRelics do
-                if (foundRelics[i].itemCount or 0) == 0 then
-                    hasRelicsWithoutItems = true
-                    break
-                end
-            end
-            
-            if hasRelicsWithoutItems and relicWithItems then
-                keepIndex = relicWithItemsIndex
-                keepRelic = relicWithItems
-                
-                if getDebug() then
-                    print("[SpatialRefugeShared] Keeping relic with " .. maxItems .. " items at " .. (keepRelic.x or 0) .. "," .. (keepRelic.y or 0))
-                end
-                
-                if refugeData and keepRelic.x and keepRelic.y and keepRelic.z then
-                    refugeData.relicX = keepRelic.x
-                    refugeData.relicY = keepRelic.y
-                    refugeData.relicZ = keepRelic.z
-                    
-                    if SpatialRefugeData and SpatialRefugeData.SaveRefugeData then
-                        SpatialRefugeData.SaveRefugeData(refugeData)
-                    end
-                    
-                    if getDebug() then
-                        print("[SpatialRefugeShared] Updated stored relic position to " .. keepRelic.x .. "," .. keepRelic.y)
-                    end
-                end
-            elseif storedX and storedY and storedZ then
-                for i = 1, #foundRelics do
-                    local relic = foundRelics[i]
-                    if relic.x == storedX and relic.y == storedY and relic.z == storedZ then
-                        keepIndex = i
-                        keepRelic = relic
-                        if getDebug() then
-                            print("[SpatialRefugeShared] All relics have items - keeping relic at stored position " .. storedX .. "," .. storedY)
-                        end
-                        break
-                    end
-                end
-            end
-        elseif storedX and storedY and storedZ then
-            for i = 1, #foundRelics do
-                local relic = foundRelics[i]
-                if relic.x == storedX and relic.y == storedY and relic.z == storedZ then
-                    keepIndex = i
-                    keepRelic = relic
-                    if getDebug() then
-                        print("[SpatialRefugeShared] No relics have items - keeping relic at stored position " .. storedX .. "," .. storedY)
-                    end
-                    break
-                end
-            end
-        end
-        
-        for i = 1, #foundRelics do
-            if i ~= keepIndex then
-                local relicData = foundRelics[i]
-                if relicData and relicData.obj and relicData.square then
-                    if getDebug() then
-                        print("[SpatialRefugeShared] Removing duplicate relic at " .. (relicData.x or 0) .. "," .. (relicData.y or 0) .. " (items: " .. (relicData.itemCount or 0) .. ")")
-                    end
-                    removeObjectFromSquare(relicData.square, relicData.obj)
-                    duplicatesRemoved = duplicatesRemoved + 1
-                end
-            end
-        end
-    end
-    
-    return duplicatesRemoved
+    return true, Err.SUCCESS
 end
 
 -----------------------------------------------------------
@@ -528,7 +412,7 @@ end
 
 local function createWallObject(square, spriteName, isNorthWall)
     if not square or not square:getChunk() then return nil end
-    
+
     local objects = square:getObjects()
     if objects then
         for i = 0, objects:size() - 1 do
@@ -544,13 +428,13 @@ local function createWallObject(square, spriteName, isNorthWall)
             end
         end
     end
-    
+
     local cell = getCell()
     if not cell then return nil end
-    
+
     local wall = IsoThumpable.new(cell, square, spriteName, isNorthWall, {})
     if not wall then return nil end
-    
+
     wall:setMaxHealth(999999)
     wall:setHealth(999999)
     wall:setCanBarricade(false)
@@ -560,13 +444,13 @@ local function createWallObject(square, spriteName, isNorthWall)
     wall:setCanBePlastered(false)
     wall:setIsHoppable(false)
     if wall.setDestroyed then wall:setDestroyed(false) end
-    
+
     local md = wall:getModData()
     md.isRefugeBoundary = true
     md.refugeBoundarySprite = spriteName
     md.canBeDisassembled = false
     md.isProtectedRefugeObject = true
-    
+
     if addSpecialObjectToSquare(square, wall) then
         if getCachedIsServer() then
             if wall.transmitCompleteItemToClients then
@@ -611,19 +495,22 @@ function SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, z, radius)
 
     for level = 0, wallHeight - 1 do
         local currentZ = z + level
-        
+
         for x = minX, maxX do
             if SpatialRefugeShared.CreateWall(x, minY, currentZ, true, false, nil) then wallsCreated = wallsCreated + 1 end
-            if SpatialRefugeShared.CreateWall(x, maxY + 1, currentZ, true, false, nil) then wallsCreated = wallsCreated + 1 end
+            if SpatialRefugeShared.CreateWall(x, maxY + 1, currentZ, true, false, nil) then wallsCreated = wallsCreated +
+                1 end
         end
 
         for y = minY, maxY do
             if SpatialRefugeShared.CreateWall(minX, y, currentZ, false, true, nil) then wallsCreated = wallsCreated + 1 end
-            if SpatialRefugeShared.CreateWall(maxX + 1, y, currentZ, false, true, nil) then wallsCreated = wallsCreated + 1 end
+            if SpatialRefugeShared.CreateWall(maxX + 1, y, currentZ, false, true, nil) then wallsCreated = wallsCreated +
+                1 end
         end
 
         SpatialRefugeShared.CreateWall(minX, minY, currentZ, false, false, SpatialRefugeConfig.SPRITES.WALL_CORNER_NW)
-        SpatialRefugeShared.CreateWall(maxX + 1, maxY + 1, currentZ, false, false, SpatialRefugeConfig.SPRITES.WALL_CORNER_SE)
+        SpatialRefugeShared.CreateWall(maxX + 1, maxY + 1, currentZ, false, false,
+            SpatialRefugeConfig.SPRITES.WALL_CORNER_SE)
     end
 
     if getDebug() then
@@ -635,12 +522,12 @@ end
 function SpatialRefugeShared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
     local cell = getCell()
     if not cell then return 0 end
-    
+
     local wallsRemoved = 0
     local wallHeight = SpatialRefugeConfig.WALL_HEIGHT or 1
     local scanRadius = maxRadius + 2
     local modifiedSquares = {}
-    
+
     for level = 0, wallHeight - 1 do
         local currentZ = z + level
         for dx = -scanRadius, scanRadius do
@@ -669,12 +556,12 @@ function SpatialRefugeShared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius
             end
         end
     end
-    
+
     for _, square in ipairs(modifiedSquares) do
         square:RecalcAllWithNeighbours(true)
         if square.RecalcProperties then square:RecalcProperties() end
     end
-    
+
     if getDebug() then
         print("[SpatialRefugeShared] RemoveAllRefugeWalls: removed " .. wallsRemoved .. " wall segments")
     end
@@ -684,7 +571,7 @@ end
 function SpatialRefugeShared.RemoveBoundaryWalls(centerX, centerY, z, radius)
     local cell = getCell()
     if not cell then return 0 end
-    
+
     local wallsRemoved = 0
     local wallHeight = SpatialRefugeConfig.WALL_HEIGHT or 1
     local minX = centerX - radius
@@ -692,17 +579,17 @@ function SpatialRefugeShared.RemoveBoundaryWalls(centerX, centerY, z, radius)
     local minY = centerY - radius
     local maxY = centerY + radius
     local perimeterCoords = {}
-    
+
     for x = minX, maxX + 1 do
-        table.insert(perimeterCoords, {x = x, y = minY})
-        table.insert(perimeterCoords, {x = x, y = maxY + 1})
+        table.insert(perimeterCoords, { x = x, y = minY })
+        table.insert(perimeterCoords, { x = x, y = maxY + 1 })
     end
-    
+
     for y = minY, maxY + 1 do
-        table.insert(perimeterCoords, {x = minX, y = y})
-        table.insert(perimeterCoords, {x = maxX + 1, y = y})
+        table.insert(perimeterCoords, { x = minX, y = y })
+        table.insert(perimeterCoords, { x = maxX + 1, y = y })
     end
-    
+
     for level = 0, wallHeight - 1 do
         local currentZ = z + level
         for _, coord in ipairs(perimeterCoords) do
@@ -728,7 +615,7 @@ function SpatialRefugeShared.RemoveBoundaryWalls(centerX, centerY, z, radius)
             end
         end
     end
-    
+
     if getDebug() then
         print("[SpatialRefugeShared] Removed " .. wallsRemoved .. " wall segments")
     end
@@ -741,13 +628,13 @@ end
 
 local function createRelicObject(square, refugeId)
     if not square or not square:getChunk() then return nil end
-    
+
     local cell = getCell()
     if not cell then return nil end
-    
+
     local spriteName = SpatialRefugeShared.ResolveRelicSprite()
     if not spriteName then return nil end
-    
+
     local sprite = getSprite(spriteName)
     if not sprite then
         if getDebug() then
@@ -758,7 +645,7 @@ local function createRelicObject(square, refugeId)
 
     local relic = IsoThumpable.new(cell, square, spriteName, false, nil)
     if not relic then return nil end
-    
+
     local createdSprite = relic:getSprite()
     if not createdSprite or not createdSprite:getName() then
         relic:setSprite(spriteName)
@@ -771,7 +658,7 @@ local function createRelicObject(square, refugeId)
             return nil
         end
     end
-    
+
     relic:setMaxHealth(999999)
     relic:setHealth(999999)
     relic:setCanBarricade(false)
@@ -784,31 +671,31 @@ local function createRelicObject(square, refugeId)
     relic:setCanPassThrough(false)
     relic:setBlockAllTheSquare(true)
     if relic.setDestroyed then relic:setDestroyed(false) end
-    
+
     local md = relic:getModData()
     md.isSacredRelic = true
     md.refugeId = refugeId
     md.relicSprite = spriteName
     md.canBeDisassembled = false
     md.isProtectedRefugeObject = true
-    
+
     relic:setIsContainer(true)
     local container = relic:getContainer()
     if container then
         container:setCapacity(SpatialRefugeConfig.RELIC_STORAGE_CAPACITY or 20)
     end
-    
+
     if addSpecialObjectToSquare(square, relic) then
         if getCachedIsServer() and relic.transmitModData then
             relic:transmitModData()
         end
-        
+
         if getDebug() then
             print("[SpatialRefugeShared] Created Sacred Relic at " .. square:getX() .. "," .. square:getY())
         end
         return relic, spriteName
     end
-    
+
     return nil, nil
 end
 
@@ -816,70 +703,36 @@ function SpatialRefugeShared.CreateSacredRelic(x, y, z, refugeId, searchRadius)
     return SpatialRefugeShared.CreateSacredRelicAtPosition(x, y, z, x, y, z, refugeId, searchRadius)
 end
 
-function SpatialRefugeShared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, createY, createZ, refugeId, searchRadius)
+function SpatialRefugeShared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, createY, createZ, refugeId,
+                                                         searchRadius)
     local cell = getCell()
     if not cell then return nil end
-    
+
     local radius = (searchRadius or 10) + 1
+
+    -- Check for existing relic (no inline repairs - let integrity system handle that)
     local existing = SpatialRefugeShared.FindRelicInRefuge(searchX, searchY, searchZ, radius, refugeId)
-    if existing then 
+    if existing then
         if getDebug() then
             print("[SpatialRefugeShared] Found existing Sacred Relic")
         end
-        
-        local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-        local currentSprite = existing:getSpriteName()
-        local spriteValid = false
-        
-        if currentSprite then
-            local sprite = existing:getSprite()
-            spriteValid = (sprite ~= nil and sprite:getName() == currentSprite)
-        end
-        
-        if not spriteValid or (currentSprite and currentSprite ~= expectedSprite) then
-            local newSprite = getSprite(expectedSprite)
-            if newSprite then
-                existing:setSprite(expectedSprite)
-                local md = existing:getModData()
-                if md then
-                    md.relicSprite = expectedSprite
-                    if not md.isSacredRelic then
-                        md.isSacredRelic = true
-                        md.refugeId = refugeId
-                    end
-                end
-                if getDebug() then
-                    if not spriteValid then
-                        print("[SpatialRefugeShared] Repaired corrupted relic sprite")
-                    else
-                        print("[SpatialRefugeShared] Migrated relic sprite: " .. tostring(currentSprite) .. " -> " .. expectedSprite)
-                    end
-                end
-                
-                if isServer() and existing.transmitModData then
-                    existing:transmitModData()
-                end
-                if isServer() and existing.transmitUpdatedSpriteToClients then
-                    existing:transmitUpdatedSpriteToClients()
-                end
-            end
-        end
-        
-        return existing 
+        return existing
     end
-    
+
+    -- Final duplicate check with wider radius
     local finalCheckRadius = radius + 2
     local duplicateCheck = SpatialRefugeShared.FindRelicInRefuge(searchX, searchY, searchZ, finalCheckRadius, refugeId)
-    if duplicateCheck and duplicateCheck ~= existing then
+    if duplicateCheck then
         if getDebug() then
-            print("[SpatialRefugeShared] WARNING: Found duplicate relic during creation check")
+            print("[SpatialRefugeShared] Found relic in extended search")
         end
         return duplicateCheck
     end
-    
+
+    -- Create new relic
     local square = cell:getGridSquare(createX, createY, createZ)
     if not square or not square:getChunk() then return nil end
-    
+
     if getDebug() then
         print("[SpatialRefugeShared] Creating Sacred Relic at stored position: " .. createX .. "," .. createY)
     end
@@ -898,25 +751,25 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
         end
         return 0
     end
-    
+
     local cell = getCell()
     if not cell then return 0 end
-    
+
     local cleared = 0
     local totalRadius = radius + ZOMBIE_CLEAR_BUFFER
     local isMP = isClient() or isServer()
     local isMPServer = isMP and isServer()
     local zombieOnlineIDs = {}
-    
+
     local zombieList = cell:getZombieList()
     if zombieList then
         for i = zombieList:size() - 1, 0, -1 do
             local zombie = zombieList:get(i)
             if zombie then
                 local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
-                if zz == z and 
-                   zx >= centerX - totalRadius and zx <= centerX + totalRadius and
-                   zy >= centerY - totalRadius and zy <= centerY + totalRadius then
+                if zz == z and
+                    zx >= centerX - totalRadius and zx <= centerX + totalRadius and
+                    zy >= centerY - totalRadius and zy <= centerY + totalRadius then
                     if isMPServer and zombie.getOnlineID then
                         local onlineID = zombie:getOnlineID()
                         if onlineID and onlineID >= 0 then
@@ -930,7 +783,7 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
             end
         end
     end
-    
+
     for dx = -totalRadius, totalRadius do
         for dy = -totalRadius, totalRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
@@ -949,7 +802,7 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
                         end
                     end
                 end
-                
+
                 local objects = square:getObjects()
                 if objects then
                     for i = objects:size() - 1, 0, -1 do
@@ -967,9 +820,9 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
             end
         end
     end
-    
+
     if isMPServer and player and #zombieOnlineIDs > 0 then
-        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE, 
+        sendServerCommand(player, SpatialRefugeConfig.COMMAND_NAMESPACE,
             SpatialRefugeConfig.COMMANDS.CLEAR_ZOMBIES, {
                 zombieIDs = zombieOnlineIDs
             })
@@ -977,11 +830,11 @@ function SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, z, radius, f
             print("[SpatialRefugeShared] Sent " .. #zombieOnlineIDs .. " zombie IDs to client for removal")
         end
     end
-    
+
     if cleared > 0 and getDebug() then
         print("[SpatialRefugeShared] Cleared " .. cleared .. " zombies/corpses from refuge area")
     end
-    
+
     return cleared
 end
 
@@ -992,7 +845,7 @@ end
 function SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
     local cell = getCell()
     if not cell then return 0 end
-    
+
     local isMP = isClient() or isServer()
     if isMP and not getCachedIsServer() then
         if getDebug() then
@@ -1000,10 +853,10 @@ function SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, z, radius, dro
         end
         return 0
     end
-    
+
     local cleared = 0
     local totalRadius = radius + TREE_CLEAR_BUFFER
-    
+
     for dx = -totalRadius, totalRadius do
         for dy = -totalRadius, totalRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
@@ -1027,11 +880,12 @@ function SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, z, radius, dro
             end
         end
     end
-    
+
     if getDebug() and cleared > 0 then
-        print("[SpatialRefugeShared] Cleared " .. cleared .. " trees from refuge area" .. (isMP and " (MP server)" or " (SP)"))
+        print("[SpatialRefugeShared] Cleared " ..
+        cleared .. " trees from refuge area" .. (isMP and " (MP server)" or " (SP)"))
     end
-    
+
     return cleared
 end
 
@@ -1041,30 +895,31 @@ end
 
 function SpatialRefugeShared.ExpandRefuge(refugeData, newTier, player)
     if not refugeData then return false end
-    
+
     local tierConfig = SpatialRefugeConfig.TIERS[newTier]
     if not tierConfig then return false end
-    
+
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
     local oldRadius = refugeData.radius
     local newRadius = tierConfig.radius
-    
+
     if getDebug() then
-        print("[SpatialRefugeShared] ExpandRefuge: tier " .. (refugeData.tier or 0) .. " -> " .. newTier .. " radius " .. oldRadius .. " -> " .. newRadius)
+        print("[SpatialRefugeShared] ExpandRefuge: tier " ..
+        (refugeData.tier or 0) .. " -> " .. newTier .. " radius " .. oldRadius .. " -> " .. newRadius)
     end
-    
+
     SpatialRefugeShared.RemoveAllRefugeWalls(centerX, centerY, centerZ, newRadius)
     SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, centerZ, newRadius)
     SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, centerZ, newRadius, false)
-    
+
     refugeData.tier = newTier
     refugeData.radius = newRadius
     refugeData.lastExpanded = getTimestamp and getTimestamp() or os.time()
-    
+
     SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, centerZ, newRadius, true, player)
-    
+
     return true
 end
 
@@ -1074,7 +929,7 @@ end
 
 function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
     if not refugeData then return false end
-    
+
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
@@ -1083,120 +938,64 @@ function SpatialRefugeShared.EnsureRefugeStructures(refugeData, player)
     local relicX = refugeData.relicX or centerX
     local relicY = refugeData.relicY or centerY
     local relicZ = refugeData.relicZ or centerZ
-    
+
+    -- Create/verify boundary walls
     SpatialRefugeShared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
     SpatialRefugeShared.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
-    SpatialRefugeShared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
-    
+
+    -- Create relic if needed
     local relic = SpatialRefugeShared.CreateSacredRelicAtPosition(
         centerX, centerY, centerZ,
         relicX, relicY, relicZ,
         refugeId, radius
     )
-    
+
+    -- Use integrity system for validation and repair
+    local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+        source = "generation",
+        player = player
+    })
+
     SpatialRefugeShared.SyncRelicPositionToModData(refugeData)
     SpatialRefugeShared.ClearZombiesFromArea(centerX, centerY, centerZ, radius, true, player)
-    
+
     if getDebug() then
         print("[SpatialRefugeShared] Ensured refuge structures for " .. tostring(refugeId))
     end
-    
-    return relic ~= nil
+
+    return report.relic.found or relic ~= nil
 end
 
 -----------------------------------------------------------
--- Property Repair
+-- Property Repair (DEPRECATED - use SpatialRefugeIntegrity.ValidateAndRepair)
 -----------------------------------------------------------
 
+-- @deprecated Use SpatialRefugeIntegrity.ValidateAndRepair() instead
+-- This function is kept for backwards compatibility but delegates to the new system
 function SpatialRefugeShared.RepairRefugeProperties(refugeData)
     if not refugeData then return 0 end
-    
-    local cell = getCell()
-    if not cell then return 0 end
-    
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
-    local repaired = 0
-    
-    for dx = -radius - 2, radius + 2 do
-        for dy = -radius - 2, radius + 2 do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, centerZ)
-            if square then
-                local objects = square:getObjects()
-                if objects then
-                    for i = 0, objects:size() - 1 do
-                        local obj = objects:get(i)
-                        if obj and obj.getModData then
-                            local md = obj:getModData()
-                            
-                            if md and md.isRefugeBoundary then
-                                if obj.setIsThumpable then obj:setIsThumpable(false) end
-                                if obj.setIsHoppable then obj:setIsHoppable(false) end
-                                if obj.setCanBarricade then obj:setCanBarricade(false) end
-                                if obj.setIsDismantable then obj:setIsDismantable(false) end
-                                if obj.setCanBePlastered then obj:setCanBePlastered(false) end
-                                repaired = repaired + 1
-                            end
-                            
-                            local spriteName = obj:getSpriteName()
-                            local isOldRelicSprite = spriteName == "location_community_cemetary_01_11"
-                            local isRelic = (md and md.isSacredRelic) or isOldRelicSprite
-                            
-                            if isRelic then
-                                if not md.isSacredRelic then
-                                    md.isSacredRelic = true
-                                    md.refugeId = refugeData.refugeId
-                                    print("[SpatialRefugeShared] Added isSacredRelic flag to old relic")
-                                end
-                                if obj.setIsThumpable then obj:setIsThumpable(false) end
-                                if obj.setIsHoppable then obj:setIsHoppable(false) end
-                                if obj.setIsDismantable then obj:setIsDismantable(false) end
-                                
-                                local expectedSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
-                                local currentSprite = obj:getSpriteName()
-                                local spriteValid = false
-                                
-                                if currentSprite and obj.getSprite then
-                                    local sprite = obj:getSprite()
-                                    spriteValid = (sprite ~= nil and sprite:getName() == currentSprite)
-                                end
-                                
-                                if not spriteValid or (currentSprite and currentSprite ~= expectedSprite) then
-                                    local newSprite = getSprite(expectedSprite)
-                                    if newSprite then
-                                        obj:setSprite(expectedSprite)
-                                        md.relicSprite = expectedSprite
-                                        if getDebug() then
-                                            if not spriteValid then
-                                                print("[SpatialRefugeShared] Repaired corrupted relic sprite via repair function")
-                                            else
-                                                print("[SpatialRefugeShared] Migrated relic sprite via repair: " .. tostring(currentSprite) .. " -> " .. expectedSprite)
-                                            end
-                                        end
-                                        
-                                        if getCachedIsServer() then
-                                            if obj.transmitModData then obj:transmitModData() end
-                                            if obj.transmitUpdatedSpriteToClients then obj:transmitUpdatedSpriteToClients() end
-                                        end
-                                    end
-                                end
-                                
-                                repaired = repaired + 1
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
-    if getDebug() and repaired > 0 then
-        print("[SpatialRefugeShared] Repaired properties on " .. repaired .. " refuge objects")
-    end
-    
+
+    local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+        source = "legacy_repair"
+    })
+
+    -- Return approximate count for backwards compatibility
+    local repaired = report.walls.repaired
+    if report.relic.found then repaired = repaired + 1 end
+
     return repaired
+end
+
+-- @deprecated Use SpatialRefugeIntegrity.ValidateAndRepair() instead
+-- Duplicate removal is now handled internally by the integrity system
+function SpatialRefugeShared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
+    if not refugeData then return 0 end
+
+    local report = SpatialRefugeIntegrity.ValidateAndRepair(refugeData, {
+        source = "legacy_duplicate_removal"
+    })
+
+    return report.relic.duplicatesRemoved
 end
 
 return SpatialRefugeShared

@@ -1,6 +1,6 @@
 version=1
 id=3632195933
-title=My Spatial Refuge
+title=My Spatial Refuge [B42.13] [MP]
 description=Escape the apocalypse to your personal refuge.  
 tags=Build 42;Building;Multiplayer
 visibility=public

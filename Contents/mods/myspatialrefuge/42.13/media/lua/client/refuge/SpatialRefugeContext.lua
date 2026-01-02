@@ -2,11 +2,34 @@
 -- Adds right-click menu options for Sacred Relic (exit and upgrade)
 
 require "shared/SpatialRefugeTransaction"
+require "shared/SpatialRefugeIntegrity"
 
 -- Assume dependencies are already loaded
 SpatialRefuge = SpatialRefuge or {}
 SpatialRefugeConfig = SpatialRefugeConfig or {}
 SpatialRefugeShared = SpatialRefugeShared or {}
+
+-- Translate canonical corner name to localized display text
+-- Canonical names: "Up", "Right", "Left", "Down", "Center"
+function SpatialRefuge.TranslateCornerName(canonicalName)
+    if not canonicalName then return canonicalName end
+    
+    local translationKeys = {
+        Up = "IGUI_RelicDirection_Up",
+        Right = "IGUI_RelicDirection_Right",
+        Left = "IGUI_RelicDirection_Left",
+        Down = "IGUI_RelicDirection_Down",
+        Center = "IGUI_RelicDirection_Center",
+    }
+    
+    local key = translationKeys[canonicalName]
+    if key then
+        return getText(key)
+    end
+    
+    -- Fallback to canonical name if translation key not found
+    return canonicalName
+end
 
 -- Count how many cores player has in inventory (total, including locked)
 function SpatialRefuge.CountCores(player)
@@ -153,7 +176,8 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
     local remaining = cooldown - (now - lastMove)
     
     if remaining > 0 then
-        player:Say("Cannot move relic yet. Wait " .. math.ceil(remaining) .. " seconds.")
+        local message = string.format(getText("IGUI_CannotMoveRelicYet"), math.ceil(remaining))
+        player:Say(message)
         return false
     end
     
@@ -165,7 +189,7 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
             cornerDy = cornerDy,
             cornerName = cornerName
         })
-        player:Say("Moving Sacred Relic...")
+        player:Say(getText("IGUI_MovingSacredRelic"))
         
         if getDebug() then
             print("[SpatialRefuge] Sent RequestMoveRelic to server: " .. cornerName)
@@ -177,13 +201,19 @@ function SpatialRefuge.MoveRelicToPosition(player, relic, refugeData, cornerDx, 
         -- Move locally using shared function
         if not relic then return false end
         
-        local success, message = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
+        local success, errorCode = SpatialRefugeShared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
         
         if success then
             SpatialRefuge.UpdateRelicMoveTime(player)
-            player:Say("Sacred Relic moved to " .. cornerName .. ".")
+            -- Translate canonical corner name for display
+            local translatedCornerName = SpatialRefuge.TranslateCornerName(cornerName)
+            local successMsg = string.format(getText("IGUI_SacredRelicMovedTo"), translatedCornerName)
+            player:Say(successMsg)
         else
-            player:Say(message or "Cannot move relic.")
+            -- Translate error code to localized message
+            local translationKey = SpatialRefugeShared.GetMoveRelicTranslationKey(errorCode)
+            local message = getText(translationKey)
+            player:Say(message)
         end
         
         return success
@@ -215,15 +245,36 @@ function SpatialRefuge.RepositionRelicToAssignedCorner(relic, refugeData)
     return success
 end
 
--- Check if an object is a Sacred Relic by examining its ModData
+-- Check if an object is a Sacred Relic by examining its ModData or sprite
 local function isSacredRelicObject(obj)
     if not obj then return false end
     
-    -- Check ModData - this persists correctly in normal gameplay
+    -- Primary check: ModData - this persists correctly in normal gameplay
     if obj.getModData then
         local md = obj:getModData()
         if md and md.isSacredRelic then
             return true
+        end
+    end
+    
+    -- Fallback: Check sprite name (for unsynced MP clients or old saves)
+    -- This allows context menu to work even if ModData hasn't synced yet
+    -- Also recognizes old fallback sprite for migration
+    if obj.getSprite and SpatialRefugeConfig and SpatialRefugeConfig.SPRITES then
+        local sprite = obj:getSprite()
+        if sprite then
+            local spriteName = sprite:getName()
+            local currentSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC
+            local oldFallbackSprite = SpatialRefugeConfig.SPRITES.SACRED_RELIC_FALLBACK
+            
+            if spriteName == currentSprite or (oldFallbackSprite and spriteName == oldFallbackSprite) then
+                -- Attempt client-side repair if integrity system is available
+                -- This will migrate old fallback sprite to new one
+                if SpatialRefugeIntegrity and SpatialRefugeIntegrity.ClientSpriteRepair then
+                    SpatialRefugeIntegrity.ClientSpriteRepair(obj)
+                end
+                return true
+            end
         end
     end
     
@@ -258,24 +309,28 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     
     -- Add "Move Sacred Relic" submenu
     local moveSubmenu = context:getNew(context)
-    local moveOption = context:addOption("Move Sacred Relic", playerObj, nil)
+    local moveOptionText = getText("IGUI_MoveSacredRelic")
+    local moveOption = context:addOption(moveOptionText, playerObj, nil)
     context:addSubMenu(moveOption, moveSubmenu)
     
     -- Define corner positions relative to refuge center (isometric view)
     -- In PZ isometric: decreasing X/Y = up-left, increasing X/Y = down-right
     local corners = {
-        { name = "Up", dx = -1, dy = -1 },      -- Top of isometric diamond
-        { name = "Right", dx = 1, dy = -1 },    -- Right side
-        { name = "Left", dx = -1, dy = 1 },     -- Left side
-        { name = "Down", dx = 1, dy = 1 },      -- Bottom of isometric diamond
-        { name = "Center", dx = 0, dy = 0 },
+        { name = "Up", key = "IGUI_RelicDirection_Up", dx = -1, dy = -1 },      -- Top of isometric diamond
+        { name = "Right", key = "IGUI_RelicDirection_Right", dx = 1, dy = -1 },    -- Right side
+        { name = "Left", key = "IGUI_RelicDirection_Left", dx = -1, dy = 1 },     -- Left side
+        { name = "Down", key = "IGUI_RelicDirection_Down", dx = 1, dy = 1 },      -- Bottom of isometric diamond
+        { name = "Center", key = "IGUI_RelicDirection_Center", dx = 0, dy = 0 },
     }
     
     for _, corner in ipairs(corners) do
+        local cornerText = getText(corner.key)
         local function moveToCorner()
+            -- Pass canonical name (corner.name) for server communication and storage
+            -- Translation will be applied at display time
             SpatialRefuge.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
         end
-        moveSubmenu:addOption(corner.name, playerObj, moveToCorner)
+        moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
     end
     
     -- Show Upgrade Refuge option (opens the upgrade window)
@@ -284,7 +339,8 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
         SpatialRefugeUpgradeWindow.Open(playerObj)
     end
     
-    local upgradeOption = context:addOption("Upgrade Refuge", playerObj, openUpgradeWindow)
+    local upgradeOptionText = getText("IGUI_UpgradeRefuge")
+    local upgradeOption = context:addOption(upgradeOptionText, playerObj, openUpgradeWindow)
     
     -- Add icon to the option
     local upgradeIcon = getTexture("media/textures/upgrade_spatial_refuge_64x64.png")
@@ -294,8 +350,8 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     
     -- Add tooltip
     local upgradeTooltip = ISInventoryPaneContextMenu.addToolTip()
-    upgradeTooltip:setName("Upgrade Refuge")
-    upgradeTooltip:setDescription("Expand your refuge and unlock new features")
+    upgradeTooltip:setName(getText("IGUI_UpgradeRefuge"))
+    upgradeTooltip:setDescription(getText("IGUI_UpgradeRefuge_Tooltip"))
     upgradeOption.toolTip = upgradeTooltip
 end
 
@@ -317,26 +373,27 @@ end
 
 -- Random messages when player tries to interact with protected objects
 -- Makes it seem like the player instinctively knows not to do this
-local protectedObjectMessages = {
-    "I don't want to do that...",
-    "That seems unnecessary.",
-    "Something tells me I shouldn't...",
-    "This doesn't feel right.",
-    "I have a bad feeling about this.",
-    "Better leave it alone.",
-    "No... I need this.",
-    "Why would I do that?",
-    "That would be a mistake.",
-    "I'd rather not.",
-    "This is important. I should leave it be.",
-    "Destroying this would be foolish.",
-    "Some things are better left untouched.",
-    "I can't bring myself to do it.",
-    "This gives me shelter. Why break it?",
+local protectedObjectMessageKeys = {
+    "IGUI_ProtectedObject_1",
+    "IGUI_ProtectedObject_2",
+    "IGUI_ProtectedObject_3",
+    "IGUI_ProtectedObject_4",
+    "IGUI_ProtectedObject_5",
+    "IGUI_ProtectedObject_6",
+    "IGUI_ProtectedObject_7",
+    "IGUI_ProtectedObject_8",
+    "IGUI_ProtectedObject_9",
+    "IGUI_ProtectedObject_10",
+    "IGUI_ProtectedObject_11",
+    "IGUI_ProtectedObject_12",
+    "IGUI_ProtectedObject_13",
+    "IGUI_ProtectedObject_14",
+    "IGUI_ProtectedObject_15",
 }
 
 local function getProtectedObjectMessage()
-    return protectedObjectMessages[ZombRand(#protectedObjectMessages) + 1]
+    local key = protectedObjectMessageKeys[ZombRand(#protectedObjectMessageKeys) + 1]
+    return getText(key)
 end
 
 -- Hook the actual disassemble function to block it for protected objects
