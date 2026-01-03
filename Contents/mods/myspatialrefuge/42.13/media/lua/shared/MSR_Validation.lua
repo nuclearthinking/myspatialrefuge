@@ -54,7 +54,7 @@ function Validation.IsOverEncumbered(player)
     if not player then return false end
     
     local invWeight, maxWeight
-    local debugMode = getDebug and getDebug()
+    local debugMode = L.isDebug()
     
     -- Primary: getInventory():getCapacityWeight() - matches game's internal check
     if player.getInventory then

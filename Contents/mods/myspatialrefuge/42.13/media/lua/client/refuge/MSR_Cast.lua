@@ -9,22 +9,17 @@ local function getCastTimeTicksWithUpgrades(player)
     local baseTicks = Config.getCastTimeTicks()
     local mult = 1.0
     
-    if MSR and MSR.UpgradeData and MSR.UpgradeData.getPlayerActiveEffects then
-        local ok, effects = pcall(function()
-            return MSR.UpgradeData.getPlayerActiveEffects(player)
-        end)
-        if ok and effects and effects.refugeCastTimeMultiplier ~= nil then
+    if MSR.UpgradeData and MSR.UpgradeData.getPlayerActiveEffects then
+        local ok, effects = pcall(MSR.UpgradeData.getPlayerActiveEffects, player)
+        if ok and effects and effects.refugeCastTimeMultiplier then
             mult = effects.refugeCastTimeMultiplier
         end
     end
     
-    if type(mult) ~= "number" or mult <= 0 then
-        mult = 1.0
-    end
+    if type(mult) ~= "number" or mult <= 0 then mult = 1.0 end
     
     local ticks = math.floor(baseTicks * mult + 0.5)
-    if ticks < 1 then ticks = 1 end
-    return ticks
+    return math.max(1, ticks)
 end
 
 function MSR.BeginTeleportCast(player)

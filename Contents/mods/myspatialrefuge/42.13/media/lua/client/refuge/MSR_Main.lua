@@ -1,6 +1,4 @@
 -- Spatial Refuge Main Module (Client)
--- Handles refuge data persistence and coordinate management for client
--- Uses shared SpatialRefugeData module for core functionality
 
 require "shared/MSR_Config"
 require "shared/MSR_Data"
@@ -11,13 +9,7 @@ if MSR and MSR._mainLoaded then
     return MSR
 end
 
-
-
 MSR._mainLoaded = true
-
------------------------------------------------------------
--- Delegate to Shared Data Module
------------------------------------------------------------
 
 function MSR.InitializeModData()
     return MSR.Data.InitializeModData()
@@ -65,15 +57,10 @@ end
 
 function MSR.ClearReturnPosition(player)
     MSR.Data.ClearReturnPosition(player)
-    
     if MSR.InvalidateBoundsCache then
         MSR.InvalidateBoundsCache(player)
     end
 end
-
------------------------------------------------------------
--- Client-Specific Functions
------------------------------------------------------------
 
 function MSR.GetLastTeleportTime(player)
     if not player then return 0 end
@@ -84,9 +71,7 @@ end
 
 function MSR.UpdateTeleportTime(player)
     if not player then return end
-    
-    local pmd = player:getModData()
-    pmd.spatialRefuge_lastTeleport = getTimestamp()
+    player:getModData().spatialRefuge_lastTeleport = K.time()
 end
 
 function MSR.GetLastDamageTime(player)
@@ -98,12 +83,9 @@ end
 
 function MSR.UpdateDamageTime(player)
     if not player then return end
-    
-    local pmd = player:getModData()
-    pmd.spatialRefuge_lastDamage = getTimestamp()
+    player:getModData().spatialRefuge_lastDamage = K.time()
 end
 
--- Cache to avoid expensive FindRelicInRefuge calls on every UI update
 local _relicContainerCache = {
     container = nil,
     refugeId = nil,
@@ -117,14 +99,13 @@ function MSR.InvalidateRelicContainerCache()
     _relicContainerCache.cacheTime = 0
 end
 
--- @param bypassCache: If true, always do a fresh lookup (for transactions)
 function MSR.GetRelicContainer(player, bypassCache)
     if not player then return nil end
     
     local refugeData = MSR.GetRefugeData(player)
     if not refugeData then return nil end
     
-    local now = getTimestamp and getTimestamp() or 0
+    local now = K.time()
     local refugeId = refugeData.refugeId
     
     if not bypassCache 
@@ -166,16 +147,8 @@ function MSR.GetRelicContainer(player, bypassCache)
     return container
 end
 
------------------------------------------------------------
--- Event Handlers
------------------------------------------------------------
-
--- OnPlayerGetDamage fires for ALL damage types (self-damage, hunger, etc.)
--- Only block teleport for WEAPONHIT (combat damage from zombies/players)
 local function OnPlayerDamage(character, damageType, damage)
-    if not character then return end
-    
-    if damageType == "WEAPONHIT" then
+    if character and damageType == "WEAPONHIT" then
         MSR.UpdateDamageTime(character)
     end
 end

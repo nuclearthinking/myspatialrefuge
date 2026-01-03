@@ -6,6 +6,35 @@ alwaysApply: true
 
 Project Zomboid uses **Kahlua**, a Java-based Lua implementation. Many standard Lua functions are NOT available.
 
+## Global `K` Helper (MSR_KahluaCompat)
+
+The global `K` table provides Kahlua workarounds. **No require needed** - available everywhere after mod loads:
+
+```lua
+-- Table utilities (unique to K - not in PZ built-ins)
+K.isEmpty(tbl)       -- Check if table is empty (replaces next(tbl) == nil)
+K.hasEntries(tbl)    -- Check if table has any entries
+K.count(tbl)         -- Count hash table entries (replaces table.getn for hashes)
+K.firstKey(tbl)      -- Get first key (partial next() replacement)
+K.firstValue(tbl)    -- Get first value
+K.isArrayLike(tbl)   -- Check if first key is numeric
+K.shallowCopy(tbl)   -- Shallow copy a table
+K.keys(tbl)          -- Get all keys as array
+K.values(tbl)        -- Get all values as array
+
+-- Java object utilities (also available via xpairs)
+K.size(obj)          -- Get size of ArrayList or table
+K.iter(obj)          -- Iterate ArrayList (0-based) or table (1-based)
+K.toTable(javaList)  -- Convert ArrayList to Lua table
+
+-- Time utilities
+K.time()             -- Get timestamp in seconds (replaces os.time())
+K.timeMs()           -- Get timestamp in milliseconds
+
+-- Safe method calls
+K.safeCall(obj, "methodName", arg1, arg2)  -- Safe method call with pcall
+```
+
 ## ❌ NOT Available in Kahlua
 
 ### `next()` - Does NOT exist
@@ -13,7 +42,10 @@ Project Zomboid uses **Kahlua**, a Java-based Lua implementation. Many standard 
 -- ❌ WRONG - will crash with "Object tried to call nil"
 if next(myTable) == nil then
 
--- ✅ CORRECT - use pairs() iterator
+-- ✅ CORRECT - use global K
+if K.isEmpty(myTable) then
+
+-- ✅ ALTERNATIVE - manual pairs() check
 local hasItems = false
 for _ in pairs(myTable) do
     hasItems = true
@@ -27,7 +59,11 @@ if not hasItems then
 -- ❌ WRONG
 local timestamp = os.time()
 
--- ✅ CORRECT - use PZ functions
+-- ✅ CORRECT - use global K
+local timestamp = K.time()      -- seconds
+local timestampMs = K.timeMs()  -- milliseconds
+
+-- ✅ ALTERNATIVE - use PZ functions directly
 local timestamp = getTimestamp()           -- seconds
 local timestampMs = getTimestampMs()       -- milliseconds
 ```
@@ -37,7 +73,10 @@ local timestampMs = getTimestampMs()       -- milliseconds
 -- ❌ WRONG for hash tables
 local count = table.getn(hashTable)
 
--- ✅ CORRECT - count manually
+-- ✅ CORRECT - use global K
+local count = K.count(hashTable)
+
+-- ✅ ALTERNATIVE - count manually
 local count = 0
 for _ in pairs(hashTable) do
     count = count + 1
@@ -55,8 +94,21 @@ local mods = getActivatedMods()  -- Returns Java ArrayList
 local count = #mods              -- CRASHES!
 local first = mods[1]            -- CRASHES!
 
--- ✅ CORRECT - use Java methods
+-- ✅ CORRECT - use global K (or xpairs)
 local mods = getActivatedMods()
+local count = K.size(mods)
+for i, mod in K.iter(mods) do    -- Handles 0-based indexing automatically
+    -- use mod
+end
+-- Or convert to Lua table:
+local modsTable = K.toTable(mods)
+
+-- ✅ ALTERNATIVE - use PZ built-in xpairs or Java methods
+local mods = getActivatedMods()
+for i, mod in xpairs(mods) do    -- PZ built-in, works like K.iter
+    -- use mod
+end
+-- Or use Java methods directly:
 local count = mods:size()        -- Use :size() method
 for i = 0, count - 1 do          -- 0-based indexing!
     local mod = mods:get(i)      -- Use :get(index) method
@@ -89,6 +141,129 @@ Common PZ functions returning Java objects:
 - `string.format()` - Works (but be careful with nil values)
 - `math.*` functions - Work normally
 - `setmetatable()`, `getmetatable()` - Work normally
+
+## PZ Built-in Utilities
+
+The game provides utilities in `shared/` - use these instead of reinventing.
+
+**Location:** `D:\SteamLibrary\steamapps\common\ProjectZomboid\media\lua\shared\`
+
+### From env.lua (global - no require needed)
+```lua
+-- Iterate both Java ArrayList and Lua tables (handles 0-based/1-based automatically)
+for i, item in xpairs(listOrTable) do
+    -- works with both ArrayList and Lua tables
+end
+
+round(num, idp)             -- Round to decimal places: round(3.14159, 2) → 3.14
+round2(num, idp)            -- Alternative rounding using string.format
+strsplit(str, sep)          -- Split string: strsplit("a,b,c", ",") → {"a","b","c"}
+findFunction("Mod.func")    -- Find function by path string in _G
+colorToTable(javaColor)     -- Convert Java Color to {r,g,b,a} table
+namedColorToTable("red")    -- Get color table by name
+```
+
+### From luautils (global - no require needed)
+```lua
+-- Table utilities
+luautils.indexOf(tbl, value)        -- Find index of value in array, returns -1 if not found
+luautils.tableContains(tbl, value)  -- Check if table contains value (uses pairs)
+
+-- String utilities
+luautils.stringStarts(str, prefix)  -- Check if string starts with prefix
+luautils.stringEnds(str, suffix)    -- Check if string ends with suffix  
+luautils.trim(s)                    -- Trim whitespace from both ends
+luautils.split(str, sep)            -- Split string by separator
+luautils.splitJavaStyle(str, pat)   -- Split with Java-style regex pattern
+
+-- Math utilities
+luautils.round(num, idp)            -- Round to decimal places
+luautils.roughlyEqual(v1, v2, delta) -- Compare with tolerance
+luautils.lerp(src, dst, step, ratio) -- Linear interpolation
+
+-- Serialization
+luautils.packString(tbl, sep)       -- Serialize array to string
+luautils.unpackString(str, sep)     -- Deserialize string to array
+
+-- Player/Item utilities
+luautils.walk(player, square)       -- Walk player to square
+luautils.walkAdj(player, square)    -- Walk player adjacent to square
+luautils.equipItems(player, prim, scnd) -- Equip primary/secondary items
+luautils.isEquipped(item, player)   -- Check if item is equipped
+luautils.walkToContainer(container, playerNum) -- Walk to container
+luautils.findRootInventory(inv)     -- Find root inventory container
+luautils.countItemsRecursive(containers, items) -- Count items in containers
+```
+
+### From LuaTableUtil (global)
+```lua
+LuaTableUtil:insertUnique(list, element)  -- Insert only if not already in list
+LuaTableUtil:contains(list, element)      -- Check if array contains element
+```
+
+### From LuaList (class - require "ISBaseObject")
+```lua
+local list = LuaList:new()
+list:add(item)         -- Add item
+list:remove(item)      -- Remove item  
+list:removeAt(index)   -- Remove by index (0-based!)
+list:get(i)            -- Get by index (0-based!)
+list:size()            -- Get count
+list:isEmpty()         -- Check if empty
+list:contains(item)    -- Check if contains
+list:sort(func)        -- Sort with comparator
+list:foreach(func, ...) -- Iterate with callback
+list:addAll(otherList) -- Add all from another LuaList
+list:pop()             -- Remove and return last
+list:removeRandom()    -- Remove and return random item
+list:clear()           -- Clear all
+```
+
+### From ISPriorityTable (priority-ordered table)
+```lua
+local pt = ISPriorityTable.new()
+pt.add("key", value, zIndex)     -- Add with priority (lower z = earlier)
+pt.add("key2", value2)           -- Add with default priority (1000)
+pt.get("key")                    -- Get by key
+pt.getIndex(1)                   -- Get by position (1-based)
+pt.remove("key")                 -- Remove by key
+pt.size()                        -- Get count
+
+for i, value, key in pt.indexIterator() do  -- Iterate by priority order
+    -- or use shortcut: for i, v, k in pt() do
+end
+for key, value in pt.keyIterator() do       -- Iterate by key
+end
+```
+
+### From LuaNet (client-server networking)
+```lua
+-- Get/create a network module
+local net = LuaNet:getInstance().getModule("MyModuleName")
+
+-- Register command handlers
+net.addCommandHandler("myCommand", function(player, arg1, arg2)
+    -- Handle incoming command
+end)
+
+-- Send commands
+net.send("myCommand", arg1, arg2)           -- Send to server (from client) or all clients (from server)
+net.sendPlayer(player, "myCommand", args)   -- Send to specific player
+```
+
+### K vs Built-in Comparison
+
+| Need | Use Built-in | Or Global K |
+|------|--------------|-------------|
+| Iterate ArrayList/table | `xpairs(obj)` | `K.iter(obj)` |
+| Check array contains | `LuaTableUtil:contains` or `luautils.tableContains` | - |
+| Check table empty | - | `K.isEmpty(tbl)` |
+| Count hash table | - | `K.count(tbl)` |
+| Get first key/value | - | `K.firstKey(tbl)`, `K.firstValue(tbl)` |
+| Get timestamp | `getTimestamp()` | `K.time()` |
+| Safe method call | - | `K.safeCall(obj, method, ...)` |
+| Shallow copy table | - | `K.shallowCopy(tbl)` |
+| Get all keys/values | - | `K.keys(tbl)`, `K.values(tbl)` |
 
 ## PZ Build 42+ Specifics
 

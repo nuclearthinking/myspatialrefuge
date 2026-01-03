@@ -190,9 +190,7 @@ function MSR_Server.HandleModDataRequest(player, args)
     local username = player:getUsername()
     if not username then return end
     
-    if getDebug() then
-        print("[MSR_Server] ModData request from " .. username)
-    end
+    L.debug("Server", "ModData request from " .. username)
     
     if MSR.Migration.NeedsMigration(player) then
         MSR.Migration.MigratePlayer(player)
@@ -209,10 +207,8 @@ function MSR_Server.HandleModDataRequest(player, args)
     -- Get return position if any
     local returnPos = MSR.Data.GetReturnPositionByUsername(username)
     
-    if getDebug() then
-        print("[MSR_Server] Sending ModData to " .. username .. ": refuge at " .. 
-              refugeData.centerX .. "," .. refugeData.centerY .. " tier " .. refugeData.tier)
-    end
+    L.debug("Server", "Sending ModData to " .. username .. ": refuge at " .. 
+          refugeData.centerX .. "," .. refugeData.centerY .. " tier " .. refugeData.tier)
     
     -- Send refuge data to client (using serialization helper for DRY)
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.MODDATA_RESPONSE, {
@@ -268,9 +264,7 @@ function MSR_Server.HandleEnterRequest(player, args)
         MSR.Data.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ)
     end
     
-    if getDebug() then
-        print("[MSR_Server] Phase 1: Sending TeleportTo for " .. username)
-    end
+    L.debug("Server", "Phase 1: Sending TeleportTo for " .. username)
     
     -- Update server-side teleport cooldown
     updateTeleportCooldown(username)
@@ -305,9 +299,7 @@ function MSR_Server.HandleChunksReady(player, args)
         return
     end
     
-    if getDebug() then
-        print("[MSR_Server] Phase 2: Waiting for server chunks to load for " .. username)
-    end
+    L.debug("Server", "Phase 2: Waiting for server chunks to load for " .. username)
     
     -- Server needs to wait for its own chunks to load around the player
     -- Use tick-based waiting similar to client-side approach
@@ -334,9 +326,7 @@ function MSR_Server.HandleChunksReady(player, args)
         
         if not playerValid then
             Events.OnTick.Remove(waitForServerChunks)
-            if getDebug() then
-                print("[MSR_Server] Player disconnected during chunk wait for " .. tostring(usernameRef))
-            end
+            L.debug("Server", "Player disconnected during chunk wait for " .. tostring(usernameRef))
             return
         end
         
@@ -376,9 +366,7 @@ function MSR_Server.HandleChunksReady(player, args)
             generated = true
             Events.OnTick.Remove(waitForServerChunks)
             
-            if getDebug() then
-                print("[MSR_Server] All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
-            end
+            L.debug("Server", "All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
             
             -- Check if refuge needs repair/generation using lightweight integrity check
             local needsFullSetup = false
@@ -390,15 +378,11 @@ function MSR_Server.HandleChunksReady(player, args)
             end
             
             if needsFullSetup then
-                if getDebug() then
-                    print("[MSR_Server] Refuge needs setup/repair, running EnsureRefugeStructures")
-                end
+                L.debug("Server", "Refuge needs setup/repair, running EnsureRefugeStructures")
                 -- Full generation only when needed (first time or after corruption)
                 MSR.Shared.EnsureRefugeStructures(refugeDataRef, playerRef)
             else
-                if getDebug() then
-                    print("[MSR_Server] Refuge already set up, skipping full generation")
-                end
+                L.debug("Server", "Refuge already set up, skipping full generation")
                 -- Quick validation via integrity system (lighter than full regeneration)
                 MSR.Integrity.ValidateAndRepair(refugeDataRef, {
                     source = "enter_server",
@@ -414,17 +398,17 @@ function MSR_Server.HandleChunksReady(player, args)
             -- Transmit ModData to ensure client has refuge data for context menus
             MSR.Data.TransmitModData()
             
-            if getDebug() then
+            if L.isDebug() then
                 -- Log the ModData state for debugging
                 local registry = MSR.Data.GetRefugeRegistry()
                 local count = 0
                 if registry then
                     for k, v in pairs(registry) do
                         count = count + 1
-                        print("[MSR_Server] ModData contains refuge: " .. tostring(k))
+                        L.debug("Server", "ModData contains refuge: " .. tostring(k))
                     end
                 end
-                print("[MSR_Server] Total refuges in ModData: " .. count)
+                L.debug("Server", "Total refuges in ModData: " .. count)
             end
             
             -- Send confirmation to client
@@ -436,18 +420,14 @@ function MSR_Server.HandleChunksReady(player, args)
                 radius = refugeDataRef.radius
             })
             
-            if getDebug() then
-                print("[MSR_Server] Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
-            end
+            L.debug("Server", "Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
         end
         
         -- Timeout
         if tickCount >= maxTicks and not generated then
             Events.OnTick.Remove(waitForServerChunks)
             
-            if getDebug() then
-                print("[MSR_Server] Timeout waiting for server chunks for " .. usernameRef)
-            end
+            L.debug("Server", "Timeout waiting for server chunks for " .. usernameRef)
             
             sendServerCommand(playerRef, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
                 message = "Server could not load refuge area"
@@ -499,9 +479,7 @@ function MSR_Server.HandleExitRequest(player, args)
         returnZ = returnPos.z
     })
     
-    if getDebug() then
-        print("[MSR_Server] Sent ExitReady to " .. username)
-    end
+    L.debug("Server", "Sent ExitReady to " .. username)
 end
 
 -- Handle Move Relic Request
@@ -574,9 +552,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
         refugeData.relicZ = refugeData.centerZ
         MSR.Data.SaveRefugeData(refugeData)
         
-        if getDebug() then
-            print("[MSR_Server] Saved relic position to ModData: " .. targetX .. "," .. targetY)
-        end
+        L.debug("Server", "Saved relic position to ModData: " .. targetX .. "," .. targetY)
         
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE, {
             cornerName = cornerName,
@@ -585,9 +561,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
             refugeData = MSR.Data.SerializeRefugeData(refugeData)
         })
         
-        if getDebug() then
-            print("[MSR_Server] Moved relic for " .. username .. " to " .. cornerName)
-        end
+        L.debug("Server", "Moved relic for " .. username .. " to " .. cornerName)
     else
         -- Send translation key for error message
         local translationKey = MSR.Shared.GetMoveRelicTranslationKey(errorCode)
@@ -613,10 +587,8 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     local targetLevel = args and args.targetLevel
     local transactionId = args and args.transactionId
     
-    if getDebug and getDebug() then
-        print("[MSR_Server] HandleFeatureUpgradeRequest: " .. username .. 
-              " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
-    end
+    L.debug("Server", "HandleFeatureUpgradeRequest: " .. username .. 
+          " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
     
     if not upgradeId or not targetLevel then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
@@ -835,9 +807,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
                 newTier = newTier,
                 refugeData = MSR.Data.SerializeRefugeData(refugeData)
             })
-            if getDebug and getDebug() then
-                print("[MSR_Server] expand_refuge: Sent FeatureUpgradeComplete")
-            end
+            L.debug("Server", "expand_refuge: Sent FeatureUpgradeComplete")
         else
             print("[MSR_Server] expand_refuge: ExpandRefuge FAILED")
             sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
@@ -850,19 +820,17 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         -- Standard upgrade: Update player level in ModData
         MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
         
-        if getDebug and getDebug() then
-            print("[MSR_Server] Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
-        end
+        L.debug("Server", "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
         
         -- Refresh refugeData after the upgrade to get updated upgrades table
         local updatedRefugeData = MSR.Data.GetRefugeData(player)
         
         -- Debug: Print upgrades after save (using helper)
-        if getDebug and getDebug() then
+        if L.isDebug() then
             if updatedRefugeData and updatedRefugeData.upgrades then
-                print("[MSR_Server] Upgrades after save: " .. MSR.Data.FormatUpgradesTable(updatedRefugeData.upgrades))
+                L.debug("Server", "Upgrades after save: " .. MSR.Data.FormatUpgradesTable(updatedRefugeData.upgrades))
             else
-                print("[MSR_Server] WARNING: No upgrades in refugeData after save!")
+                L.debug("Server", "WARNING: No upgrades in refugeData after save!")
             end
         end
         
@@ -893,9 +861,7 @@ local function OnClientCommand(module, command, player, args)
     
     -- Rate limit check (skip for exempt commands)
     if not isExemptFromRateLimit and not canProcessRequest(player) then
-        if getDebug() then
-            print("[MSR_Server] Rate limited request from " .. tostring(player:getUsername()))
-        end
+        L.debug("Server", "Rate limited request from " .. tostring(player:getUsername()))
         return
     end
     
@@ -913,9 +879,7 @@ local function OnClientCommand(module, command, player, args)
     elseif command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE then
         MSR_Server.HandleFeatureUpgradeRequest(player, args)
     else
-        if getDebug() then
-            print("[MSR_Server] Unknown command: " .. tostring(command))
-        end
+        L.debug("Server", "Unknown command: " .. tostring(command))
     end
 end
 
@@ -971,9 +935,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
     local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then
         -- Player is in refuge coords but has no refuge data - unusual situation
-        if getDebug() then
-            print("[MSR_Server] Player " .. username .. " in refuge coords but no data found")
-        end
+        L.debug("Server", "Player " .. username .. " in refuge coords but no data found")
         return
     end
     
@@ -998,9 +960,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         
         if not playerValid then
             Events.OnTick.Remove(waitForChunksAndCheck)
-            if getDebug() then
-                print("[MSR_Server] Player disconnected during stranded check for " .. tostring(usernameRef))
-            end
+            L.debug("Server", "Player disconnected during stranded check for " .. tostring(usernameRef))
             return
         end
         
@@ -1008,9 +968,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         if not areRefugeChunksLoaded(refugeDataRef) then
             if tickCount >= maxTicks then
                 Events.OnTick.Remove(waitForChunksAndCheck)
-                if getDebug() then
-                    print("[MSR_Server] Timeout waiting for refuge chunks for " .. usernameRef)
-                end
+                L.debug("Server", "Timeout waiting for refuge chunks for " .. usernameRef)
             end
             return  -- Keep waiting
         end
@@ -1020,9 +978,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         checked = true
         Events.OnTick.Remove(waitForChunksAndCheck)
         
-        if getDebug() then
-            print("[MSR_Server] Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
-        end
+        L.debug("Server", "Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
         
         -- Now safely check if Sacred Relic exists
         local hasRelic = MSR.Shared.FindRelicInRefuge(
@@ -1032,15 +988,11 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         
         if not hasRelic then
             -- Relic genuinely missing - regenerate structures
-            if getDebug() then
-                print("[MSR_Server] Regenerating structures for stranded player " .. usernameRef)
-            end
+            L.debug("Server", "Regenerating structures for stranded player " .. usernameRef)
             
             MSR.Shared.EnsureRefugeStructures(refugeDataRef, playerRef)
         else
-            if getDebug() then
-                print("[MSR_Server] Structures intact for " .. usernameRef .. ", no regeneration needed")
-            end
+            L.debug("Server", "Structures intact for " .. usernameRef .. ", no regeneration needed")
         end
     end
     
@@ -1063,9 +1015,7 @@ local function OnPlayerDeathServer(player)
         return -- Not in refuge, nothing to do
     end
     
-    if getDebug() then
-        print("[MSR_Server] Player " .. username .. " died in refuge")
-    end
+    L.debug("Server", "Player " .. username .. " died in refuge")
     
     -- Get refuge data before we delete it
     local refugeData = MSR.Data.GetRefugeDataByUsername(username)
@@ -1081,9 +1031,7 @@ local function OnPlayerDeathServer(player)
             corpse:setY(returnPos.y)
             corpse:setZ(returnPos.z)
             
-            if getDebug() then
-                print("[MSR_Server] Moved corpse to " .. returnPos.x .. "," .. returnPos.y)
-            end
+            L.debug("Server", "Moved corpse to " .. returnPos.x .. "," .. returnPos.y)
         end
     end
     
@@ -1100,9 +1048,7 @@ local function OnPlayerDeathServer(player)
     serverCooldowns.teleport[username] = nil
     serverCooldowns.relicMove[username] = nil
     
-    if getDebug() then
-        print("[MSR_Server] Cleaned up refuge data for " .. username)
-    end
+    L.debug("Server", "Cleaned up refuge data for " .. username)
 end
 
 -----------------------------------------------------------
@@ -1111,9 +1057,7 @@ end
 
 -- Server initialization
 local function OnServerStart()
-    if getDebug() then
-        print("[MSR_Server] Server initialized")
-    end
+    L.debug("Server", "Server initialized")
     
     -- Initialize ModData
     MSR.Data.InitializeModData()
@@ -1128,9 +1072,7 @@ local function OnPlayerFullyConnected(player)
     
     local playerUsername = player:getUsername() or "unknown"
     
-    if getDebug() then
-        print("[MSR_Server] OnPlayerFullyConnected called for: " .. playerUsername)
-    end
+    L.debug("Server", "OnPlayerFullyConnected called for: " .. playerUsername)
     
     -- Small delay to ensure client is ready to receive
     local tickCount = 0
@@ -1143,8 +1085,8 @@ local function OnPlayerFullyConnected(player)
         -- Transmit ModData so new player has refuge data
         MSR.Data.TransmitModData()
         
-        if getDebug() then
-            print("[MSR_Server] Transmitted ModData to " .. playerUsername)
+        if L.isDebug() then
+            L.debug("Server", "Transmitted ModData to " .. playerUsername)
             -- Log what we're transmitting
             local registry = MSR.Data.GetRefugeRegistry()
             if registry then
@@ -1152,9 +1094,9 @@ local function OnPlayerFullyConnected(player)
                 for k, v in pairs(registry) do
                     count = count + 1
                 end
-                print("[MSR_Server] ModData has " .. count .. " refuge entries")
+                L.debug("Server", "ModData has " .. count .. " refuge entries")
             else
-                print("[MSR_Server] WARNING: Registry is nil!")
+                L.debug("Server", "WARNING: Registry is nil!")
             end
         end
     end
@@ -1176,9 +1118,7 @@ local function OnPlayerConnect(player)
         end
     end
     
-    if getDebug() then
-        print("[MSR_Server] Player connected: " .. username)
-    end
+    L.debug("Server", "Player connected: " .. username)
 end
 
 -----------------------------------------------------------
@@ -1209,8 +1149,6 @@ if Events.OnCreatePlayer then
     end)
 end
 
-if getDebug() then
-    print("[MSR_Server] Server module loaded")
-end
+L.debug("Server", "Server module loaded")
 
 return MSR_Server

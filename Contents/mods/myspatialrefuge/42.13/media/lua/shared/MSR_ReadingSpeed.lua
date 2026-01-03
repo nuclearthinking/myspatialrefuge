@@ -108,10 +108,10 @@ local function hookReadABook()
             local modifiedDuration = baseDuration * multiplier
             
             -- Debug logging only when enabled
-            if getDebug and getDebug() then
+            if L.isDebug() then
                 local side = isServer() and "SERVER" or "CLIENT"
                 local itemName = self.item and self.item.getName and self.item:getName() or "unknown"
-                print(string.format("[SRU_ReadingSpeed] %s on %s: %.1f -> %.1f ticks (%.0f%% faster)",
+                L.debug("ReadingSpeed", string.format("%s on %s: %.1f -> %.1f ticks (%.0f%% faster)",
                     itemName, side, baseDuration, modifiedDuration, (1.0 - multiplier) * 100))
             end
             
@@ -121,10 +121,7 @@ local function hookReadABook()
         return baseDuration
     end
     
-    if getDebug and getDebug() then
-        local side = isServer() and "SERVER" or "CLIENT"
-        print("[SRU_ReadingSpeed] Hooked ISReadABook.getDuration on " .. side)
-    end
+    L.debug("ReadingSpeed", "Hooked ISReadABook.getDuration on " .. (isServer() and "SERVER" or "CLIENT"))
     return true
 end
 
@@ -178,9 +175,6 @@ if Events.OnServerStarted then
     end)
 end
 
-if getDebug and getDebug() then
-    local side = isServer() and "SERVER" or "CLIENT"
-    print("[SRU_ReadingSpeed] Module loaded on " .. side)
-end
+L.debug("ReadingSpeed", "Module loaded on " .. (isServer() and "SERVER" or "CLIENT"))
 
 return MSR.ReadingSpeed

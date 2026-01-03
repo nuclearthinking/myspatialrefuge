@@ -1,3 +1,7 @@
+---
+description: tool to convert svg files into png icons different sizes and colors
+alwaysApply: false
+---
 # PZ Icons Tool
 
 Use the `pzicons` CLI tool to convert SVG icons to PZ mod-ready PNG textures.

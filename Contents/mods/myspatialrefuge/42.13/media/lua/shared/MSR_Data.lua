@@ -25,6 +25,7 @@ local Config = MSR.Config
 -- Returns string like "{faster_reading=3, other=1}" or "nil"
 local function formatUpgradesTable(upgrades)
     if not upgrades then return "nil" end
+    if K.isEmpty(upgrades) then return "{}" end
     local parts = {}
     for k, v in pairs(upgrades) do
         table.insert(parts, k .. "=" .. tostring(v))
@@ -168,10 +169,7 @@ function Data.AllocateRefugeCoordinates()
     local baseZ = Config.REFUGE_BASE_Z
     local spacing = Config.REFUGE_SPACING
     
-    local count = 0
-    for _ in pairs(registry) do
-        count = count + 1
-    end
+    local count = K.count(registry)
     
     local row = math.floor(count / 10)
     local col = count % 10
@@ -196,9 +194,7 @@ function Data.GetOrCreateRefugeData(player)
         local canCreate = canModifyData()
         
         if not canCreate then
-            if getDebug() then
-                print("[MSR.Data] MP client cannot create refuge data - must request from server")
-            end
+            L.debug("Data", "MP client cannot create refuge data - must request from server")
             return nil
         end
         
@@ -215,17 +211,15 @@ function Data.GetOrCreateRefugeData(player)
             relicX = centerX,
             relicY = centerY,
             relicZ = centerZ,
-            createdTime = os.time(),
-            lastExpanded = os.time(),
+            createdTime = K.time(),
+            lastExpanded = K.time(),
             dataVersion = Config.CURRENT_DATA_VERSION,
             upgrades = {}
         }
         
         Data.SaveRefugeData(refugeData)
         
-        if getDebug() then
-            print("[MSR.Data] Created new refuge for " .. username .. " at " .. centerX .. "," .. centerY)
-        end
+        L.debug("Data", "Created new refuge for " .. username .. " at " .. centerX .. "," .. centerY)
     end
     
     return refugeData
@@ -254,20 +248,18 @@ function Data.SaveRefugeData(refugeData)
         return false 
     end
     
-    if getDebug and getDebug() then
-        print("[MSR.Data] SaveRefugeData: Saving for " .. refugeData.username .. 
-              " with upgrades=" .. formatUpgradesTable(refugeData.upgrades))
-    end
+    L.debug("Data", "SaveRefugeData: Saving for " .. refugeData.username .. 
+          " with upgrades=" .. formatUpgradesTable(refugeData.upgrades))
     
     registry[refugeData.username] = refugeData
     Data.TransmitModData()
     
-    if getDebug and getDebug() then
+    if L.isDebug() then
         local verify = registry[refugeData.username]
         if verify and verify.upgrades then
-            print("[MSR.Data] SaveRefugeData: Verified upgrades=" .. formatUpgradesTable(verify.upgrades))
+            L.debug("Data", "SaveRefugeData: Verified upgrades=" .. formatUpgradesTable(verify.upgrades))
         else
-            print("[MSR.Data] SaveRefugeData: WARNING - verify.upgrades is nil after save!")
+            L.debug("Data", "SaveRefugeData: WARNING - verify.upgrades is nil after save!")
         end
     end
     
@@ -279,9 +271,7 @@ function Data.DeleteRefugeData(player)
     if not player then return false end
     
     if not canModifyData() then
-        if getDebug() then
-            print("[MSR.Data] MP client cannot delete refuge data")
-        end
+        L.debug("Data", "MP client cannot delete refuge data")
         return false
     end
     
@@ -370,17 +360,13 @@ function Data.SaveReturnPositionByUsername(username, x, y, z)
     if not username then return false end
     
     if not canModifyData() then
-        if getDebug() then
-            print("[MSR.Data] MP client cannot save return position")
-        end
+        L.debug("Data", "MP client cannot save return position")
         return false
     end
     
     -- Never save refuge coordinates as return position
     if Data.IsInRefugeCoordinates(x, y) then
-        if getDebug() then
-            print("[MSR.Data] WARNING: Attempted to save refuge coordinates as return position - blocked!")
-        end
+        L.debug("Data", "WARNING: Attempted to save refuge coordinates as return position - blocked!")
         return false
     end
     
@@ -411,9 +397,7 @@ function Data.ClearReturnPositionByUsername(username)
     if not username then return false end
     
     if not canModifyData() then
-        if getDebug() then
-            print("[MSR.Data] MP client cannot clear return position")
-        end
+        L.debug("Data", "MP client cannot clear return position")
         return false
     end
     

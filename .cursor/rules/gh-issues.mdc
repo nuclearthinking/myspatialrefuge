@@ -1,7 +1,7 @@
 ---
-alwaysApply: true
+description: tool to interact with github repository issues 
+alwaysApply: false
 ---
-
 # GitHub Issues Tool
 
 When working with GitHub issues for this project, use the `githubissues` CLI tool.
