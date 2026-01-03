@@ -1,0 +1,116 @@
+---
+description: tool to optimize PNG images using pngquant and oxipng compression
+alwaysApply: false
+---
+# PNG Optimization Tool
+
+Use the `pngopt` CLI tool to compress PNG images without visible quality loss.
+
+## Prerequisites
+
+Install compression tools first:
+
+```powershell
+scoop install pngquant oxipng
+```
+
+## Installation
+
+```powershell
+uv tool install C:\Users\onifent\Documents\projects\mod_utils\pngopt
+```
+
+## Optimizing Images
+
+```powershell
+# Optimize all PNGs in a directory (recursive)
+pngopt optimize ./media/textures
+
+# Optimize entire mod assets
+pngopt optimize ./Contents/mods/myspatialrefuge/42.13/media
+
+# Force re-optimization (ignore registry)
+pngopt optimize ./textures --force
+
+# Preview what would be optimized
+pngopt optimize ./textures --dry-run
+
+# Verbose output showing each file
+pngopt optimize ./textures --verbose
+
+# Higher quality (less compression)
+pngopt optimize ./textures --quality 90-100
+
+# Lossless only (skip pngquant, oxipng only)
+pngopt optimize ./textures --lossless
+```
+
+## How It Works
+
+1. **pngquant** - Near-lossless compression (reduces colors to 256 with alpha)
+   - Quality 85-100 means: skip files that can't reach 85% quality
+   - Typically achieves 50-80% size reduction
+   
+2. **oxipng** - Lossless recompression (better PNG encoding)
+   - Level 4 optimization (balanced speed/compression)
+   - Additional 5-15% reduction on top of pngquant
+
+3. **Registry** - Tracks optimized files in `.pngoptignore`
+   - Stores file hash to detect modifications
+   - Skips already-optimized files on subsequent runs
+
+## Check Status
+
+```powershell
+# Show which files are optimized/pending
+pngopt status ./textures
+
+# Check if tools are installed
+pngopt check
+```
+
+## Registry Management
+
+```powershell
+# Clear registry to re-process all files
+pngopt reset ./textures --all
+```
+
+## Typical Results
+
+| File Type | Original | Optimized | Savings |
+|-----------|----------|-----------|---------|
+| UI icons (small) | 2-10 KB | 1-4 KB | 50-70% |
+| Textures (medium) | 20-100 KB | 8-40 KB | 60-80% |
+| Poster/preview | 200+ KB | 50-100 KB | 50-75% |
+
+## Ignoring the Registry
+
+Add `.pngoptignore` to your `.gitignore` if you don't want to track optimization state in git:
+
+```gitignore
+# PNG optimization registry
+.pngoptignore
+```
+
+Or commit it to ensure consistent optimization across machines.
+
+## Quality Guidelines
+
+| Use Case | Recommended Quality |
+|----------|---------------------|
+| Icons/UI elements | `85-100` (default) |
+| Textures with gradients | `90-100` |
+| Screenshots/photos | `80-95` |
+| Lossless requirement | `--lossless` |
+
+## Helper Commands
+
+```powershell
+# Check tool availability
+pngopt check
+
+# Get help
+pngopt --help
+pngopt optimize --help
+```

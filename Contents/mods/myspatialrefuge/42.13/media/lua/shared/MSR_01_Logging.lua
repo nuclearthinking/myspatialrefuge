@@ -41,7 +41,7 @@ end
 --- @param message string The message to log
 function L.log(tag, message)
     if checkDebugEnabled() then
-        print("[" .. tag .. "] " .. tostring(message))
+        print("[MSR-DEBUG] [" .. tag .. "] " .. tostring(message))
     end
 end
 
