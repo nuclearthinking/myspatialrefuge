@@ -410,11 +410,5 @@ function SRU_UpgradeDetails:formatEffect(name, value)
     end
 end
 
------------------------------------------------------------
--- Module Export
------------------------------------------------------------
-
-print("[SRU_UpgradeDetails] Upgrade details panel loaded")
-
 return SRU_UpgradeDetails
 

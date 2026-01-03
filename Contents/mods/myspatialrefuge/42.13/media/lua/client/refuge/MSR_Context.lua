@@ -1,16 +1,12 @@
 -- Spatial Refuge Context Menu
--- Adds right-click menu options for Sacred Relic (exit and upgrade)
 
 require "shared/MSR_Transaction"
 require "shared/MSR_Integrity"
-
--- Assume dependencies are already loaded
-
+-- Uses global L for logging (loaded early by MSR.lua)
 
 
 
--- Translate canonical corner name to localized display text
--- Canonical names: "Up", "Right", "Left", "Down", "Center"
+
 function MSR.TranslateCornerName(canonicalName)
     if not canonicalName then return canonicalName end
     
@@ -31,21 +27,18 @@ function MSR.TranslateCornerName(canonicalName)
     return canonicalName
 end
 
--- Get last relic move timestamp
 function MSR.GetLastRelicMoveTime(player)
     if not player then return 0 end
     local pmd = player:getModData()
     return pmd.spatialRefuge_lastRelicMove or 0
 end
 
--- Update last relic move timestamp
 function MSR.UpdateRelicMoveTime(player)
     if not player then return end
     local pmd = player:getModData()
-    pmd.spatialRefuge_lastRelicMove = getTimestamp()
+    pmd.spatialRefuge_lastRelicMove = K.time()
 end
 
--- Check if running as MP client (cached for performance)
 local _cachedIsMPClient = nil
 local function isMultiplayerClient()
     if _cachedIsMPClient == nil then
@@ -54,14 +47,11 @@ local function isMultiplayerClient()
     return _cachedIsMPClient
 end
 
--- Move Sacred Relic to a new position within the refuge
--- In MP: sends command to server; In SP: moves locally
 function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, cornerName)
     if not player or not refugeData then return false end
     
-    -- Check cooldown (client-side validation, server also validates)
     local lastMove = MSR.GetLastRelicMoveTime(player)
-    local now = getTimestamp()
+    local now = K.time()
     local cooldown = MSR.Config.RELIC_MOVE_COOLDOWN or 120
     local remaining = cooldown - (now - lastMove)
     
@@ -72,8 +62,6 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
     end
     
     if isMultiplayerClient() then
-        -- ========== MULTIPLAYER PATH ==========
-        -- Send request to server, server moves the relic
         sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_MOVE_RELIC, {
             cornerDx = cornerDx,
             cornerDy = cornerDy,
@@ -81,36 +69,27 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
         })
         player:Say(getText("IGUI_MovingSacredRelic"))
         
-        if getDebug() then
-            print("[MSR] Sent RequestMoveRelic to server: " .. cornerName)
-        end
+        L.debug("Context", "Sent RequestMoveRelic to server: " .. cornerName)
         
         return true
     else
-        -- ========== SINGLEPLAYER PATH ==========
-        -- Move locally using shared function
         if not relic then return false end
         
         local success, errorCode = MSR.Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
         
         if success then
             MSR.UpdateRelicMoveTime(player)
-            -- Translate canonical corner name for display
             local translatedCornerName = MSR.TranslateCornerName(cornerName)
             local successMsg = string.format(getText("IGUI_SacredRelicMovedTo"), translatedCornerName)
             player:Say(successMsg)
         else
-            -- Translate error code to localized message
             local translationKey = MSR.Shared.GetMoveRelicTranslationKey(errorCode)
-            local message = getText(translationKey)
-            player:Say(message)
+            player:Say(getText(translationKey))
         end
         
         return success
     end
 end
-
--- Check if an object is a Sacred Relic by examining its ModData or sprite
 local function isSacredRelicObject(obj)
     if not obj then return false end
     
@@ -355,7 +334,7 @@ local function BlockDisassembleAction()
                 local square = self.square or (self.character and self.character:getCurrentSquare())
                 if square then
                     local objects = square:getObjects()
-                    if objects then
+                    if K.isIterable(objects) then
                         for i = 0, objects:size() - 1 do
                             local obj = objects:get(i)
                             if isProtectedObject(obj) then

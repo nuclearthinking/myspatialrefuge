@@ -386,10 +386,8 @@ function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     -- Set the upgrade level
     upgradeData[upgradeId] = level
     
-    if getDebug and getDebug() then
-        print("[UpgradeData] setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level) .. 
-              " | Current: " .. MSR.Data.FormatUpgradesTable(upgradeData))
-    end
+    L.debug("UpgradeData", "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level) .. 
+          " | Current: " .. MSR.Data.FormatUpgradesTable(upgradeData))
     
     -- Save refugeData to persist the change (only works on server/SP)
     if MSR.Data and MSR.Data.SaveRefugeData then

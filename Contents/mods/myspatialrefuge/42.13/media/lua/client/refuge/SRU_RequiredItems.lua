@@ -320,11 +320,5 @@ function SRU_ItemSlot:render()
     -- Name is drawn as part of tooltip on hover, not here to avoid clutter
 end
 
------------------------------------------------------------
--- Module Export
------------------------------------------------------------
-
-print("[SRU_RequiredItems] Required items panel loaded")
-
 return SRU_RequiredItems
 

@@ -1,7 +1,7 @@
 ---
-alwaysApply: true
+description: tool to validate translations of internal translation system of project zomboid game / mod files 
+alwaysApply: false
 ---
-
 # Translation Validation Tool
 
 Use the `pztranslate` CLI tool to validate and manage translations for this mod.

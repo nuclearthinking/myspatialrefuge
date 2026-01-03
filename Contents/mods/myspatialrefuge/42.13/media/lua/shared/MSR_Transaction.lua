@@ -15,9 +15,9 @@
 -- - Works for any item type (cores, materials, etc.)
 
 require "shared/MSR"
+require "shared/MSR_Config"
 require "shared/MSR_PlayerMessage"
 
--- Prevent double-loading
 if MSR.Transaction and MSR.Transaction._loaded then
     return MSR.Transaction
 end
@@ -25,50 +25,22 @@ end
 MSR.Transaction = MSR.Transaction or {}
 MSR.Transaction._loaded = true
 
--- Local alias
 local Transaction = MSR.Transaction
+local function log(message)
+    L.log("Transaction", message)  -- Use global L (loaded early by MSR.lua)
+end
 
------------------------------------------------------------
--- Configuration
------------------------------------------------------------
+-- Use global K.isIterable for safety checks on getItems() results
+local isIterable = K.isIterable
+local safeIter = K.iter  -- Safe iterator for Java ArrayLists
 
--- Auto-rollback timeout in ticks (5 seconds = 300 ticks at 60 ticks/sec)
-local TRANSACTION_TIMEOUT_TICKS = 300
-
--- Transaction states
 Transaction.STATE = {
     PENDING = "PENDING",
     COMMITTED = "COMMITTED",
     ROLLED_BACK = "ROLLED_BACK"
 }
 
--- Debug logger (silent unless getDebug() is true)
-local function logDebug(message)
-    if getDebug and getDebug() then
-        print("[Transaction] " .. tostring(message))
-    end
-end
 
--- Safely call a player method (guards against disconnected/null IsoPlayer references)
--- Returns the method result or nil if the call fails
-local function safePlayerCall(player, methodName)
-    if not player or not methodName then return nil end
-
-    -- Resolve numeric player index to IsoPlayer if provided
-    if type(player) == "number" and getSpecificPlayer then
-        local resolved = getSpecificPlayer(player)
-        if not resolved then return nil end
-        player = resolved
-    end
-
-    -- Safely fetch the method to avoid indexing errors on unexpected types
-    local okMethod, method = pcall(function() return player[methodName] end)
-    if not okMethod or not method then return nil end
-
-    local okCall, result = pcall(method, player)
-    if not okCall then return nil end
-    return result
-end
 
 -- Resolve a player reference to a live IsoPlayer object when possible
 local function resolvePlayer(player)
@@ -92,6 +64,14 @@ local function resolvePlayer(player)
     return player
 end
 
+-- Safely call a player method (guards against disconnected/null IsoPlayer references)
+-- Returns the method result or nil if the call fails
+local function safePlayerCall(player, methodName)
+    local resolved = resolvePlayer(player)
+    if not resolved then return nil end
+    return K.safeCall(resolved, methodName)
+end
+
 -----------------------------------------------------------
 -- Transaction Storage
 -- Uses weak keys so transactions are cleaned up when player disconnects
@@ -107,7 +87,7 @@ local transactionCounter = 0
 local function generateTransactionId(player, transactionType)
     transactionCounter = transactionCounter + 1
     local username = safePlayerCall(player, "getUsername") or "unknown"
-    local timestamp = getTimestamp and getTimestamp() or 0
+    local timestamp = K.time()
     return string.format("%s_%s_%d_%d", username, transactionType, timestamp, transactionCounter)
 end
 
@@ -128,15 +108,31 @@ local function getLockedItemsStorage(player)
     return pmd._lockedTransactionItems
 end
 
+-- Get all item sources for a player (inventory + Sacred Relic storage)
+-- Used internally by lockItems/consumeLockedItems
+local function getItemSources(player, bypassCache)
+    local sources = {}
+    local inv = safePlayerCall(player, "getInventory")
+    if inv then
+        table.insert(sources, inv)
+    end
+    if MSR and MSR.GetRelicContainer then
+        local rc = MSR.GetRelicContainer(player, bypassCache)
+        if rc then
+            table.insert(sources, rc)
+        end
+    end
+    return sources
+end
+
+
 -- Lock items for a transaction (mark as unavailable)
 -- Returns: table of locked item references, or nil if not enough items
--- NOTE: Uses all item sources (inventory + Sacred Relic container)
 local function lockItems(player, itemType, count)
     if not player or not itemType or count <= 0 then return nil end
     player = resolvePlayer(player)
     if not player then return nil end
     
-    -- Get locked items storage
     local lockedStorage = getLockedItemsStorage(player)
     if not lockedStorage then return nil end
     
@@ -150,22 +146,8 @@ local function lockItems(player, itemType, count)
         end
     end
     
-    -- Get all item sources (inventory + relic container)
-    -- IMPORTANT: Bypass cache for transaction safety - always get fresh container reference
-    local sources = {}
-    local inv = safePlayerCall(player, "getInventory")
-    if inv then
-        table.insert(sources, inv)
-    end
-    
-    -- Add Sacred Relic container if available (bypass cache for transaction safety)
-    if MSR and MSR.GetRelicContainer then
-        local relicContainer = MSR.GetRelicContainer(player, true)  -- bypassCache = true
-        if relicContainer then
-            table.insert(sources, relicContainer)
-        end
-    end
-    
+    -- Get all item sources (bypass cache for transaction safety)
+    local sources = getItemSources(player, true)
     if #sources == 0 then return nil end
     
     -- Count total available items across all sources
@@ -179,7 +161,7 @@ local function lockItems(player, itemType, count)
     local availableCount = totalAvailable - alreadyLockedCount
     
     if availableCount < count then
-        logDebug("lockItems: Not enough " .. itemType .. " (need " .. count .. ", available " .. availableCount .. ")")
+        log("lockItems: Not enough " .. itemType .. " (need " .. count .. ", available " .. availableCount .. ")")
         return nil -- Not enough unlocked items
     end
     
@@ -191,11 +173,9 @@ local function lockItems(player, itemType, count)
         if lockedCount >= count then break end
         if container and container.getItems then
             local items = container:getItems()
-            if items then
-                for i = 0, items:size() - 1 do
+            if isIterable(items) then
+                for _, item in safeIter(items) do
                     if lockedCount >= count then break end
-                    
-                    local item = items:get(i)
                     if item and item:getFullType() == itemType then
                         local itemId = item:getID()
                         if not alreadyLockedIds[itemId] then
@@ -210,7 +190,7 @@ local function lockItems(player, itemType, count)
     end
     
     if lockedCount < count then
-        logDebug("lockItems: Could only find " .. lockedCount .. " of " .. count .. " items")
+        log("lockItems: Could only find " .. lockedCount .. " of " .. count .. " items")
         return nil -- Couldn't find enough items (shouldn't happen if count was correct)
     end
     
@@ -222,7 +202,7 @@ local function lockItems(player, itemType, count)
         table.insert(lockedStorage[itemType], itemId)
     end
     
-    logDebug("lockItems: Locked " .. lockedCount .. " of " .. itemType)
+    log("lockItems: Locked " .. lockedCount .. " of " .. itemType)
     return lockedItems
 end
 
@@ -257,28 +237,13 @@ local function unlockItems(player, itemType, itemIds)
 end
 
 -- Consume locked items (actually remove from all sources)
--- NOTE: Uses all item sources (inventory + Sacred Relic container)
 local function consumeLockedItems(player, itemType, itemIds)
     if not player or not itemType or not itemIds then return false end
     player = resolvePlayer(player)
     if not player then return false end
     
-    -- Get all item sources (inventory + relic container)
-    -- IMPORTANT: Bypass cache for transaction safety - always get fresh container reference
-    local sources = {}
-    local inv = safePlayerCall(player, "getInventory")
-    if inv then
-        table.insert(sources, inv)
-    end
-    
-    -- Add Sacred Relic container if available (bypass cache for transaction safety)
-    if MSR and MSR.GetRelicContainer then
-        local relicContainer = MSR.GetRelicContainer(player, true)  -- bypassCache = true
-        if relicContainer then
-            table.insert(sources, relicContainer)
-        end
-    end
-    
+    -- Get all item sources (bypass cache for transaction safety)
+    local sources = getItemSources(player, true)
     if #sources == 0 then return false end
     
     -- Build set of IDs to consume
@@ -293,11 +258,10 @@ local function consumeLockedItems(player, itemType, itemIds)
     for _, container in ipairs(sources) do
         if container and container.getItems then
             local items = container:getItems()
-            if items then
+            if isIterable(items) then
                 local toRemove = {}
                 
-                for i = 0, items:size() - 1 do
-                    local item = items:get(i)
+                for _, item in safeIter(items) do
                     if item and item:getFullType() == itemType then
                         if consumeSet[item:getID()] then
                             table.insert(toRemove, item)
@@ -318,7 +282,7 @@ local function consumeLockedItems(player, itemType, itemIds)
     -- Clear from locked storage
     unlockItems(player, itemType, itemIds)
     
-    logDebug("consumeLockedItems: Removed " .. totalRemoved .. " of " .. #itemIds .. " " .. itemType)
+    log("consumeLockedItems: Removed " .. totalRemoved .. " of " .. #itemIds .. " " .. itemType)
     return totalRemoved == #itemIds
 end
 
@@ -327,32 +291,41 @@ end
 -----------------------------------------------------------
 
 -- Begin a new transaction
+-- Begin a transaction with optional substitution support
 -- @param player: The player starting the transaction
 -- @param transactionType: String identifier (e.g., "UPGRADE", "CRAFT")
--- @param itemRequirements: Table of {itemType = count} pairs
+-- @param itemRequirements: Either:
+--   - Hash table: {itemType = count} for simple requirements
+--   - Array: {{type="...", count=N, substitutes={...}}, ...} for substitution support
 -- @return: transaction object on success, nil on failure
 -- @return: error message if failed
 function Transaction.Begin(player, transactionType, itemRequirements)
-    -- Validate player
+    -- Fail-fast validation
+    if not player then error("Transaction.Begin: player is required") end
+    if not transactionType then error("Transaction.Begin: transactionType is required") end
+    if not itemRequirements then error("Transaction.Begin: itemRequirements is required") end
+    if type(itemRequirements) ~= "table" then error("Transaction.Begin: itemRequirements must be a table") end
+    
+    -- Runtime validation (returns error, not exception)
     local playerObj = resolvePlayer(player)
     if not playerObj then return nil, "Invalid player" end
     
     local username = safePlayerCall(playerObj, "getUsername")
     if not username then return nil, "Player not connected" end
     
-    -- Validate inputs
-    if not transactionType then return nil, "Invalid transaction type" end
-    if not itemRequirements or type(itemRequirements) ~= "table" then
-        return nil, "No items specified"
+    -- Detect format: array of {type, count, substitutes} vs hash {itemType = count}
+    -- If first key is numeric, it's an array format with potential substitutes
+    local resolvedRequirements = itemRequirements
+    if K.isArrayLike(itemRequirements) then
+        -- Array format - resolve substitutions
+        local resolved, err = Transaction.ResolveSubstitutions(playerObj, itemRequirements)
+        if not resolved then
+            return nil, err
+        end
+        resolvedRequirements = resolved
     end
     
-    -- Check if table has any items (Kahlua doesn't have next())
-    local hasItems = false
-    for _ in pairs(itemRequirements) do
-        hasItems = true
-        break
-    end
-    if not hasItems then return nil, "No items specified" end
+    if K.isEmpty(resolvedRequirements) then return nil, "No items specified" end
     
     -- Check for existing transaction
     local existing = Transaction.GetPending(playerObj, transactionType)
@@ -360,7 +333,7 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     
     -- Lock items
     local lockedItems = {}
-    for itemType, count in pairs(itemRequirements) do
+    for itemType, count in pairs(resolvedRequirements) do
         local locked = lockItems(playerObj, itemType, count)
         if not locked then
             -- Rollback partial locks
@@ -378,7 +351,7 @@ function Transaction.Begin(player, transactionType, itemRequirements)
         id = transactionId,
         type = transactionType,
         lockedItems = lockedItems,
-        createdAt = getTimestamp and getTimestamp() or 0,
+        createdAt = K.time(),
         status = Transaction.STATE.PENDING
     }
     
@@ -391,7 +364,7 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     -- Start timeout handler
     Transaction._startTimeoutHandler(playerObj, transactionType, transactionId)
     
-    logDebug("BEGIN " .. transactionId .. " for " .. username)
+    log("BEGIN " .. transactionId .. " for " .. username)
     
     return transaction, nil
 end
@@ -401,8 +374,12 @@ end
 -- @param transactionId: The transaction ID to commit
 -- @return: true on success, false on failure
 function Transaction.Commit(player, transactionId)
+    -- Fail-fast validation
+    if not player then error("Transaction.Commit: player is required") end
+    if not transactionId then error("Transaction.Commit: transactionId is required") end
+    
     local playerObj = resolvePlayer(player)
-    if not playerObj or not transactionId then return false end
+    if not playerObj then return false end
     
     -- Find the transaction
     local playerTransactions = activeTransactions[playerObj]
@@ -420,12 +397,12 @@ function Transaction.Commit(player, transactionId)
     end
     
     if not transaction then
-        logDebug("COMMIT failed - transaction not found: " .. tostring(transactionId))
+        log("COMMIT failed - transaction not found: " .. tostring(transactionId))
         return false
     end
     
     if transaction.status ~= Transaction.STATE.PENDING then
-        logDebug("COMMIT failed - transaction not pending: " .. tostring(transactionId) .. " (status=" .. tostring(transaction.status) .. ")")
+        log("COMMIT failed - transaction not pending: " .. tostring(transactionId) .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
@@ -445,7 +422,7 @@ function Transaction.Commit(player, transactionId)
     -- Remove from active transactions
     playerTransactions[transactionType] = nil
     
-    logDebug("COMMIT " .. transactionId .. " - Items consumed: " .. tostring(allConsumed))
+    log("COMMIT " .. transactionId .. " - Items consumed: " .. tostring(allConsumed))
     
     return allConsumed
 end
@@ -456,6 +433,12 @@ end
 -- @param transactionType: The transaction type (used if transactionId is nil)
 -- @return: true on success, false on failure
 function Transaction.Rollback(player, transactionId, transactionType)
+    -- Fail-fast validation
+    if not player then error("Transaction.Rollback: player is required") end
+    if not transactionId and not transactionType then 
+        error("Transaction.Rollback: transactionId or transactionType is required") 
+    end
+    
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
@@ -480,12 +463,12 @@ function Transaction.Rollback(player, transactionId, transactionType)
     end
     
     if not transaction then
-        logDebug("ROLLBACK - no transaction found (id=" .. tostring(transactionId) .. ", type=" .. tostring(transactionType) .. ")")
+        log("ROLLBACK - no transaction found (id=" .. tostring(transactionId) .. ", type=" .. tostring(transactionType) .. ")")
         return false
     end
     
     if transaction.status ~= Transaction.STATE.PENDING then
-        logDebug("ROLLBACK - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
+        log("ROLLBACK - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
@@ -502,7 +485,7 @@ function Transaction.Rollback(player, transactionId, transactionType)
         playerTransactions[tType] = nil
     end
     
-    logDebug("ROLLBACK " .. transaction.id .. " - Items unlocked")
+    log("ROLLBACK " .. transaction.id .. " - Items unlocked")
     
     return true
 end
@@ -512,8 +495,12 @@ end
 -- @param transactionType: The transaction type to look for
 -- @return: transaction object or nil
 function Transaction.GetPending(player, transactionType)
+    -- Fail-fast validation
+    if not player then error("Transaction.GetPending: player is required") end
+    if not transactionType then error("Transaction.GetPending: transactionType is required") end
+    
     local playerObj = resolvePlayer(player)
-    if not playerObj or not transactionType then return nil end
+    if not playerObj then return nil end
     
     local playerTransactions = activeTransactions[playerObj]
     if not playerTransactions then return nil end
@@ -524,28 +511,6 @@ function Transaction.GetPending(player, transactionType)
     end
     
     return nil
-end
-
--- Check how many of an item type are currently available (not locked)
--- @param player: The player
--- @param itemType: The item type to check
--- @return: count of available items
-function Transaction.GetAvailableCount(player, itemType)
-    local playerObj = resolvePlayer(player)
-    if not playerObj or not itemType then return 0 end
-    
-    local inv = safePlayerCall(playerObj, "getInventory")
-    if not inv then return 0 end
-    
-    local totalCount = inv:getCountType(itemType)
-    
-    local lockedStorage = getLockedItemsStorage(playerObj)
-    local lockedCount = 0
-    if lockedStorage and lockedStorage[itemType] then
-        lockedCount = #lockedStorage[itemType]
-    end
-    
-    return math.max(0, totalCount - lockedCount)
 end
 
 -----------------------------------------------------------
@@ -572,10 +537,10 @@ function Transaction._startTimeoutHandler(player, transactionType, transactionId
         end
         
         -- Check timeout
-        if tickCount >= TRANSACTION_TIMEOUT_TICKS then
+        if tickCount >= MSR.Config.TRANSACTION_TIMEOUT_TICKS then
             Events.OnTick.Remove(checkTimeout)
             
-            logDebug("TIMEOUT - Auto-rollback: " .. idRef)
+            log("TIMEOUT - Auto-rollback: " .. idRef)
             
             -- Auto-rollback
             Transaction.Rollback(playerRef, idRef)
@@ -617,7 +582,7 @@ local function OnPlayerDisconnect(player)
     if pmd then
         pmd._lockedTransactionItems = nil
     end
-    logDebug("Disconnect cleanup for player " .. (safePlayerCall(playerObj, "getUsername") or "unknown"))
+    log("Disconnect cleanup for player " .. (safePlayerCall(playerObj, "getUsername") or "unknown"))
 end
 
 -- Register cleanup handlers
@@ -647,7 +612,7 @@ local function cleanupStaleLocksOnGameStart()
         if not pmd then return end
         
         if pmd._lockedTransactionItems then
-            logDebug("Startup cleanup: Clearing stale locked items")
+            log("Startup cleanup: Clearing stale locked items")
             pmd._lockedTransactionItems = nil
         end
         
@@ -671,27 +636,10 @@ end
 -- @param bypassCache: (optional) If true, bypass container cache (for transactions)
 -- @return: Array of ItemContainer objects
 function Transaction.GetItemSources(player, bypassCache)
+    if not player then error("Transaction.GetItemSources: player is required") end
     local playerObj = resolvePlayer(player)
     if not playerObj then return {} end
-    
-    local sources = {}
-    
-    -- Player inventory
-    local inv = safePlayerCall(playerObj, "getInventory")
-    if inv then
-        table.insert(sources, inv)
-    end
-    
-    -- Sacred Relic storage (if player is in refuge and has access)
-    -- This requires SpatialRefuge module to be loaded
-    if MSR and MSR.GetRelicContainer then
-        local relicContainer = MSR.GetRelicContainer(playerObj, bypassCache)
-        if relicContainer then
-            table.insert(sources, relicContainer)
-        end
-    end
-    
-    return sources
+    return getItemSources(playerObj, bypassCache)
 end
 
 -- Count items across all sources
@@ -699,8 +647,12 @@ end
 -- @param itemType: The item type to count
 -- @return: Total count across all sources
 function Transaction.GetMultiSourceCount(player, itemType)
+    -- Fail-fast validation
+    if not player then error("Transaction.GetMultiSourceCount: player is required") end
+    if not itemType then error("Transaction.GetMultiSourceCount: itemType is required") end
+    
     local playerObj = resolvePlayer(player)
-    if not playerObj or not itemType then return 0 end
+    if not playerObj then return 0 end
     
     local sources = Transaction.GetItemSources(playerObj)
     local totalCount = 0
@@ -726,8 +678,12 @@ end
 -- @param requirement: Requirement table with type and substitutes
 -- @return: Total count of matching items, table of {itemType = count}
 function Transaction.GetSubstitutionCount(player, requirement)
+    -- Fail-fast validation
+    if not player then error("Transaction.GetSubstitutionCount: player is required") end
+    if not requirement then error("Transaction.GetSubstitutionCount: requirement is required") end
+    
     local playerObj = resolvePlayer(player)
-    if not playerObj or not requirement then return 0, {} end
+    if not playerObj then return 0, {} end
     
     local counts = {}
     local total = 0
@@ -760,8 +716,12 @@ end
 -- @param requirements: Array of requirement tables
 -- @return: Table of {itemType = count} for transaction, or nil if not enough items
 function Transaction.ResolveSubstitutions(player, requirements)
+    -- Fail-fast validation
+    if not player then error("Transaction.ResolveSubstitutions: player is required") end
+    if not requirements then error("Transaction.ResolveSubstitutions: requirements is required") end
+    
     local playerObj = resolvePlayer(player)
-    if not playerObj or not requirements then return nil end
+    if not playerObj then return nil end
     
     -- First pass: gather all unique item types and their initial available counts
     -- This ensures we don't double-count items when multiple requirements share types
@@ -830,23 +790,6 @@ function Transaction.ResolveSubstitutions(player, requirements)
     end
     
     return resolved
-end
-
--- Begin a transaction with substitution support
--- @param player: The player
--- @param transactionType: Transaction type string
--- @param requirements: Array of requirement tables (with type, count, substitutes)
--- @return: transaction object on success, nil on failure
--- @return: error message if failed
-function Transaction.BeginWithSubstitutions(player, transactionType, requirements)
-    -- Resolve substitutions first
-    local resolved, err = Transaction.ResolveSubstitutions(player, requirements)
-    if not resolved then
-        return nil, err
-    end
-    
-    -- Use standard Begin with resolved items
-    return MSR.Transaction.Begin(player, transactionType, resolved)
 end
 
 return MSR.Transaction

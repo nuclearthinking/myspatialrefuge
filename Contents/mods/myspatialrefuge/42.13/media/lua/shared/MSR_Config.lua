@@ -46,6 +46,8 @@ MSR.Config = {
     RELIC_MOVE_COOLDOWN = 30,
     WALL_HEIGHT = 1,
     
+    TRANSACTION_TIMEOUT_TICKS = 300,
+    
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     

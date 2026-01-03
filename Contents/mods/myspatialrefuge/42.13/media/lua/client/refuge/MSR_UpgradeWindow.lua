@@ -1,6 +1,4 @@
 -- Spatial Refuge Upgrade Window
--- Main container for the upgrade system UI
--- Features three-panel layout: grid selector, details panel, ingredients list
 
 require "ISUI/ISPanel"
 require "ui/framework/CUI_Framework"
@@ -12,27 +10,15 @@ MSR_UpgradeWindow = ISPanel:derive("MSR_UpgradeWindow")
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 local FONT_HGT_LARGE = getTextManager():getFontHeight(UIFont.Large)
-
------------------------------------------------------------
--- Configuration
------------------------------------------------------------
-
 local Config = require "ui/framework/CUI_Config"
 
 MSR_UpgradeWindow.WINDOW_WIDTH = math.floor(FONT_HGT_SMALL * 55)
 MSR_UpgradeWindow.WINDOW_HEIGHT = math.floor(FONT_HGT_SMALL * 35)
 MSR_UpgradeWindow.MIN_WIDTH = math.floor(FONT_HGT_SMALL * 45)
 MSR_UpgradeWindow.MIN_HEIGHT = math.floor(FONT_HGT_SMALL * 28)
-
--- Layout proportions
 MSR_UpgradeWindow.GRID_WIDTH_RATIO = 0.35
 MSR_UpgradeWindow.DETAILS_WIDTH_RATIO = 0.40
 MSR_UpgradeWindow.INGREDIENTS_WIDTH_RATIO = 0.25
-
------------------------------------------------------------
--- Static Instance Management
------------------------------------------------------------
-
 MSR_UpgradeWindow.instance = nil
 
 function MSR_UpgradeWindow.Open(player)
@@ -71,10 +57,6 @@ function MSR_UpgradeWindow.Close()
     end
 end
 
------------------------------------------------------------
--- Constructor
------------------------------------------------------------
-
 function MSR_UpgradeWindow:new(x, y, width, height, player)
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
@@ -82,22 +64,14 @@ function MSR_UpgradeWindow:new(x, y, width, height, player)
     
     o.player = player
     o.playerNum = player:getPlayerNum()
-    
-    -- Layout
     o.padding = Config.padding
     o.headerHeight = Config.headerHeight
-    
-    -- State
     o.selectedUpgrade = nil
     o.selectedLevel = nil
-    
-    -- Panels (created in createChildren)
     o.upgradeGrid = nil
     o.upgradeDetails = nil
     o.requiredItems = nil
     o.ingredientList = nil
-    
-    -- Window features
     o.moveWithMouse = true
     o.resizable = true
     o.drawFrame = false
@@ -110,20 +84,13 @@ function MSR_UpgradeWindow:initialise()
     self:setWantKeyEvents(true)
 end
 
------------------------------------------------------------
--- Child Panel Creation
------------------------------------------------------------
-
 function MSR_UpgradeWindow:createChildren()
-    -- Calculate panel dimensions
     local contentY = self.headerHeight
     local contentHeight = self.height - self.headerHeight - self.padding
-    
     local gridWidth = math.floor((self.width - self.padding * 4) * self.GRID_WIDTH_RATIO)
     local detailsWidth = math.floor((self.width - self.padding * 4) * self.DETAILS_WIDTH_RATIO)
     local ingredientsWidth = self.width - gridWidth - detailsWidth - self.padding * 4
     
-    -- Create upgrade grid (left panel)
     local SRU_UpgradeGrid = require "refuge/SRU_UpgradeGrid"
     self.upgradeGrid = SRU_UpgradeGrid:new(
         self.padding,
@@ -135,7 +102,6 @@ function MSR_UpgradeWindow:createChildren()
     self.upgradeGrid:initialise()
     self:addChild(self.upgradeGrid)
     
-    -- Create details panel (middle)
     local SRU_UpgradeDetails = require "refuge/SRU_UpgradeDetails"
     self.upgradeDetails = SRU_UpgradeDetails:new(
         self.padding * 2 + gridWidth,
@@ -147,7 +113,6 @@ function MSR_UpgradeWindow:createChildren()
     self.upgradeDetails:initialise()
     self:addChild(self.upgradeDetails)
     
-    -- Create ingredient list (right panel)
     local SRU_IngredientList = require "refuge/SRU_IngredientList"
     self.ingredientList = SRU_IngredientList:new(
         self.padding * 3 + gridWidth + detailsWidth,
@@ -159,7 +124,6 @@ function MSR_UpgradeWindow:createChildren()
     self.ingredientList:initialise()
     self:addChild(self.ingredientList)
     
-    -- Create close button
     local closeSize = math.floor(FONT_HGT_MEDIUM * 1.2)
     self.closeButton = ISButton:new(
         self.width - closeSize - self.padding,
@@ -176,10 +140,7 @@ function MSR_UpgradeWindow:createChildren()
     self.closeButton.backgroundColorMouseOver = {r=0.8, g=0.2, b=0.2, a=0.8}
     self:addChild(self.closeButton)
     
-    -- Create resize widget
     self:createResizeWidget()
-    
-    -- Load upgrades
     self:refreshUpgradeList()
 end
 
@@ -203,27 +164,18 @@ function MSR_UpgradeWindow:createResizeWidget()
     self:addChild(self.resizeWidget)
 end
 
------------------------------------------------------------
--- Resize Handling
------------------------------------------------------------
-
 function MSR_UpgradeWindow:onResize(newWidth, newHeight)
-    -- Enforce minimum size
     newWidth = math.max(self.MIN_WIDTH, newWidth)
     newHeight = math.max(self.MIN_HEIGHT, newHeight)
     
     self:setWidth(newWidth)
     self:setHeight(newHeight)
     
-    -- Recalculate panel dimensions
     local contentY = self.headerHeight
     local contentHeight = newHeight - self.headerHeight - self.padding
-    
     local gridWidth = math.floor((newWidth - self.padding * 4) * self.GRID_WIDTH_RATIO)
     local detailsWidth = math.floor((newWidth - self.padding * 4) * self.DETAILS_WIDTH_RATIO)
     local ingredientsWidth = newWidth - gridWidth - detailsWidth - self.padding * 4
-    
-    -- Update panel positions and sizes
     if self.upgradeGrid then
         self.upgradeGrid:setX(self.padding)
         self.upgradeGrid:setY(contentY)
@@ -254,13 +206,10 @@ function MSR_UpgradeWindow:onResize(newWidth, newHeight)
         end
     end
     
-    -- Update close button position
     if self.closeButton then
-        local closeSize = self.closeButton:getWidth()
-        self.closeButton:setX(newWidth - closeSize - self.padding)
+        self.closeButton:setX(newWidth - self.closeButton:getWidth() - self.padding)
     end
     
-    -- Update resize widget position
     if self.resizeWidget then
         local resizeSize = self.resizeWidget:getWidth()
         self.resizeWidget:setX(newWidth - resizeSize - 2)
@@ -268,23 +217,15 @@ function MSR_UpgradeWindow:onResize(newWidth, newHeight)
     end
 end
 
------------------------------------------------------------
--- Upgrade Selection
------------------------------------------------------------
-
 function MSR_UpgradeWindow:selectUpgrade(upgradeId)
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return end
     
     self.selectedUpgrade = upgrade
     self.selectedLevel = MSR.UpgradeData.getPlayerUpgradeLevel(self.player, upgradeId) + 1
-    
-    -- Clamp to max level
     if self.selectedLevel > upgrade.maxLevel then
         self.selectedLevel = upgrade.maxLevel
     end
-    
-    -- Update panels
     if self.upgradeDetails then
         self.upgradeDetails:setUpgrade(upgrade, self.selectedLevel)
     end
@@ -311,40 +252,24 @@ function MSR_UpgradeWindow:refreshCurrentUpgrade()
     end
 end
 
------------------------------------------------------------
--- Upgrade Purchase
------------------------------------------------------------
-
 function MSR_UpgradeWindow:onUpgradeClick()
     if not self.selectedUpgrade then return end
     
-    local upgradeId = self.selectedUpgrade.id
-    local targetLevel = self.selectedLevel
-    
-    -- Attempt upgrade via logic module
     local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
-    local success, err = UpgradeLogic.purchaseUpgrade(self.player, upgradeId, targetLevel)
+    local success, err = UpgradeLogic.purchaseUpgrade(self.player, self.selectedUpgrade.id, self.selectedLevel)
     
     if success then
-        -- Refresh UI
         self:refreshUpgradeList()
         self:refreshCurrentUpgrade()
-    else
-        -- Show error (player say or UI feedback)
-        if self.player then
-            local PM = MSR.PlayerMessage
-            if err then
-                PM.SayRaw(self.player, err)
-            else
-                PM.Say(self.player, PM.UPGRADE_FAILED)
-            end
+    elseif self.player then
+        local PM = MSR.PlayerMessage
+        if err then
+            PM.SayRaw(self.player, err)
+        else
+            PM.Say(self.player, PM.UPGRADE_FAILED)
         end
     end
 end
-
------------------------------------------------------------
--- Input Handling
------------------------------------------------------------
 
 function MSR_UpgradeWindow:onCloseClick()
     self:close()
@@ -368,69 +293,41 @@ function MSR_UpgradeWindow:onKeyRelease(key)
     return false
 end
 
------------------------------------------------------------
--- Rendering
------------------------------------------------------------
-
 function MSR_UpgradeWindow:prerender()
-    -- Background
     self:drawRect(0, 0, self.width, self.height, 0.95, 0.06, 0.05, 0.08)
-    
-    -- Header background
     self:drawRect(0, 0, self.width, self.headerHeight, 1, 0.10, 0.08, 0.14)
-    
-    -- Header border
     self:drawRectBorder(0, 0, self.width, self.headerHeight, 0.8, 0.30, 0.25, 0.38)
     
-    -- Header icon (upgrade icon)
     local iconSize = math.floor(self.headerHeight * 0.7)
     local iconY = (self.headerHeight - iconSize) / 2
     local headerIcon = getTexture("media/textures/upgrade_spatial_refuge_64x64.png")
-    if not headerIcon then
-        headerIcon = getTexture("media/textures/sacred_core.png") or getTexture("Item_ZombieCore")
-    end
+        or getTexture("media/textures/sacred_core.png") or getTexture("Item_ZombieCore")
+    
     if headerIcon then
         self:drawTextureScaledAspect(headerIcon, self.padding, iconY, iconSize, iconSize, 1, 1, 1, 1)
     else
-        -- Fallback placeholder
         self:drawRect(self.padding, iconY, iconSize, iconSize, 0.6, 0.4, 0.3, 0.5)
     end
     
-    -- Header title
     local titleX = self.padding * 2 + iconSize
     local titleY = (self.headerHeight - FONT_HGT_LARGE) / 2
     local title = getText("UI_RefugeUpgrade_Title") or "Upgrade Spatial Refuge"
     self:drawText(title, titleX, titleY, 0.92, 0.90, 0.88, 1, UIFont.Large)
-    
-    -- Main border
     self:drawRectBorder(0, 0, self.width, self.height, 0.8, 0.30, 0.25, 0.38)
 end
 
-function MSR_UpgradeWindow:render()
-    -- Render is called after children
-end
+function MSR_UpgradeWindow:render() end
 
 function MSR_UpgradeWindow:update()
     ISPanel.update(self)
-    
-    -- Check if player is still valid
     if not self.player then
         self:close()
         return
     end
-    
-    local ok = pcall(function() return self.player:getUsername() end)
-    if not ok then
+    if not pcall(function() return self.player:getUsername() end) then
         self:close()
-        return
     end
 end
-
------------------------------------------------------------
--- Module Export
------------------------------------------------------------
-
-print("[MSR_UpgradeWindow] Upgrade window loaded")
 
 return MSR_UpgradeWindow
 

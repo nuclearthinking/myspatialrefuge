@@ -133,9 +133,7 @@ function Shared.ResolveRelicSprite()
 
     local fallback = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     if fallback and getSprite and getSprite(fallback) then
-        if getDebug() then
-            print("[Shared] Using fallback sprite: " .. fallback)
-        end
+        L.debug("Shared", "Using fallback sprite: " .. fallback)
         return fallback
     end
 
@@ -370,9 +368,7 @@ function Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRe
     end
 
     if hasBlockingObject then
-        if getDebug() then
-            print("[Shared] MoveRelic: Blocked - " .. tostring(blockingErrorCode))
-        end
+        L.debug("Shared", "MoveRelic: Blocked - " .. tostring(blockingErrorCode))
         return false, blockingErrorCode or Err.DESTINATION_BLOCKED
     end
 
@@ -403,9 +399,7 @@ function Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRe
         relic:transmitModData()
     end
 
-    if getDebug() then
-        print("[Shared] Moved relic to " .. cornerName .. " (" .. targetX .. "," .. targetY .. ")")
-    end
+    L.debug("Shared", "Moved relic to " .. cornerName .. " (" .. targetX .. "," .. targetY .. ")")
 
     return true, Err.SUCCESS
 end
@@ -424,9 +418,7 @@ local function createWallObject(square, spriteName, isNorthWall)
             if obj and obj.getModData then
                 local md = obj:getModData()
                 if md and md.isRefugeBoundary and md.refugeBoundarySprite == spriteName then
-                    if getDebug() then
-                        print("[Shared] Wall already exists at " .. square:getX() .. "," .. square:getY())
-                    end
+                    L.debug("Shared", "Wall already exists at " .. square:getX() .. "," .. square:getY())
                     return obj
                 end
             end
@@ -517,9 +509,7 @@ function Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
             MSR.Config.SPRITES.WALL_CORNER_SE)
     end
 
-    if getDebug() then
-        print("[Shared] Created " .. wallsCreated .. " wall segments")
-    end
+    L.debug("Shared", "Created " .. wallsCreated .. " wall segments")
     return wallsCreated
 end
 
@@ -566,9 +556,7 @@ function Shared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
         if square.RecalcProperties then square:RecalcProperties() end
     end
 
-    if getDebug() then
-        print("[Shared] RemoveAllRefugeWalls: removed " .. wallsRemoved .. " wall segments")
-    end
+    L.debug("Shared", "RemoveAllRefugeWalls: removed " .. wallsRemoved .. " wall segments")
     return wallsRemoved
 end
 
@@ -620,9 +608,7 @@ function Shared.RemoveBoundaryWalls(centerX, centerY, z, radius)
         end
     end
 
-    if getDebug() then
-        print("[Shared] Removed " .. wallsRemoved .. " wall segments")
-    end
+    L.debug("Shared", "Removed " .. wallsRemoved .. " wall segments")
     return wallsRemoved
 end
 
@@ -641,9 +627,7 @@ local function createRelicObject(square, refugeId)
 
     local sprite = getSprite(spriteName)
     if not sprite then
-        if getDebug() then
-            print("[Shared] ERROR: Sprite object is nil: " .. tostring(spriteName))
-        end
+        L.debug("Shared", "ERROR: Sprite object is nil: " .. tostring(spriteName))
         return nil
     end
 
@@ -655,9 +639,7 @@ local function createRelicObject(square, refugeId)
         relic:setSprite(spriteName)
         createdSprite = relic:getSprite()
         if not createdSprite or not createdSprite:getName() then
-            if getDebug() then
-                print("[Shared] ERROR: Failed to repair relic sprite - removing invalid relic")
-            end
+            L.debug("Shared", "ERROR: Failed to repair relic sprite - removing invalid relic")
             removeObjectFromSquare(square, relic)
             return nil
         end
@@ -694,9 +676,7 @@ local function createRelicObject(square, refugeId)
             relic:transmitModData()
         end
 
-        if getDebug() then
-            print("[Shared] Created Sacred Relic at " .. square:getX() .. "," .. square:getY())
-        end
+        L.debug("Shared", "Created Sacred Relic at " .. square:getX() .. "," .. square:getY())
         return relic, spriteName
     end
 
@@ -717,9 +697,7 @@ function Shared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, 
     -- Check for existing relic (no inline repairs - let integrity system handle that)
     local existing = Shared.FindRelicInRefuge(searchX, searchY, searchZ, radius, refugeId)
     if existing then
-        if getDebug() then
-            print("[Shared] Found existing Sacred Relic")
-        end
+        L.debug("Shared", "Found existing Sacred Relic")
         return existing
     end
 
@@ -727,9 +705,7 @@ function Shared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, 
     local finalCheckRadius = radius + 2
     local duplicateCheck = Shared.FindRelicInRefuge(searchX, searchY, searchZ, finalCheckRadius, refugeId)
     if duplicateCheck then
-        if getDebug() then
-            print("[Shared] Found relic in extended search")
-        end
+        L.debug("Shared", "Found relic in extended search")
         return duplicateCheck
     end
 
@@ -737,9 +713,7 @@ function Shared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, 
     local square = cell:getGridSquare(createX, createY, createZ)
     if not square or not square:getChunk() then return nil end
 
-    if getDebug() then
-        print("[Shared] Creating Sacred Relic at stored position: " .. createX .. "," .. createY)
-    end
+    L.debug("Shared", "Creating Sacred Relic at stored position: " .. createX .. "," .. createY)
 
     return createRelicObject(square, refugeId)
 end
@@ -750,9 +724,7 @@ end
 
 function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
     if not forceClean and centerX < 2000 and centerY < 2000 then
-        if getDebug() then
-            print("[Shared] Skipping zombie clearing - remote refuge area")
-        end
+        L.debug("Shared", "Skipping zombie clearing - remote refuge area")
         return 0
     end
 
@@ -830,13 +802,11 @@ function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, pl
             MSR.Config.COMMANDS.CLEAR_ZOMBIES, {
                 zombieIDs = zombieOnlineIDs
             })
-        if getDebug() then
-            print("[Shared] Sent " .. #zombieOnlineIDs .. " zombie IDs to client for removal")
-        end
+        L.debug("Shared", "Sent " .. #zombieOnlineIDs .. " zombie IDs to client for removal")
     end
 
-    if cleared > 0 and getDebug() then
-        print("[Shared] Cleared " .. cleared .. " zombies/corpses from refuge area")
+    if cleared > 0 then
+        L.debug("Shared", "Cleared " .. cleared .. " zombies/corpses from refuge area")
     end
 
     return cleared
@@ -852,9 +822,7 @@ function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
 
     local isMP = isClient() or isServer()
     if isMP and not getCachedIsServer() then
-        if getDebug() then
-            print("[Shared] ClearTreesFromArea: Skipping on client")
-        end
+        L.debug("Shared", "ClearTreesFromArea: Skipping on client")
         return 0
     end
 
@@ -885,8 +853,8 @@ function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
         end
     end
 
-    if getDebug() and cleared > 0 then
-        print("[Shared] Cleared " ..
+    if cleared > 0 then
+        L.debug("Shared", "Cleared " ..
         cleared .. " trees from refuge area" .. (isMP and " (MP server)" or " (SP)"))
     end
 
@@ -909,10 +877,8 @@ function Shared.ExpandRefuge(refugeData, newTier, player)
     local oldRadius = refugeData.radius
     local newRadius = tierConfig.radius
 
-    if getDebug() then
-        print("[Shared] ExpandRefuge: tier " ..
+    L.debug("Shared", "ExpandRefuge: tier " ..
         (refugeData.tier or 0) .. " -> " .. newTier .. " radius " .. oldRadius .. " -> " .. newRadius)
-    end
 
     Shared.RemoveAllRefugeWalls(centerX, centerY, centerZ, newRadius)
     Shared.CreateBoundaryWalls(centerX, centerY, centerZ, newRadius)
@@ -963,9 +929,7 @@ function Shared.EnsureRefugeStructures(refugeData, player)
     Shared.SyncRelicPositionToModData(refugeData)
     Shared.ClearZombiesFromArea(centerX, centerY, centerZ, radius, true, player)
 
-    if getDebug() then
-        print("[Shared] Ensured refuge structures for " .. tostring(refugeId))
-    end
+    L.debug("Shared", "Ensured refuge structures for " .. tostring(refugeId))
 
     return report.relic.found or relic ~= nil
 end

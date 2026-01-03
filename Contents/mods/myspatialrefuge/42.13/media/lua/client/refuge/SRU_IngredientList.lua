@@ -511,10 +511,4 @@ function SRU_IngredientList:onResize()
     self:updateMaxScroll()
 end
 
------------------------------------------------------------
--- Module Export
------------------------------------------------------------
-
-print("[SRU_IngredientList] Ingredient list panel loaded (manual rendering)")
-
 return SRU_IngredientList

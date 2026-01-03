@@ -541,11 +541,5 @@ function SRU_UpgradeSlot:render()
     end
 end
 
------------------------------------------------------------
--- Module Export
------------------------------------------------------------
-
-print("[SRU_UpgradeGrid] Upgrade grid loaded")
-
 return SRU_UpgradeGrid
 
