@@ -1,6 +1,7 @@
 -- MSR_UpgradeLogic - Upgrade Logic
 
 require "shared/MSR"
+require "shared/MSR_Env"
 require "shared/MSR_UpgradeData"
 require "shared/MSR_Transaction"
 require "shared/MSR_Config"
@@ -14,7 +15,6 @@ MSR.UpgradeLogic = MSR.UpgradeLogic or {}
 MSR.UpgradeLogic._loaded = true
 
 local UpgradeLogic = MSR.UpgradeLogic
--- Uses global L for logging (loaded early by MSR.lua)
 local TRANSACTION_TYPE_UPGRADE = "REFUGE_FEATURE_UPGRADE"
 
 local function resolvePlayer(player)
@@ -29,14 +29,6 @@ local function resolvePlayer(player)
         end
     end
     return player
-end
-
-local _cachedIsMPClient = nil
-local function isMultiplayerClient()
-    if _cachedIsMPClient == nil then
-        _cachedIsMPClient = isClient() and not isServer()
-    end
-    return _cachedIsMPClient
 end
 
 function UpgradeLogic.getItemSources(player)
@@ -101,7 +93,7 @@ function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
     local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     local requirements = levelData.requirements or {}
     
-    if isMultiplayerClient() then
+    if MSR.Env.isMultiplayerClient() then
         return UpgradeLogic.purchaseUpgradeMP(playerObj, upgradeId, targetLevel, requirements)
     else
         return UpgradeLogic.purchaseUpgradeSP(playerObj, upgradeId, targetLevel, requirements)
@@ -187,21 +179,22 @@ function UpgradeLogic.consumeItems(player, requirements)
     local sources = MSR.Transaction.GetItemSources(playerObj)
     if not sources or #sources == 0 then return false end
     
+    local needsSync = MSR.Env.needsClientSync() and sendRemoveItemFromContainer
+    
     for itemType, count in pairs(resolved) do
         local remaining = count
         
         for _, container in ipairs(sources) do
             if remaining <= 0 then break end
-            if container then
-                local items = container:getItems()
-                if K.isIterable(items) then
-                    for i = items:size() - 1, 0, -1 do
-                        if remaining <= 0 then break end
-                        local item = items:get(i)
-                        if item and item:getFullType() == itemType then
-                            container:Remove(item)
-                            remaining = remaining - 1
-                        end
+            local items = container and container:getItems()
+            if K.isIterable(items) then
+                for i = K.size(items) - 1, 0, -1 do
+                    if remaining <= 0 then break end
+                    local item = items:get(i)
+                    if item and item:getFullType() == itemType then
+                        container:Remove(item)
+                        if needsSync then sendRemoveItemFromContainer(container, item) end
+                        remaining = remaining - 1
                     end
                 end
             end
@@ -229,8 +222,13 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
     
+    -- MP client: rollback local locks (server already consumed). SP: commit locally.
     if transactionId then
-        MSR.Transaction.Commit(playerObj, transactionId)
+        if MSR.Env.isMultiplayerClient() then
+            MSR.Transaction.Rollback(playerObj, transactionId)
+        else
+            MSR.Transaction.Commit(playerObj, transactionId)
+        end
     end
     
     if upgradeId == "expand_refuge" then
@@ -240,10 +238,16 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
         UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
     
-    local MSR_UpgradeWindow = require "refuge/MSR_UpgradeWindow"
-    if MSR_UpgradeWindow.instance then
-        MSR_UpgradeWindow.instance:refreshUpgradeList()
-        MSR_UpgradeWindow.instance:refreshCurrentUpgrade()
+    if MSR.InvalidateRelicContainerCache then MSR.InvalidateRelicContainerCache() end
+    
+    if MSR.Env.isClient() then
+        if ISInventoryPage and ISInventoryPage.dirtyUI then ISInventoryPage.dirtyUI() end
+        
+        local MSR_UpgradeWindow = require "refuge/MSR_UpgradeWindow"
+        if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
+            MSR_UpgradeWindow.instance:refreshUpgradeList()
+            MSR_UpgradeWindow.instance:refreshCurrentUpgrade()
+        end
     end
     
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)

@@ -195,8 +195,7 @@ function SRU_UpgradeDetails:checkHasRequiredItems()
     end
     
     -- Use upgrade logic to check items
-    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
-    return UpgradeLogic.hasRequiredItems(self.player, self.levelData.requirements)
+    return MSR.UpgradeLogic.hasRequiredItems(self.player, self.levelData.requirements)
 end
 
 -----------------------------------------------------------

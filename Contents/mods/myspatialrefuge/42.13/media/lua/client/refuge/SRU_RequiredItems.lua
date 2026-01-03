@@ -205,8 +205,7 @@ function SRU_ItemSlot:updateItemCount()
     end
     
     -- Get available count using upgrade logic
-    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
-    self.haveCount = UpgradeLogic.getAvailableItemCount(self.player, self.requirement)
+    self.haveCount = MSR.UpgradeLogic.getAvailableItemCount(self.player, self.requirement)
     self.hasEnough = self.haveCount >= self.needCount
 end
 

@@ -255,8 +255,7 @@ end
 function MSR_UpgradeWindow:onUpgradeClick()
     if not self.selectedUpgrade then return end
     
-    local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
-    local success, err = UpgradeLogic.purchaseUpgrade(self.player, self.selectedUpgrade.id, self.selectedLevel)
+    local success, err = MSR.UpgradeLogic.purchaseUpgrade(self.player, self.selectedUpgrade.id, self.selectedLevel)
     
     if success then
         self:refreshUpgradeList()

@@ -10,6 +10,7 @@ require "shared/MSR_Migration"
 require "shared/MSR_UpgradeData"
 require "shared/MSR_Transaction"
 require "shared/MSR_Integrity"
+require "shared/MSR_UpgradeLogic"
 
 MSR_Server = MSR_Server or {}
 
@@ -675,6 +676,21 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
                 return
             end
         end
+    end
+    
+    -- Consume items on server BEFORE performing upgrade
+    -- This is authoritative in multiplayer - client consumption is just for UI feedback
+    if #requirements > 0 then
+        local consumed = MSR.UpgradeLogic.consumeItems(player, requirements)
+        if not consumed then
+            L.debug("Server", "HandleFeatureUpgradeRequest: Failed to consume items for " .. username)
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+                transactionId = transactionId,
+                reason = "Failed to consume required items"
+            })
+            return
+        end
+        L.debug("Server", "HandleFeatureUpgradeRequest: Consumed items for " .. tostring(upgradeId))
     end
     
     -- Special case: expand_refuge triggers the actual refuge expansion

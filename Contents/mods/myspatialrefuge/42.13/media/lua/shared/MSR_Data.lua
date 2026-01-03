@@ -198,6 +198,32 @@ function Data.GetOrCreateRefugeData(player)
             return nil
         end
         
+        -- SP: Check for orphan refuge before creating new one
+        if MSR.Env and MSR.Env.isSingleplayer() then
+            local orphanData, oldUsername = Data.FindOrphanRefuge()
+            if orphanData and oldUsername then
+                local registry = Data.GetRefugeRegistry()
+                if registry then
+                    orphanData.isOrphaned = nil
+                    orphanData.orphanedTime = nil
+                    orphanData.inheritedFrom = orphanData.originalOwner or oldUsername
+                    orphanData.inheritedTime = K.time()
+                    orphanData.username = username
+                    orphanData.refugeId = "refuge_" .. username
+                    
+                    registry[oldUsername] = nil
+                    registry[username] = orphanData
+                    
+                    Data.TransmitModData()
+                    
+                    L.debug("Data", "Inherited refuge: " .. oldUsername .. " -> " .. username ..
+                            " (tier=" .. orphanData.tier .. ", radius=" .. orphanData.radius .. ")")
+                    return orphanData
+                end
+            end
+        end
+        
+        -- Create new refuge
         local centerX, centerY, centerZ = Data.AllocateRefugeCoordinates()
         
         refugeData = {
@@ -284,6 +310,83 @@ function Data.DeleteRefugeData(player)
     registry[username] = nil
     Data.TransmitModData()
     return true
+end
+
+-----------------------------------------------------------
+-- Refuge Inheritance (Singleplayer Only)
+-----------------------------------------------------------
+
+function Data.MarkRefugeOrphaned(username)
+    if not username or not canModifyData() then return false end
+    
+    local registry = Data.GetRefugeRegistry()
+    if not registry then return false end
+    
+    local refugeData = registry[username]
+    if not refugeData then return false end
+    
+    refugeData.isOrphaned = true
+    refugeData.orphanedTime = K.time()
+    refugeData.originalOwner = username
+    
+    Data.TransmitModData()
+    
+    L.debug("Data", "Marked refuge as orphaned: " .. username .. 
+            " (tier=" .. refugeData.tier .. ", radius=" .. refugeData.radius .. ")")
+    return true
+end
+
+function Data.FindOrphanRefuge()
+    local registry = Data.GetRefugeRegistry()
+    if not registry then return nil, nil end
+    
+    for username, refugeData in pairs(registry) do
+        if refugeData.isOrphaned then
+            L.debug("Data", "Found orphan refuge from " .. (refugeData.originalOwner or username) ..
+                    " (tier=" .. refugeData.tier .. ", radius=" .. refugeData.radius .. ")")
+            return refugeData, username
+        end
+    end
+    
+    return nil, nil
+end
+
+function Data.ClaimOrphanRefuge(player)
+    if not player or not canModifyData() then return false end
+    
+    local newUsername = player:getUsername()
+    if not newUsername then return false end
+    
+    local existingRefuge = Data.GetRefugeDataByUsername(newUsername)
+    if existingRefuge then return false end
+    
+    local orphanData, oldUsername = Data.FindOrphanRefuge()
+    if not orphanData or not oldUsername then return false end
+    
+    local registry = Data.GetRefugeRegistry()
+    if not registry then return false end
+    
+    orphanData.isOrphaned = nil
+    orphanData.orphanedTime = nil
+    orphanData.inheritedFrom = orphanData.originalOwner or oldUsername
+    orphanData.inheritedTime = K.time()
+    orphanData.username = newUsername
+    orphanData.refugeId = "refuge_" .. newUsername
+    
+    registry[oldUsername] = nil
+    registry[newUsername] = orphanData
+    
+    Data.TransmitModData()
+    
+    L.debug("Data", "Claimed orphan refuge: " .. oldUsername .. " -> " .. newUsername ..
+            " (tier=" .. orphanData.tier .. ", radius=" .. orphanData.radius .. ")")
+    return true
+end
+
+-- Check if there's an orphan refuge available for claiming
+function Data.HasOrphanRefuge()
+    local orphan, _ = Data.FindOrphanRefuge()
+    return orphan ~= nil
 end
 
 -----------------------------------------------------------

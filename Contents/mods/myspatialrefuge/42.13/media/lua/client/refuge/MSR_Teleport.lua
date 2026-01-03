@@ -5,11 +5,6 @@ require "shared/MSR_Validation"
 require "shared/MSR_Shared"
 require "shared/MSR_Env"
 require "shared/MSR_Integrity"
--- Uses global L for logging (loaded early by MSR.lua)
-
-local function isMultiplayerClient()
-    return MSR.Env.isClient() and not MSR.Env.isServer()
-end
 
 function MSR.CanEnterRefuge(player)
     local canEnter, reason = MSR.Validation.CanEnterRefuge(player)
@@ -83,7 +78,7 @@ local function doSingleplayerEnter(player, refugeData)
             centerSquareSeen = true
         end
         
-        if not isMultiplayerClient() then
+        if not MSR.Env.isMultiplayerClient() then
             if not floorPrepared and centerSquareExists and chunkLoaded then
                 if MSR.ClearZombiesFromArea then
                     MSR.ClearZombiesFromArea(teleportX, teleportY, teleportZ, radius, true)
@@ -213,7 +208,7 @@ function MSR.EnterRefuge(player)
     
     local returnX, returnY, returnZ = player:getX(), player:getY(), player:getZ()
     
-    if isMultiplayerClient() then
+    if MSR.Env.isMultiplayerClient() then
         sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_ENTER, {
             returnX = returnX, returnY = returnY, returnZ = returnZ
         })
@@ -238,7 +233,7 @@ end
 function MSR.ExitRefuge(player)
     if not player then return false end
     
-    if isMultiplayerClient() then
+    if MSR.Env.isMultiplayerClient() then
         sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_EXIT, {})
         player:Say(getText("IGUI_ExitingRefuge"))
         L.debug("Teleport", "Sent RequestExit to server")
@@ -334,7 +329,7 @@ local function OnServerCommand(module, command, args)
         if args and args.centerX then
             player:Say(getText("IGUI_EnteredRefuge"))
             
-            if MSR.Env and MSR.Env.isMultiplayerClient and MSR.Env.isMultiplayerClient() then
+            if MSR.Env.isMultiplayerClient() then
                 local refugeData = MSR.GetRefugeData and MSR.GetRefugeData(player)
                 if refugeData and MSR.Integrity then
                     local repairTicks = 0
@@ -396,13 +391,15 @@ local function OnServerCommand(module, command, args)
                 local zombieList = cell:getZombieList()
                 local removed = 0
                 
-                if zombieList then
+                -- Use K.isIterable() and K.size() for safe Java ArrayList handling
+                if K.isIterable(zombieList) then
                     local idLookup = {}
                     for _, id in ipairs(args.zombieIDs) do
                         idLookup[id] = true
                     end
                     
-                    for i = zombieList:size() - 1, 0, -1 do
+                    -- Reverse iteration for removal - must use manual loop
+                    for i = K.size(zombieList) - 1, 0, -1 do
                         local zombie = zombieList:get(i)
                         if zombie and zombie.getOnlineID then
                             local onlineID = zombie:getOnlineID()
@@ -432,8 +429,7 @@ local function OnServerCommand(module, command, args)
                 if MSR.InvalidateRelicContainerCache then MSR.InvalidateRelicContainerCache() end
             end
             
-            local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
-            UpgradeLogic.onUpgradeComplete(player, args.upgradeId, args.newLevel, args.transactionId)
+            MSR.UpgradeLogic.onUpgradeComplete(player, args.upgradeId, args.newLevel, args.transactionId)
             
             if args.upgradeId == "expand_refuge" and args.centerX and args.centerY and args.centerZ then
                 local ctx = {
@@ -472,10 +468,11 @@ local function OnServerCommand(module, command, args)
                             local square = cell:getGridSquare(x, y, c.centerZ)
                             if square then
                                 local objects = square:getObjects()
-                                if objects and not isOnNewPerimeter(c, x, y) then
+                                -- Use K.isIterable() for safe Java ArrayList check
+                                if K.isIterable(objects) and not isOnNewPerimeter(c, x, y) then
                                     local toRemove = {}
-                                    for i = 0, objects:size() - 1 do
-                                        local obj = objects:get(i)
+                                    -- Use K.iter() for safe Java ArrayList iteration
+                                    for _, obj in K.iter(objects) do
                                         if obj and obj.getModData then
                                             local md = obj:getModData()
                                             if md and md.isRefugeBoundary then
@@ -484,10 +481,13 @@ local function OnServerCommand(module, command, args)
                                         end
                                     end
                                     for _, obj in ipairs(toRemove) do
-                                        pcall(function() square:RemoveWorldObject(obj) end)
-                                        pcall(function() obj:removeFromSquare() end)
-                                        pcall(function() obj:removeFromWorld() end)
-                                        removed = removed + 1
+                                        -- Use transmitRemoveItemFromSquare for proper MP sync
+                                        local success = pcall(function()
+                                            square:transmitRemoveItemFromSquare(obj)
+                                        end)
+                                        if success then
+                                            removed = removed + 1
+                                        end
                                     end
                                 end
                                 square:RecalcAllWithNeighbours(true)
@@ -517,8 +517,7 @@ local function OnServerCommand(module, command, args)
         
     elseif command == MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR then
         if args then
-            local UpgradeLogic = require "refuge/MSR_UpgradeLogic"
-            UpgradeLogic.onUpgradeError(player, args.transactionId, args.reason)
+            MSR.UpgradeLogic.onUpgradeError(player, args.transactionId, args.reason)
         end
         
     elseif command == MSR.Config.COMMANDS.ERROR then
@@ -544,7 +543,7 @@ end
 local modDataRequested = false
 
 local function RequestModDataFromServer()
-    if not isMultiplayerClient() or modDataRequested then return end
+    if not MSR.Env.isMultiplayerClient() or modDataRequested then return end
     
     local player = getPlayer()
     if not player or not player:getUsername() then return end
@@ -555,7 +554,7 @@ local function RequestModDataFromServer()
 end
 
 local function OnGameStartMP()
-    if not isMultiplayerClient() then return end
+    if not MSR.Env.isMultiplayerClient() then return end
     
     modDataRequested = false
     

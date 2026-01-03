@@ -26,13 +26,7 @@ MSR.Transaction = MSR.Transaction or {}
 MSR.Transaction._loaded = true
 
 local Transaction = MSR.Transaction
-local function log(message)
-    L.log("Transaction", message)  -- Use global L (loaded early by MSR.lua)
-end
-
--- Use global K.isIterable for safety checks on getItems() results
-local isIterable = K.isIterable
-local safeIter = K.iter  -- Safe iterator for Java ArrayLists
+local function log(message) L.log("Transaction", message) end
 
 Transaction.STATE = {
     PENDING = "PENDING",
@@ -171,18 +165,16 @@ local function lockItems(player, itemType, count)
     
     for _, container in ipairs(sources) do
         if lockedCount >= count then break end
-        if container and container.getItems then
-            local items = container:getItems()
-            if isIterable(items) then
-                for _, item in safeIter(items) do
-                    if lockedCount >= count then break end
-                    if item and item:getFullType() == itemType then
-                        local itemId = item:getID()
-                        if not alreadyLockedIds[itemId] then
-                            table.insert(lockedItems, itemId)
-                            alreadyLockedIds[itemId] = true  -- Prevent double-locking
-                            lockedCount = lockedCount + 1
-                        end
+        local items = container and container.getItems and container:getItems()
+        if K.isIterable(items) then
+            for _, item in K.iter(items) do
+                if lockedCount >= count then break end
+                if item and item:getFullType() == itemType then
+                    local itemId = item:getID()
+                    if not alreadyLockedIds[itemId] then
+                        table.insert(lockedItems, itemId)
+                        alreadyLockedIds[itemId] = true
+                        lockedCount = lockedCount + 1
                     end
                 end
             end
@@ -236,52 +228,39 @@ local function unlockItems(player, itemType, itemIds)
     end
 end
 
--- Consume locked items (actually remove from all sources)
 local function consumeLockedItems(player, itemType, itemIds)
     if not player or not itemType or not itemIds then return false end
     player = resolvePlayer(player)
     if not player then return false end
     
-    -- Get all item sources (bypass cache for transaction safety)
     local sources = getItemSources(player, true)
     if #sources == 0 then return false end
     
-    -- Build set of IDs to consume
     local consumeSet = {}
-    for _, itemId in ipairs(itemIds) do
-        consumeSet[itemId] = true
-    end
+    for _, itemId in ipairs(itemIds) do consumeSet[itemId] = true end
     
-    -- Find and remove items by ID from all sources
+    local needsSync = MSR.Env.needsClientSync() and sendRemoveItemFromContainer
     local totalRemoved = 0
     
     for _, container in ipairs(sources) do
-        if container and container.getItems then
-            local items = container:getItems()
-            if isIterable(items) then
-                local toRemove = {}
-                
-                for _, item in safeIter(items) do
-                    if item and item:getFullType() == itemType then
-                        if consumeSet[item:getID()] then
-                            table.insert(toRemove, item)
-                            consumeSet[item:getID()] = nil  -- Mark as found
-                        end
-                    end
+        local items = container and container.getItems and container:getItems()
+        if K.isIterable(items) then
+            local toRemove = {}
+            for _, item in K.iter(items) do
+                if item and item:getFullType() == itemType and consumeSet[item:getID()] then
+                    table.insert(toRemove, item)
+                    consumeSet[item:getID()] = nil
                 end
-                
-                -- Remove items from this container
-                for _, item in ipairs(toRemove) do
-                    container:Remove(item)
-                    totalRemoved = totalRemoved + 1
-                end
+            end
+            for _, item in ipairs(toRemove) do
+                container:Remove(item)
+                if needsSync then sendRemoveItemFromContainer(container, item) end
+                totalRemoved = totalRemoved + 1
             end
         end
     end
     
-    -- Clear from locked storage
     unlockItems(player, itemType, itemIds)
-    
     log("consumeLockedItems: Removed " .. totalRemoved .. " of " .. #itemIds .. " " .. itemType)
     return totalRemoved == #itemIds
 end
