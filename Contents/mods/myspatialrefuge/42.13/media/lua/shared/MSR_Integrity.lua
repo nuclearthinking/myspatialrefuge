@@ -70,14 +70,7 @@ end
 
 local function removeObjectFromSquare(square, obj)
     if not square or not obj then return false end
-    
-    if isServer() then
-        square:transmitRemoveItemFromSquare(obj)
-    else
-        if square.RemoveWorldObject then pcall(function() square:RemoveWorldObject(obj) end) end
-        if obj.removeFromSquare then pcall(function() obj:removeFromSquare() end) end
-        if obj.removeFromWorld then pcall(function() obj:removeFromWorld() end) end
-    end
+    pcall(function() square:transmitRemoveItemFromSquare(obj) end)
     
     square:RecalcAllWithNeighbours(true)
     return true

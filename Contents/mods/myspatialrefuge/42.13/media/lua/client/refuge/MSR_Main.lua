@@ -2,6 +2,7 @@
 
 require "shared/MSR_Config"
 require "shared/MSR_Data"
+require "shared/MSR_Env"
 require "shared/MSR_Migration"
 require "shared/MSR_Shared"
 
@@ -155,27 +156,51 @@ end
 
 MSR.worldReady = false
 
+-- Check for orphan refuges and claim them (singleplayer only)
+local function checkRefugeInheritance(player)
+    if not MSR.Env.isSingleplayer() then return end
+    
+    local existingRefuge = MSR.Data.GetRefugeData(player)
+    if existingRefuge and existingRefuge.inheritedFrom then
+        print("[MSR] Inherited refuge from " .. existingRefuge.inheritedFrom)
+        if player.Say then
+            player:Say("I sense a connection to an ancient refuge...")
+        end
+        return
+    end
+    
+    if MSR.Data.HasOrphanRefuge() then
+        MSR.Data.GetOrCreateRefugeData(player)
+    end
+end
+
 local function OnGameStart()
     if not isClient() then
         MSR.InitializeModData()
         
         local tickCount = 0
-        local function delayedMigration()
+        local function delayedInit()
             tickCount = tickCount + 1
             if tickCount < 30 then return end
             
-            Events.OnTick.Remove(delayedMigration)
+            Events.OnTick.Remove(delayedInit)
             
             local player = getPlayer()
-            if player and MSR.Migration.NeedsMigration(player) then
+            if not player then return end
+            
+            -- Check for data migration (old format to new)
+            if MSR.Migration.NeedsMigration(player) then
                 local success, msg = MSR.Migration.MigratePlayer(player)
                 if success then
                     print("[MSR] " .. msg)
                 end
             end
+            
+            -- Check for refuge inheritance (SP only - claim orphan refuge)
+            checkRefugeInheritance(player)
         end
         
-        Events.OnTick.Add(delayedMigration)
+        Events.OnTick.Add(delayedInit)
     end
 end
 

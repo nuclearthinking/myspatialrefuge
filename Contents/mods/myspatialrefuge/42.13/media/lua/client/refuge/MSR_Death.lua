@@ -1,15 +1,8 @@
 -- Spatial Refuge Death Handling
 
 require "refuge/MSR_Generation"
+require "shared/MSR_Env"
 -- Uses global L for logging (loaded early by MSR.lua)
-
-local _cachedIsMPClient = nil
-local function isMultiplayerClient()
-    if _cachedIsMPClient == nil then
-        _cachedIsMPClient = isClient() and not isServer()
-    end
-    return _cachedIsMPClient
-end
 
 local function clearPlayerModData(player)
     local pmd = player:getModData()
@@ -22,25 +15,26 @@ end
 
 local function OnPlayerDeath(player)
     if not player then return end
-    if not MSR.IsPlayerInRefuge(player) then return end
     
-    if isMultiplayerClient() then
+    local username = player:getUsername()
+    local refugeData = MSR.GetRefugeData(player)
+    if not refugeData then return end
+    
+    if MSR.Env.isMultiplayerClient() then
         clearPlayerModData(player)
-        L.debug("Death", "Player died in refuge (MP client) - server handles cleanup")
         return
     end
     
-    local returnPos = MSR.GetReturnPosition(player)
-    if returnPos then
-        local corpse = player:getCorpse()
-        if corpse then
-            corpse:setX(returnPos.x)
-            corpse:setY(returnPos.y)
-            corpse:setZ(returnPos.z)
-        end
+    -- Singleplayer: preserve refuge for inheritance
+    if MSR.Env.isSingleplayer() then
+        MSR.Data.MarkRefugeOrphaned(username)
+        MSR.ClearReturnPosition(player)
+        clearPlayerModData(player)
+        return
     end
     
-    MSR.DeleteRefuge(player)
+    -- Multiplayer server: delete refuge data
+    MSR.DeleteRefugeData(player)
     MSR.ClearReturnPosition(player)
     clearPlayerModData(player)
 end

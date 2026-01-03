@@ -45,6 +45,11 @@ function MSR.ExpandRefuge(refugeData, newTier)
     return success
 end
 
+-- Delete refuge data only (physical structures persist in world save)
+-- Physical removal is disabled because:
+-- 1. Chunks may not be loaded when player dies
+-- 2. In SP, we want the refuge to persist for inheritance
+-- 3. Structures don't harm anything if they persist
 function MSR.DeleteRefuge(player)
     if isClient() and not isServer() then
         L.debug("Generation", "DeleteRefuge called on MP client - skipping (server handles this)")
@@ -54,35 +59,7 @@ function MSR.DeleteRefuge(player)
     local refugeData = MSR.GetRefugeData(player)
     if not refugeData then return end
     
-    local cell = getCell and getCell()
-    if not cell then return end
-    
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius
-    local wallHeight = MSR.Config.WALL_HEIGHT or 1
-    
-    for level = 0, wallHeight - 1 do
-        local currentZ = centerZ + level
-        for x = -radius-2, radius+2 do
-            for y = -radius-2, radius+2 do
-                local square = cell:getGridSquare(centerX + x, centerY + y, currentZ)
-                if square then
-                    local objects = square:getObjects()
-                    if objects then
-                        for i = objects:size()-1, 0, -1 do
-                            local obj = objects:get(i)
-                            if obj then
-                                square:transmitRemoveItemFromSquare(obj)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    
+    L.debug("Generation", "DeleteRefuge: removing data only, physical structures persist")
     MSR.DeleteRefugeData(player)
 end
 

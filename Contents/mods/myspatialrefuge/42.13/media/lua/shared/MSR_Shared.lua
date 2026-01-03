@@ -95,14 +95,7 @@ end
 
 local function removeObjectFromSquare(square, obj)
     if not square or not obj then return false end
-
-    if getCachedIsServer() then
-        square:transmitRemoveItemFromSquare(obj)
-    else
-        if square.RemoveWorldObject then pcall(function() square:RemoveWorldObject(obj) end) end
-        if obj.removeFromSquare then pcall(function() obj:removeFromSquare() end) end
-        if obj.removeFromWorld then pcall(function() obj:removeFromWorld() end) end
-    end
+    pcall(function() square:transmitRemoveItemFromSquare(obj) end)
 
     square:RecalcAllWithNeighbours(true)
     return true
@@ -784,11 +777,7 @@ function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, pl
                     for i = objects:size() - 1, 0, -1 do
                         local obj = objects:get(i)
                         if obj and obj:getType() == IsoObjectType.deadBody then
-                            if isMP and square.transmitRemoveItemFromSquare then
-                                square:transmitRemoveItemFromSquare(obj)
-                            else
-                                square:RemoveWorldObject(obj)
-                            end
+                            pcall(function() square:transmitRemoveItemFromSquare(obj) end)
                             cleared = cleared + 1
                         end
                     end
@@ -838,13 +827,7 @@ function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
                     if dropLoot then
                         if tree.toppleTree then tree:toppleTree() end
                     else
-                        if getCachedIsServer() then
-                            square:transmitRemoveItemFromSquare(tree)
-                        else
-                            if square.RemoveWorldObject then pcall(function() square:RemoveWorldObject(tree) end) end
-                            if tree.removeFromSquare then pcall(function() tree:removeFromSquare() end) end
-                            if tree.removeFromWorld then pcall(function() tree:removeFromWorld() end) end
-                        end
+                        pcall(function() square:transmitRemoveItemFromSquare(tree) end)
                         square:RecalcAllWithNeighbours(true)
                     end
                     cleared = cleared + 1

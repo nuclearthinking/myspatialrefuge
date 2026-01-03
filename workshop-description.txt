@@ -2,6 +2,11 @@
 
 Escape the apocalypse to your own personal, upgradeable spatial refuge! Build your ultimate survival space using Zombie Cores.
 
+[h2]Update 1.8 — Refuge Inheritance (Singleplayer)[/h2]
+[b]Your refuge persists through death![/b] In singleplayer, if your character dies and you create a new character in the same world (via death screen), your new character will automatically inherit the previous character's refuge — including all upgrades, tier level, and stored items.
+
+[i]Note: This only works within the same game world. Starting a new game creates a fresh refuge.[/i]
+
 [h2]Update 1.6 — New Refuge Upgrade System[/h2]
 [b]Big changes are here, and more are coming.[/b] Spatial Refuge is an unknown entity that entered the world alongside the Knox Virus. Its intentions are unclear — it cannot speak like people do — but it offers survivors a safe shelter and strange opportunities to grow.
 
