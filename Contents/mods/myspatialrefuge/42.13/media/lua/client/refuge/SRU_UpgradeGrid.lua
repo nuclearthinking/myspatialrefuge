@@ -441,7 +441,7 @@ function SRU_UpgradeSlot:render()
     -- Draw level badge or max level indicator (scaled to slot size)
     if isMaxLevel then
         -- Green checkmark badge for max level
-        local badgeSize = math.max(16, math.floor(self.width * 0.4))
+        local badgeSize = math.max(16, math.floor(self.width * 0.35))
         local badgeX = self.width - badgeSize - 1
         local badgeY = 1
         
