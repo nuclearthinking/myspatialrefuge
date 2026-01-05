@@ -122,7 +122,7 @@ local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
     for dx = -searchRadius, searchRadius do
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
+            if square and square:getChunk() then
                 local relic = findRelicOnSquareByModData(square, refugeId)
                 if relic then
                     return relic, "moddata"
@@ -135,7 +135,7 @@ local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
     for dx = -searchRadius, searchRadius do
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
+            if square and square:getChunk() then
                 local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, oldFallbackSprite)
                 if relic then
                     return relic, "sprite"
@@ -158,7 +158,8 @@ local function findAllRelicsInArea(centerX, centerY, z, radius, refugeId)
     for dx = -searchRadius, searchRadius do
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
+            -- CRITICAL: Check that chunk is loaded before accessing objects
+            if square and square:getChunk() then
                 local objects = square:getObjects()
                 if isIterable(objects) then
                     for _, obj in safeIter(objects) do

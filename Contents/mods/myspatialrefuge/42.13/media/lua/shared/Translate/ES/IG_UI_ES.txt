@@ -21,14 +21,14 @@ IGUI_ES = {
     IGUI_GeneratingRefuge = "Generando Refugio Espacial...", -- 1.6/16.01.2026
     IGUI_RefugeInitializing = "Inicializando Refugio Espacial...", -- 1.7/02.01.2026
     IGUI_FailedToGenerateRefuge = "¡No se pudo generar el refugio!", -- 1.6/16.01.2026
-    IGUI_ExitingRefuge = "Saliendo del Refugio Espacial...", -- 1.6/16.01.2026
-    IGUI_EnteringRefuge = "Entrando al Refugio Espacial...", -- 1.6/16.01.2026
     IGUI_RefugeAreaNotLoaded = "El área del refugio no está cargada. Ajusta las coordenadas base.", -- 1.6/16.01.2026
     IGUI_FailedToLoadRefugeArea = "No se pudo cargar el área del refugio", -- 1.6/16.01.2026
     IGUI_ReturnPositionLost = "Se perdió la posición de regreso: teletransportando a la ubicación predeterminada", -- 1.6/16.01.2026
     IGUI_CannotExitNoData = "No se puede salir: no se encontraron datos del refugio", -- 1.6/16.01.2026
     IGUI_PortalCharging = "Portal del refugio cargando... (%ds)", -- 1.7/02.01.2026
     IGUI_CannotTeleportCombat = "¡No puedes teletransportarte durante el combate!", -- 1.7/02.01.2026
+    IGUI_InheritedRefugeConnection = "Siento una conexión con un refugio antiguo...", -- 1.8/04.01.2026
+    IGUI_EncumbrancePenalty = "La carga pesada tensó el portal. Próximo teletransporte en %s.", -- 1.8/05.01.2026
 
     -- Player Messages - Relic Movement
     IGUI_SacredRelicMovedTo = "La reliquia se movió a %s.", -- 1.7/02.01.2026

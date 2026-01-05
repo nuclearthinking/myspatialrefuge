@@ -3,6 +3,8 @@
 require "ISUI/ISEmoteRadialMenu"
 require "refuge/MSR_Teleport"
 require "refuge/MSR_Cast"
+require "shared/MSR_PlayerMessage"
+local PM = MSR.PlayerMessage
 
 local ENTER_ICON = getTexture("media/ui/emotes/enter_refuge_51x96.png") or getTexture("media/ui/emotes/gears.png")
 local EXIT_ICON = getTexture("media/ui/emotes/exit_refuge_60x96.png") or getTexture("media/ui/emotes/back.png")
@@ -21,7 +23,7 @@ local function tryEnterRefuge(player)
 
     local canEnter, reason = MSR.CanEnterRefuge(player)
     if not canEnter then
-        player:Say(reason or getTextOrDefault("IGUI_SpatialRefuge_OnCooldown", "Cannot enter refuge"))
+        PM.SayRaw(player, reason or getTextOrDefault("IGUI_SpatialRefuge_OnCooldown", "Cannot enter refuge"))
         return
     end
     if MSR.BeginTeleportCast then
@@ -36,7 +38,7 @@ local function tryExitRefuge(player)
     if rm then rm:undisplay() end
 
     if MSR.IsPlayerInRefuge and not MSR.IsPlayerInRefuge(player) then
-        player:Say(getTextOrDefault("IGUI_SpatialRefuge_Exit", "Exit Spatial Refuge"))
+        PM.SayRaw(player, getTextOrDefault("IGUI_SpatialRefuge_Exit", "Exit Spatial Refuge"))
         return
     end
     if MSR.BeginExitCast then

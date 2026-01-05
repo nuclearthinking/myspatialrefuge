@@ -4,6 +4,7 @@
 -- Version 2: global ModData (MyMSR.Refuges[username])
 -- Version 3: Custom relic sprite (myspatialrefuge_0)
 -- Version 4: Added upgrades table for feature upgrades (faster_reading, etc.)
+-- Version 5: Added roomIds table for room persistence (no breaking changes)
 
 require "shared/MSR"
 require "shared/MSR_Config"
@@ -94,8 +95,8 @@ local function migrate_1_to_2(player)
         centerZ = oldCenterZ,
         tier = oldTier,
         radius = oldRadius,
-        createdTime = oldCreatedTime or os.time(),
-        lastExpanded = os.time(),
+        createdTime = oldCreatedTime or K.time(),
+        lastExpanded = K.time(),
         dataVersion = 2
     }
     
@@ -235,10 +236,34 @@ local function migrate_3_to_4(player)
     return true, "Migrated v3 -> v4 (added upgrades table)"
 end
 
+-----------------------------------------------------------
+-- Migration: v4 -> v5
+-- Added roomIds table for room persistence
+-- No breaking changes - just version bump
+-----------------------------------------------------------
+
+local function migrate_4_to_5(player)
+    local username = player:getUsername()
+    local refugeData = Data.GetRefugeDataByUsername(username)
+    
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+    
+    -- roomIds will be populated automatically on first teleport exit
+    -- No action needed here, just bump version
+    
+    refugeData.dataVersion = 5
+    Data.SaveRefugeData(refugeData)
+    
+    return true, "Migrated v4 -> v5 (roomIds support)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
     [2] = migrate_2_to_3,
-    [3] = migrate_3_to_4
+    [3] = migrate_3_to_4,
+    [4] = migrate_4_to_5
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)

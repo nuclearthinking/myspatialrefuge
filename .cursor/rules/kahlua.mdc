@@ -86,6 +86,40 @@ end
 ### `rawget()` / `rawset()` - May not be available
 Use direct table access instead when possible.
 
+### `goto` statements - Does NOT exist (Lua 5.2+ feature)
+Kahlua is based on Lua 5.1, which does not support `goto` statements or labels.
+```lua
+-- ❌ WRONG - goto not available in Lua 5.1/Kahlua
+for i, item in pairs(items) do
+    if not item.valid then
+        goto continue  -- CRASHES!
+    end
+    -- process item
+    ::continue::
+end
+
+-- ✅ CORRECT - use repeat-until pattern for early exit/continue
+for i, item in pairs(items) do
+    repeat
+        -- Early exit condition
+        if not item.valid then
+            break  -- Skip to next iteration
+        end
+        
+        -- Main processing logic here
+        processItem(item)
+    until true  -- Execute once, allows break for early exit
+end
+
+-- ✅ ALTERNATIVE - invert condition (traditional approach)
+for i, item in pairs(items) do
+    if item.valid then
+        -- Main processing logic here
+        processItem(item)
+    end
+end
+```
+
 ### `#` operator on Java objects - Does NOT work
 ```lua
 -- ❌ WRONG - Java ArrayList doesn't support # operator

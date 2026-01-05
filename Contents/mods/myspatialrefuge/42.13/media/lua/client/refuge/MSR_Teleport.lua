@@ -1,10 +1,34 @@
--- Spatial Refuge Teleportation Module
-
 require "shared/MSR_Config"
 require "shared/MSR_Validation"
 require "shared/MSR_Shared"
 require "shared/MSR_Env"
 require "shared/MSR_Integrity"
+require "shared/MSR_RoomPersistence"
+require "shared/MSR_PlayerMessage"
+local PM = MSR.PlayerMessage
+
+local function formatPenaltyTime(seconds)
+    if seconds >= 60 then
+        local mins = math.floor(seconds / 60)
+        local secs = seconds % 60
+        return string.format("%d:%02d", mins, secs)
+    end
+    return tostring(seconds) .. "s"
+end
+
+-- Apply encumbrance penalty after teleport. Penalty must be calculated BEFORE teleport.
+local function applyEncumbrancePenalty(player, penaltySeconds)
+    if not player or not penaltySeconds or penaltySeconds <= 0 then
+        MSR.UpdateTeleportTime(player)
+        return
+    end
+    
+    MSR.UpdateTeleportTimeWithPenalty(player, penaltySeconds)
+    
+    local cooldown = MSR.Config.getTeleportCooldown()
+    local totalWait = cooldown + penaltySeconds
+    PM.Say(player, PM.ENCUMBRANCE_PENALTY, formatPenaltyTime(totalWait))
+end
 
 function MSR.CanEnterRefuge(player)
     local canEnter, reason = MSR.Validation.CanEnterRefuge(player)
@@ -15,7 +39,7 @@ function MSR.CanEnterRefuge(player)
     local now = K.time()
     
     local lastTeleport = MSR.GetLastTeleportTime and MSR.GetLastTeleportTime(player) or 0
-    local cooldown = MSR.Config.TELEPORT_COOLDOWN or 60
+    local cooldown = MSR.Config.getTeleportCooldown()
     local canTeleport, remaining = MSR.Validation.CheckCooldown(lastTeleport, cooldown, now)
     
     if not canTeleport then
@@ -23,7 +47,7 @@ function MSR.CanEnterRefuge(player)
     end
     
     local lastDamage = MSR.GetLastDamageTime and MSR.GetLastDamageTime(player) or 0
-    local combatBlock = MSR.Config.COMBAT_TELEPORT_BLOCK or 10
+    local combatBlock = MSR.Config.getCombatBlockTime()
     local canCombat, _ = MSR.Validation.CheckCooldown(lastDamage, combatBlock, now)
     
     if not canCombat then
@@ -31,6 +55,29 @@ function MSR.CanEnterRefuge(player)
     end
     
     return true, nil
+end
+
+-- Recalculate visibility/lighting after teleportation
+local function recalculateRefugeBuildings(centerX, centerY, centerZ, radius)
+    local cell = getCell()
+    if not cell then return false end
+    
+    local recalculated = 0
+    for x = centerX - radius - 1, centerX + radius + 1 do
+        for y = centerY - radius - 1, centerY + radius + 1 do
+            local square = cell:getGridSquare(x, y, centerZ)
+            if square and square:getChunk() then
+                square:RecalcAllWithNeighbours(true)
+                recalculated = recalculated + 1
+            end
+        end
+    end
+    
+    if recalculated > 0 then
+        L.debug("Teleport", "Recalculated " .. recalculated .. " squares for visibility")
+    end
+    
+    return recalculated > 0
 end
 
 local function doSingleplayerEnter(player, refugeData)
@@ -43,12 +90,17 @@ local function doSingleplayerEnter(player, refugeData)
     local tierData = MSR.Config.TIERS[tier]
     local radius = tierData and tierData.radius or 1
     
+    -- Penalty must be calculated before teleport (weight may change after)
+    local encumbrancePenalty = MSR.Validation.GetEncumbrancePenalty(player)
+    
     local tickCount = 0
     local teleportDone = false
     local floorPrepared = false
     local relicCreated = false
     local wallsCreated = false
     local centerSquareSeen = false
+    local buildingsRecalculated = false
+    local refugeInitialized = false
     
     local function doTeleport()
         tickCount = tickCount + 1
@@ -79,57 +131,73 @@ local function doSingleplayerEnter(player, refugeData)
         end
         
         if not MSR.Env.isMultiplayerClient() then
-            if not floorPrepared and centerSquareExists and chunkLoaded then
-                if MSR.ClearZombiesFromArea then
-                    MSR.ClearZombiesFromArea(teleportX, teleportY, teleportZ, radius, true)
+            -- Check if refuge already initialized
+            if not refugeInitialized and centerSquareExists and chunkLoaded then
+                local existingRelic = MSR.Shared.FindRelicInRefuge(teleportX, teleportY, teleportZ, radius, refugeId)
+                local wallsExist = MSR.Shared.CheckBoundaryWallsExist(teleportX, teleportY, teleportZ, radius)
+                
+                if existingRelic and wallsExist then
+                    refugeInitialized = true
+                    floorPrepared = true
+                    wallsCreated = true
+                    relicCreated = true
+                    L.debug("Teleport", "Refuge already initialized - skipping creation")
                 end
-                floorPrepared = true
             end
+            
+            if not refugeInitialized then
+                if not floorPrepared and centerSquareExists and chunkLoaded then
+                    if MSR.ClearZombiesFromArea then
+                        MSR.ClearZombiesFromArea(teleportX, teleportY, teleportZ, radius, true)
+                    end
+                    floorPrepared = true
+                end
 
-            if not wallsCreated and centerSquareExists and chunkLoaded then
-                local boundarySquaresReady = true
-                for x = -radius-1, radius+1 do
-                    for y = -radius-1, radius+1 do
-                        local isPerimeter = (x == -radius-1 or x == radius+1) or (y == -radius-1 or y == radius+1)
-                        if isPerimeter then
-                            local sq = cell:getGridSquare(teleportX + x, teleportY + y, teleportZ)
-                            if not sq or not sq:getChunk() then
-                                boundarySquaresReady = false
-                                break
+                if not wallsCreated and centerSquareExists and chunkLoaded then
+                    local boundarySquaresReady = true
+                    for x = -radius-1, radius+1 do
+                        for y = -radius-1, radius+1 do
+                            local isPerimeter = (x == -radius-1 or x == radius+1) or (y == -radius-1 or y == radius+1)
+                            if isPerimeter then
+                                local sq = cell:getGridSquare(teleportX + x, teleportY + y, teleportZ)
+                                if not sq or not sq:getChunk() then
+                                    boundarySquaresReady = false
+                                    break
+                                end
+                            end
+                        end
+                        if not boundarySquaresReady then break end
+                    end
+                    
+                    if boundarySquaresReady then
+                        MSR.Shared.ClearTreesFromArea(teleportX, teleportY, teleportZ, radius, false)
+                        
+                        if MSR.CreateBoundaryWalls then
+                            local wallsCount = MSR.CreateBoundaryWalls(teleportX, teleportY, teleportZ, radius)
+                            if wallsCount > 0 or MSR.Shared.CheckBoundaryWallsExist(teleportX, teleportY, teleportZ, radius) then
+                                wallsCreated = true
                             end
                         end
                     end
-                    if not boundarySquaresReady then break end
                 end
-                
-                if boundarySquaresReady then
-                    if MSR.Shared and MSR.Shared.ClearTreesFromArea then
-                        MSR.Shared.ClearTreesFromArea(teleportX, teleportY, teleportZ, radius, false)
-                    end
-                    
-                    if MSR.CreateBoundaryWalls then
-                        local wallsCount = MSR.CreateBoundaryWalls(teleportX, teleportY, teleportZ, radius)
-                        if wallsCount > 0 then wallsCreated = true end
-                    end
-                end
-            end
 
-            if not relicCreated and centerSquareExists and chunkLoaded and MSR.CreateSacredRelic then
-                local relic = MSR.CreateSacredRelic(teleportX, teleportY, teleportZ, refugeId, radius)
-                if relic then
-                    relicCreated = true
-                    if refugeData.relicX == nil then
-                        local relicSquare = relic:getSquare()
-                        if relicSquare then
-                            refugeData.relicX = relicSquare:getX()
-                            refugeData.relicY = relicSquare:getY()
-                            refugeData.relicZ = relicSquare:getZ()
-                        else
-                            refugeData.relicX = teleportX
-                            refugeData.relicY = teleportY
-                            refugeData.relicZ = teleportZ
+                if not relicCreated and centerSquareExists and chunkLoaded and MSR.CreateSacredRelic then
+                    local relic = MSR.CreateSacredRelic(teleportX, teleportY, teleportZ, refugeId, radius)
+                    if relic then
+                        relicCreated = true
+                        if refugeData.relicX == nil then
+                            local relicSquare = relic:getSquare()
+                            if relicSquare then
+                                refugeData.relicX = relicSquare:getX()
+                                refugeData.relicY = relicSquare:getY()
+                                refugeData.relicZ = relicSquare:getZ()
+                            else
+                                refugeData.relicX = teleportX
+                                refugeData.relicY = teleportY
+                                refugeData.relicZ = teleportZ
+                            end
+                            MSR.Data.SaveRefugeData(refugeData)
                         end
-                        MSR.Data.SaveRefugeData(refugeData)
                     end
                 end
             end
@@ -139,18 +207,45 @@ local function doSingleplayerEnter(player, refugeData)
             relicCreated = true
         end
         
-        if (floorPrepared and relicCreated and wallsCreated) or tickCount >= 600 then
+        -- Wait for chunks to load, then recalculate buildings (120 ticks = 2 seconds)
+        if not buildingsRecalculated and floorPrepared and relicCreated and wallsCreated and tickCount >= 120 then
+            local allChunksReady = true
+            for x = -radius-1, radius+1 do
+                for y = -radius-1, radius+1 do
+                    local sq = cell:getGridSquare(teleportX + x, teleportY + y, teleportZ)
+                    if not sq or not sq:getChunk() then
+                        allChunksReady = false
+                        break
+                    end
+                end
+                if not allChunksReady then break end
+            end
+            
+            if allChunksReady then
+                if MSR.RoomPersistence and MSR.RoomPersistence.Restore then
+                    local restored = MSR.RoomPersistence.Restore(refugeData)
+                    if restored > 0 then
+                        L.debug("Teleport", string.format("Restored %d room IDs after enter", restored))
+                    end
+                end
+                
+                recalculateRefugeBuildings(teleportX, teleportY, teleportZ, radius)
+                buildingsRecalculated = true
+            end
+        end
+        
+        if (floorPrepared and relicCreated and wallsCreated and buildingsRecalculated) or tickCount >= 600 then
             if tickCount >= 600 and not centerSquareSeen then
-                teleportPlayer:Say(getText("IGUI_RefugeAreaNotLoaded"))
+                PM.Say(teleportPlayer, PM.AREA_NOT_LOADED)
             end
             Events.OnTick.Remove(doTeleport)
         end
     end
     
     Events.OnTick.Add(doTeleport)
-    MSR.UpdateTeleportTime(player)
+    applyEncumbrancePenalty(player, encumbrancePenalty)
     addSound(player, refugeData.centerX, refugeData.centerY, refugeData.centerZ, 10, 1)
-    player:Say(getText("IGUI_EnteredRefuge"))
+    PM.Say(player, PM.ENTERED_REFUGE)
     
     return true
 end
@@ -159,7 +254,7 @@ local function doSingleplayerExit(player, returnPos)
     local targetX, targetY, targetZ = returnPos.x, returnPos.y, returnPos.z
     
     MSR.ClearReturnPosition(player)
-    MSR.UpdateTeleportTime(player)
+    -- Don't update cooldown on exit - preserve penalty from enter
     
     local teleportPlayer = player
     local teleportDone = false
@@ -175,7 +270,7 @@ local function doSingleplayerExit(player, returnPos)
             teleportPlayer:setLastZ(targetZ)
             teleportDone = true
             addSound(teleportPlayer, targetX, targetY, targetZ, 10, 1)
-            teleportPlayer:Say(getText("IGUI_ExitedRefuge"))
+            PM.Say(teleportPlayer, PM.EXITED_REFUGE)
             return
         end
         
@@ -196,13 +291,13 @@ function MSR.EnterRefuge(player)
     if not player then return false end
     
     if MSR.IsPlayerInRefuge and MSR.IsPlayerInRefuge(player) then
-        player:Say(getText("IGUI_AlreadyInRefuge"))
+        PM.Say(player, PM.ALREADY_IN_REFUGE)
         return false
     end
     
     local canEnter, reason = MSR.CanEnterRefuge(player)
     if not canEnter then
-        player:Say(reason)
+        PM.SayRaw(player, reason)
         return false
     end
     
@@ -218,10 +313,10 @@ function MSR.EnterRefuge(player)
     
     local refugeData = MSR.GetRefugeData(player)
     if not refugeData then
-        player:Say(getText("IGUI_GeneratingRefuge"))
+        PM.Say(player, PM.GENERATING_REFUGE)
         refugeData = MSR.GenerateNewRefuge(player)
         if not refugeData then
-            player:Say(getText("IGUI_FailedToGenerateRefuge"))
+            PM.Say(player, PM.FAILED_TO_GENERATE)
             return false
         end
     end
@@ -235,19 +330,18 @@ function MSR.ExitRefuge(player)
     
     if MSR.Env.isMultiplayerClient() then
         sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_EXIT, {})
-        player:Say(getText("IGUI_ExitingRefuge"))
         L.debug("Teleport", "Sent RequestExit to server")
         return true
     end
     
     local returnPos = MSR.GetReturnPosition(player)
     if not returnPos then
-        player:Say(getText("IGUI_ReturnPositionLost"))
+        PM.Say(player, PM.RETURN_POSITION_LOST)
         local refugeData = MSR.GetRefugeData(player)
         if refugeData then
             returnPos = { x = 10000, y = 10000, z = 0 }
         else
-            player:Say(getText("IGUI_CannotExitNoData"))
+            PM.Say(player, PM.CANNOT_EXIT_NO_DATA)
             return false
         end
     end
@@ -282,11 +376,13 @@ local function OnServerCommand(module, command, args)
         if args and args.centerX and args.centerY and args.centerZ then
             L.debug("Teleport", "TeleportTo received: " .. args.centerX .. "," .. args.centerY)
             
+            -- Use encumbrance penalty from server (server is authoritative for cooldown)
+            local encumbrancePenalty = args.encumbrancePenalty or 0
+            
             local teleportX, teleportY, teleportZ = args.centerX, args.centerY, args.centerZ
             local teleportPlayer = player
             
             player:teleportTo(teleportX, teleportY, teleportZ)
-            player:Say(getText("IGUI_EnteringRefuge"))
             
             local tickCount = 0
             local chunksSent = false
@@ -301,37 +397,37 @@ local function OnServerCommand(module, command, args)
                 
                 if tickCount < 30 then return end
                 
+                -- Timeout: area failed to load
+                if tickCount >= 300 then
+                    Events.OnTick.Remove(waitForChunks)
+                    PM.Say(teleportPlayer, PM.FAILED_TO_LOAD_AREA)
+                    return
+                end
+                
                 local cell = getCell()
                 if not cell then return end
                 
                 local centerSquare = cell:getGridSquare(teleportX, teleportY, teleportZ)
                 if not centerSquare or not centerSquare:getChunk() then return end
                 
-                if not chunksSent then
-                    chunksSent = true
-                    Events.OnTick.Remove(waitForChunks)
-                    L.debug("Teleport", "Chunks loaded, sending ChunksReady")
-                    sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.CHUNKS_READY, {})
-                end
-                
-                if tickCount >= 300 and not chunksSent then
-                    Events.OnTick.Remove(waitForChunks)
-                    teleportPlayer:Say(getText("IGUI_FailedToLoadRefugeArea"))
-                end
+                chunksSent = true
+                Events.OnTick.Remove(waitForChunks)
+                L.debug("Teleport", "Chunks loaded, sending ChunksReady")
+                sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.CHUNKS_READY, {})
             end
             
             Events.OnTick.Add(waitForChunks)
-            MSR.UpdateTeleportTime(player)
+            applyEncumbrancePenalty(player, encumbrancePenalty)
         end
         
     elseif command == MSR.Config.COMMANDS.GENERATION_COMPLETE then
         L.debug("Teleport", "GENERATION_COMPLETE received")
         if args and args.centerX then
-            player:Say(getText("IGUI_EnteredRefuge"))
+            PM.Say(player, PM.ENTERED_REFUGE)
             
             if MSR.Env.isMultiplayerClient() then
-                local refugeData = MSR.GetRefugeData and MSR.GetRefugeData(player)
-                if refugeData and MSR.Integrity then
+                local refugeData = MSR.GetRefugeData(player)
+                if refugeData then
                     local repairTicks = 0
                     local function delayedIntegrityCheck()
                         repairTicks = repairTicks + 1
@@ -341,6 +437,31 @@ local function OnServerCommand(module, command, args)
                             source = "enter_client",
                             player = player
                         })
+                        
+                        -- After integrity check, restore rooms and recalculate building recognition
+                        local recalcTicks = 0
+                        local function delayedBuildingRecalc()
+                            recalcTicks = recalcTicks + 1
+                            if recalcTicks < 60 then return end  -- Wait 1 second after integrity check
+                            
+                            Events.OnTick.Remove(delayedBuildingRecalc)
+                            
+                            -- Restore room IDs AFTER teleport in (saved before teleport out)
+                            if MSR.RoomPersistence and MSR.RoomPersistence.Restore then
+                                local restored = MSR.RoomPersistence.Restore(refugeData)
+                                if restored > 0 then
+                                    L.debug("Teleport", string.format("Restored %d room IDs after enter", restored))
+                                end
+                            end
+                            
+                            recalculateRefugeBuildings(
+                                refugeData.centerX, 
+                                refugeData.centerY, 
+                                refugeData.centerZ, 
+                                refugeData.radius or 1
+                            )
+                        end
+                        Events.OnTick.Add(delayedBuildingRecalc)
                     end
                     Events.OnTick.Add(delayedIntegrityCheck)
                 end
@@ -351,12 +472,24 @@ local function OnServerCommand(module, command, args)
         
     elseif command == MSR.Config.COMMANDS.EXIT_READY then
         if args and args.returnX and args.returnY and args.returnZ then
+            -- Save room IDs BEFORE teleport out (will restore after teleport in)
+            local refugeData = MSR.GetRefugeData(player)
+            if refugeData and MSR.RoomPersistence then
+                local saved = MSR.RoomPersistence.Save(refugeData)
+                if saved > 0 then
+                    L.debug("Teleport", string.format("Saved %d room IDs before exit", saved))
+                end
+                if MSR.Env.isMultiplayerClient() and refugeData.roomIds and MSR.RoomPersistence.SyncToServer then
+                    MSR.RoomPersistence.SyncToServer(refugeData)
+                end
+            end
+            
             player:teleportTo(args.returnX, args.returnY, args.returnZ)
             player:setLastX(args.returnX)
             player:setLastY(args.returnY)
             player:setLastZ(args.returnZ)
-            player:Say(getText("IGUI_ExitedRefuge"))
-            MSR.UpdateTeleportTime(player)
+            PM.Say(player, PM.EXITED_REFUGE)
+            -- Don't update cooldown on exit - preserve penalty from enter
             addSound(player, args.returnX, args.returnY, args.returnZ, 10, 1)
             
             L.debug("Teleport", "ExitReady: teleported to " .. args.returnX .. "," .. args.returnY)
@@ -366,7 +499,7 @@ local function OnServerCommand(module, command, args)
         if args and args.cornerName then
             require "refuge/MSR_Context"
             local translatedCornerName = MSR.TranslateCornerName(args.cornerName)
-            player:Say(string.format(getText("IGUI_SacredRelicMovedTo"), translatedCornerName))
+            PM.Say(player, PM.RELIC_MOVED_TO, translatedCornerName)
             
             if MSR.InvalidateRelicContainerCache then MSR.InvalidateRelicContainerCache() end
             if MSR.UpdateRelicMoveTime then MSR.UpdateRelicMoveTime(player) end
@@ -391,14 +524,13 @@ local function OnServerCommand(module, command, args)
                 local zombieList = cell:getZombieList()
                 local removed = 0
                 
-                -- Use K.isIterable() and K.size() for safe Java ArrayList handling
                 if K.isIterable(zombieList) then
                     local idLookup = {}
                     for _, id in ipairs(args.zombieIDs) do
                         idLookup[id] = true
                     end
                     
-                    -- Reverse iteration for removal - must use manual loop
+                    -- Reverse iteration for removal
                     for i = K.size(zombieList) - 1, 0, -1 do
                         local zombie = zombieList:get(i)
                         if zombie and zombie.getOnlineID then
@@ -418,14 +550,18 @@ local function OnServerCommand(module, command, args)
         
     elseif command == MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE then
         if args then
-            if args.upgradeId == "expand_refuge" and args.refugeData then
+            if args.refugeData then
                 local username = player:getUsername()
                 if username and args.refugeData.username == username then
                     local modData = ModData.getOrCreate(MSR.Config.MODDATA_KEY)
                     if modData[MSR.Config.REFUGES_KEY] then
                         modData[MSR.Config.REFUGES_KEY][username] = args.refugeData
+                        L.debug("Teleport", "Updated client ModData with server refugeData for " .. tostring(args.upgradeId))
                     end
                 end
+            end
+            
+            if args.upgradeId == "expand_refuge" then
                 if MSR.InvalidateRelicContainerCache then MSR.InvalidateRelicContainerCache() end
             end
             
@@ -468,10 +604,8 @@ local function OnServerCommand(module, command, args)
                             local square = cell:getGridSquare(x, y, c.centerZ)
                             if square then
                                 local objects = square:getObjects()
-                                -- Use K.isIterable() for safe Java ArrayList check
                                 if K.isIterable(objects) and not isOnNewPerimeter(c, x, y) then
                                     local toRemove = {}
-                                    -- Use K.iter() for safe Java ArrayList iteration
                                     for _, obj in K.iter(objects) do
                                         if obj and obj.getModData then
                                             local md = obj:getModData()
@@ -481,7 +615,6 @@ local function OnServerCommand(module, command, args)
                                         end
                                     end
                                     for _, obj in ipairs(toRemove) do
-                                        -- Use transmitRemoveItemFromSquare for proper MP sync
                                         local success = pcall(function()
                                             square:transmitRemoveItemFromSquare(obj)
                                         end)
@@ -506,7 +639,7 @@ local function OnServerCommand(module, command, args)
                     local removed = doCleanup(ctx)
                     if removed > 0 then
                         local p = getPlayer()
-                        if p then p:Say(getText("IGUI_RefugeWallsSynced")) end
+                        if p then PM.Say(p, PM.WALLS_SYNCED) end
                     end
                 end
                 
@@ -529,14 +662,14 @@ local function OnServerCommand(module, command, args)
             else
                 message = translatedText
             end
+            PM.SayRaw(player, message)
         elseif args and args.message then
-            message = args.message
+            PM.SayRaw(player, args.message)
         else
-            message = getText("IGUI_RefugeError")
+            PM.Say(player, PM.REFUGE_ERROR)
         end
-        player:Say(message)
         
-        L.debug("Teleport", "Error from server: " .. message)
+        L.debug("Teleport", "Error from server: " .. (message or "unknown"))
     end
 end
 
@@ -593,15 +726,12 @@ end
 local function onPeriodicIntegrityCheck()
     local player = getPlayer()
     if not player then return end
-    if not MSR.Data or not MSR.Data.IsPlayerInRefugeCoords then return end
     if not MSR.Data.IsPlayerInRefugeCoords(player) then return end
     
-    local refugeData = MSR.GetRefugeData and MSR.GetRefugeData(player)
-    if refugeData and MSR.Integrity and MSR.Integrity.CheckNeedsRepair then
-        if MSR.Integrity.CheckNeedsRepair(refugeData) then
-            L.debug("Teleport", "Periodic check detected issues, running repair")
-            MSR.Integrity.ValidateAndRepair(refugeData, { source = "periodic", player = player })
-        end
+    local refugeData = MSR.GetRefugeData(player)
+    if refugeData and MSR.Integrity.CheckNeedsRepair(refugeData) then
+        L.debug("Teleport", "Periodic check detected issues, running repair")
+        MSR.Integrity.ValidateAndRepair(refugeData, { source = "periodic", player = player })
     end
 end
 

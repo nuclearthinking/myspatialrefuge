@@ -21,14 +21,14 @@ IGUI_CN = {
     IGUI_GeneratingRefuge = "正在生成空间避难所...", -- 1.6/16.01.2026
     IGUI_RefugeInitializing = "空间避难所初始化中...", -- 1.7/02.01.2026
     IGUI_FailedToGenerateRefuge = "生成避难所失败！", -- 1.6/16.01.2026
-    IGUI_ExitingRefuge = "正在离开空间避难所...", -- 1.6/16.01.2026
-    IGUI_EnteringRefuge = "正在进入空间避难所...", -- 1.6/16.01.2026
     IGUI_RefugeAreaNotLoaded = "避难所区域未加载。请调整基础坐标。", -- 1.6/16.01.2026
     IGUI_FailedToLoadRefugeArea = "加载避难所区域失败", -- 1.6/16.01.2026
     IGUI_ReturnPositionLost = "返回位置丢失——将传送到默认位置", -- 1.6/16.01.2026
     IGUI_CannotExitNoData = "无法离开——未找到避难所数据", -- 1.6/16.01.2026
     IGUI_PortalCharging = "避难所传送门充能中... (%d秒)", -- 1.7/02.01.2026
     IGUI_CannotTeleportCombat = "战斗中无法传送！", -- 1.7/02.01.2026
+    IGUI_InheritedRefugeConnection = "我感觉到与古老避难所的联系...", -- 1.8/04.01.2026
+    IGUI_EncumbrancePenalty = "沉重的负荷使传送门承受压力。下次传送需等待 %s。", -- 1.8/05.01.2026
 
     -- Player Messages - Relic Movement
     IGUI_SacredRelicMovedTo = "遗物已移动到 %s。", -- 1.7/02.01.2026
