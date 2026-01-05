@@ -91,7 +91,7 @@ function MSR_UpgradeWindow:createChildren()
     local detailsWidth = math.floor((self.width - self.padding * 4) * self.DETAILS_WIDTH_RATIO)
     local ingredientsWidth = self.width - gridWidth - detailsWidth - self.padding * 4
     
-    local SRU_UpgradeGrid = require "refuge/SRU_UpgradeGrid"
+    local SRU_UpgradeGrid = require "SRU_UpgradeGrid"
     self.upgradeGrid = SRU_UpgradeGrid:new(
         self.padding,
         contentY,
@@ -102,7 +102,7 @@ function MSR_UpgradeWindow:createChildren()
     self.upgradeGrid:initialise()
     self:addChild(self.upgradeGrid)
     
-    local SRU_UpgradeDetails = require "refuge/SRU_UpgradeDetails"
+    local SRU_UpgradeDetails = require "SRU_UpgradeDetails"
     self.upgradeDetails = SRU_UpgradeDetails:new(
         self.padding * 2 + gridWidth,
         contentY,
@@ -113,7 +113,7 @@ function MSR_UpgradeWindow:createChildren()
     self.upgradeDetails:initialise()
     self:addChild(self.upgradeDetails)
     
-    local SRU_IngredientList = require "refuge/SRU_IngredientList"
+    local SRU_IngredientList = require "SRU_IngredientList"
     self.ingredientList = SRU_IngredientList:new(
         self.padding * 3 + gridWidth + detailsWidth,
         contentY,

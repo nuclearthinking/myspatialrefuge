@@ -2,9 +2,9 @@
 -- Generation functions accessible by both client and server
 -- For multiplayer persistence, server uses these functions to create objects that save to map
 
-require "shared/MSR"
+require "shared/core/MSR"
 require "shared/MSR_Config"
-require "shared/MSR_Env"
+require "shared/core/MSR_Env"
 require "shared/MSR_Integrity"
 
 -- Prevent double-loading

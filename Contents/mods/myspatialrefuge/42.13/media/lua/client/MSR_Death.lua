@@ -1,7 +1,7 @@
 -- Spatial Refuge Death Handling
 
-require "refuge/MSR_Generation"
-require "shared/MSR_Env"
+require "MSR_Generation"
+require "shared/core/MSR_Env"
 -- Uses global L for logging (loaded early by MSR.lua)
 
 local function clearPlayerModData(player)

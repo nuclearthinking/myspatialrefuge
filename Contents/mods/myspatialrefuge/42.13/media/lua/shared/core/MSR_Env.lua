@@ -2,7 +2,7 @@
 -- Cached environment detection for server/client/singleplayer
 -- Use these instead of calling isServer()/isClient() directly for performance
 
-require "shared/MSR"
+require "shared/core/MSR"
 
 if MSR.Env and MSR.Env._loaded then
     return MSR.Env

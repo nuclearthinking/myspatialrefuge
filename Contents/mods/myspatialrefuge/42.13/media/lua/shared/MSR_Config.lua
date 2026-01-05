@@ -1,4 +1,4 @@
-require "shared/MSR"
+require "shared/core/MSR"
 
 -- Guard against double-loading: another file may create empty MSR.Config table
 if MSR.Config and MSR.Config._loaded then

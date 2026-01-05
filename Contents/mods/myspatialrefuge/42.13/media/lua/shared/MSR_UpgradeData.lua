@@ -2,7 +2,7 @@
 -- Data loader and query API for the upgrade system
 -- Tries YAML first, falls back to Lua definitions
 
-require "shared/MSR"
+require "shared/core/MSR"
 require "shared/CUI_YamlParser"
 require "shared/MSR_Data"
 

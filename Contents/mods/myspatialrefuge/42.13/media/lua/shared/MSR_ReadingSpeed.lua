@@ -1,5 +1,5 @@
-require "shared/MSR"
-require "shared/MSR_Env"
+require "shared/core/MSR"
+require "shared/core/MSR_Env"
 require "shared/MSR_Data"
 require "shared/MSR_UpgradeData"
 

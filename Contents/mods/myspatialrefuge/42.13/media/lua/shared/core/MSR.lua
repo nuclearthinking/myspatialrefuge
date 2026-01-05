@@ -1,11 +1,17 @@
 -- MSR.lua - Global namespace for My Spatial Refuge mod
 -- All mod modules register themselves under the MSR namespace to avoid conflicts
 --
+-- LOCATION: shared/core/MSR.lua
+-- This file is in the core/ subdirectory to ensure it loads FIRST.
+-- PZ loads subdirectories before parent files, and within a directory,
+-- period (.) sorts before underscore (_), so this file loads before MSR_00*.
+--
 -- LOAD ORDER (PZ loads alphabetically, period < underscore):
--- 1. MSR.lua (this file) - creates MSR namespace
--- 2. MSR_00_KahluaCompat.lua - creates global K (Kahlua workarounds)
--- 3. MSR_01_Logging.lua - creates global L (debug logging)
--- 4. MSR_Config.lua, MSR_Data.lua, etc. - can use MSR, K, L safely
+-- 1. shared/core/MSR.lua (this file) - creates MSR namespace
+-- 2. shared/core/MSR_00_KahluaCompat.lua - creates global K (Kahlua workarounds)
+-- 3. shared/core/MSR_01_Logging.lua - creates global L (debug logging)
+-- 4. shared/core/MSR_Env.lua - creates MSR.Env (environment detection)
+-- 5. shared/MSR_Config.lua, MSR_Data.lua, etc. - can use MSR, K, L safely
 
 if MSR and MSR._loaded then
     return MSR

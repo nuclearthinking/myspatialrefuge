@@ -1,7 +1,7 @@
 require "shared/MSR_Config"
 require "shared/MSR_Validation"
 require "shared/MSR_Shared"
-require "shared/MSR_Env"
+require "shared/core/MSR_Env"
 require "shared/MSR_Integrity"
 require "shared/MSR_RoomPersistence"
 require "shared/MSR_PlayerMessage"
@@ -497,7 +497,7 @@ local function OnServerCommand(module, command, args)
         
     elseif command == MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE then
         if args and args.cornerName then
-            require "refuge/MSR_Context"
+            require "MSR_Context"
             local translatedCornerName = MSR.TranslateCornerName(args.cornerName)
             PM.Say(player, PM.RELIC_MOVED_TO, translatedCornerName)
             

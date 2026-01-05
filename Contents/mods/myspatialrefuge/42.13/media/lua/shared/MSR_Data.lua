@@ -2,9 +2,9 @@
 -- ModData management functions accessible by both client and server
 -- This ensures consistent data access in multiplayer
 
-require "shared/MSR"
+require "shared/core/MSR"
 require "shared/MSR_Config"
-require "shared/MSR_Env"
+require "shared/core/MSR_Env"
 
 if MSR.Data and MSR.Data._loaded then
     return MSR.Data

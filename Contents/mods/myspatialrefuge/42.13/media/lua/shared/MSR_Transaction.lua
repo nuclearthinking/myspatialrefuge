@@ -14,8 +14,8 @@
 -- - Transaction IDs prevent duplicate processing
 -- - Works for any item type (cores, materials, etc.)
 
-require "shared/MSR"
-require "shared/MSR_Env"
+require "shared/core/MSR"
+require "shared/core/MSR_Env"
 require "shared/MSR_Config"
 require "shared/MSR_PlayerMessage"
 
