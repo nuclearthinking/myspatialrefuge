@@ -13,7 +13,6 @@ MSR.ReadingSpeed._initialized = false
 MSR.ReadingSpeed._originalGetDuration = nil
 MSR.ReadingSpeed._originalServerStart = nil
 MSR.ReadingSpeed._originalAnimEvent = nil
-MSR.ReadingSpeed._originalUpdate = nil
 
 local ReadingSpeed = MSR.ReadingSpeed
 
@@ -161,34 +160,7 @@ local function hookReadABook()
         end
     end
     
-    if ISReadABook.update and not ReadingSpeed._originalUpdate then
-        ReadingSpeed._originalUpdate = ISReadABook.update
-        
-        ISReadABook.update = function(self)
-            ReadingSpeed._originalUpdate(self)
-            
-            if MSR.Env.isClient() then
-                return
-            end
-            
-            if not self.character or not self.maxTime or not self.item then
-                return
-            end
-            
-            local multiplier = getReadingSpeedMultiplier(self.character)
-            if multiplier >= 1.0 then
-                return
-            end
-            
-            local baseMaxTime = ReadingSpeed._originalGetDuration(self)
-            local expectedMaxTime = baseMaxTime * multiplier
-            
-            if math.abs(self.maxTime - expectedMaxTime) > 1.0 then
-                L.debug("ReadingSpeed", string.format("update: maxTime mismatch: %.1f vs expected %.1f", 
-                    self.maxTime, expectedMaxTime))
-            end
-        end
-    end
+    -- Note: No update() hook needed - serverStart() already corrects maxTime mismatches
     
     local side = MSR.Env.isServer() and "SERVER" or "CLIENT"
     if MSR.Env.isServer() then
