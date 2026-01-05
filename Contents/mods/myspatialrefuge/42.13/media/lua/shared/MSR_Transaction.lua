@@ -91,8 +91,9 @@ local function getItemSources(player, bypassCache)
     if inv then
         table.insert(sources, inv)
     end
-    if MSR and MSR.GetRelicContainer then
-        local rc = MSR.GetRelicContainer(player, bypassCache)
+    local getRelicContainer = (MSR and MSR.GetRelicContainer) or (MSR_Server and MSR_Server.GetRelicContainer)
+    if getRelicContainer then
+        local rc = getRelicContainer(player, bypassCache)
         if rc then
             table.insert(sources, rc)
         end

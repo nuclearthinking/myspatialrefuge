@@ -16,13 +16,13 @@ MSR_Server = MSR_Server or {}
 local _serverRelicContainerCache = {}
 local CACHE_DURATION = 5
 
-function MSR.InvalidateRelicContainerCache(username)
+function MSR_Server.InvalidateRelicContainerCacheForUser(username)
     if username then
         _serverRelicContainerCache[username] = nil
     end
 end
 
-function MSR.GetRelicContainer(player, bypassCache)
+function MSR_Server.GetRelicContainer(player, bypassCache)
     if not player then return nil end
     
     local username = nil
