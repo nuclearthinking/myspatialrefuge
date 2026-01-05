@@ -1,8 +1,8 @@
 -- Spatial Refuge Social (Emote) Radial Menu Integration
 
 require "ISUI/ISEmoteRadialMenu"
-require "refuge/MSR_Teleport"
-require "refuge/MSR_Cast"
+require "MSR_Teleport"
+require "MSR_Cast"
 require "shared/MSR_PlayerMessage"
 local PM = MSR.PlayerMessage
 

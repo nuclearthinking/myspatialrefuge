@@ -8,10 +8,10 @@
 -- Why: Game loses room associations when player teleports away.
 --      Normal gameplay (game load, building) works fine without this.
 
-require "shared/MSR"
+require "shared/core/MSR"
 require "shared/MSR_Config"
 require "shared/MSR_Data"
-require "shared/MSR_Env"
+require "shared/core/MSR_Env"
 
 -- Prevent double-loading
 if MSR.RoomPersistence and MSR.RoomPersistence._loaded then

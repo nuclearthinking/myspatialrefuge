@@ -2,7 +2,7 @@
 -- Centralized validation logic for both client and server
 -- Eliminates code duplication and ensures consistent validation rules
 
-require "shared/MSR"
+require "shared/core/MSR"
 require "shared/MSR_Config"
 require "shared/MSR_Data"
 

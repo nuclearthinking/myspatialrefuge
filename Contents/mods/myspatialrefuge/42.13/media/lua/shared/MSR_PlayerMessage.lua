@@ -9,7 +9,7 @@
 --   PM.SayRaw(player, "Already translated text")          -- bypass translation
 --   PM.SayRandom(player, PM.PROTECTED_OBJECT)  -- random from pool
 
-require "shared/MSR"
+require "shared/core/MSR"
 
 -- Prevent double-loading
 if MSR.PlayerMessage and MSR.PlayerMessage._loaded then

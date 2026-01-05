@@ -3,8 +3,9 @@
 require "shared/MSR_Transaction"
 require "shared/MSR_Integrity"
 require "shared/MSR_PlayerMessage"
+require "shared/core/MSR_Env"
+
 local PM = MSR.PlayerMessage
--- Uses global L for logging (loaded early by MSR.lua)
 
 
 
@@ -41,13 +42,8 @@ function MSR.UpdateRelicMoveTime(player)
     pmd.spatialRefuge_lastRelicMove = K.time()
 end
 
-local _cachedIsMPClient = nil
-local function isMultiplayerClient()
-    if _cachedIsMPClient == nil then
-        _cachedIsMPClient = isClient() and not isServer()
-    end
-    return _cachedIsMPClient
-end
+-- Use MSR.Env for environment detection (no local cache needed)
+-- MSR.Env already caches internally for performance
 
 function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, cornerName)
     if not player or not refugeData then return false end
@@ -62,7 +58,7 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
         return false
     end
     
-    if isMultiplayerClient() then
+    if MSR.Env.isMultiplayerClient() then
         sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_MOVE_RELIC, {
             cornerDx = cornerDx,
             cornerDy = cornerDy,
@@ -89,10 +85,32 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
         return success
     end
 end
+
+local function isSpriteRefugeCore(obj)
+    if not obj then return false end
+    if not obj.getSprite then return false end
+
+    local sprite = obj:getSprite()
+    if not sprite then return false end
+
+    local spriteName = sprite:getName()
+    if not spriteName then return false end
+
+    local validSprites = {
+        MSR.Config.SPRITES.SACRED_RELIC,
+        MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
+    }
+    for _, validName in ipairs(validSprites) do
+        if validName and spriteName == validName then
+            return true
+        end
+    end
+    return false
+end
+
 local function isSacredRelicObject(obj)
     if not obj then return false end
     
-    -- Primary check: ModData - this persists correctly in normal gameplay
     if obj.getModData then
         local md = obj:getModData()
         if md and md.isSacredRelic then
@@ -100,27 +118,10 @@ local function isSacredRelicObject(obj)
         end
     end
     
-    -- Fallback: Check sprite name (for unsynced MP clients or old saves)
-    -- This allows context menu to work even if ModData hasn't synced yet
-    -- Also recognizes old fallback sprite for migration
-    if obj.getSprite and MSR.Config and MSR.Config.SPRITES then
-        local sprite = obj:getSprite()
-        if sprite then
-            local spriteName = sprite:getName()
-            local currentSprite = MSR.Config.SPRITES.SACRED_RELIC
-            local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
-            
-            if spriteName == currentSprite or (oldFallbackSprite and spriteName == oldFallbackSprite) then
-                -- Attempt client-side repair if integrity system is available
-                -- This will migrate old fallback sprite to new one
-                if MSR.Integrity and MSR.Integrity.ClientSpriteRepair then
-                    MSR.Integrity.ClientSpriteRepair(obj)
-                end
-                return true
-            end
-        end
+    if isSpriteRefugeCore(obj) then
+        return true
     end
-    
+
     return false
 end
 
@@ -178,7 +179,7 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     
     -- Show Upgrade Refuge option (opens the upgrade window)
     local function openUpgradeWindow()
-        local MSR_UpgradeWindow = require "refuge/MSR_UpgradeWindow"
+        local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         MSR_UpgradeWindow.Open(playerObj)
     end
     
@@ -212,31 +213,6 @@ local function isProtectedObject(obj)
         end
     end
     return false
-end
-
--- Random messages when player tries to interact with protected objects
--- Makes it seem like the player instinctively knows not to do this
-local protectedObjectMessageKeys = {
-    "IGUI_ProtectedObject_1",
-    "IGUI_ProtectedObject_2",
-    "IGUI_ProtectedObject_3",
-    "IGUI_ProtectedObject_4",
-    "IGUI_ProtectedObject_5",
-    "IGUI_ProtectedObject_6",
-    "IGUI_ProtectedObject_7",
-    "IGUI_ProtectedObject_8",
-    "IGUI_ProtectedObject_9",
-    "IGUI_ProtectedObject_10",
-    "IGUI_ProtectedObject_11",
-    "IGUI_ProtectedObject_12",
-    "IGUI_ProtectedObject_13",
-    "IGUI_ProtectedObject_14",
-    "IGUI_ProtectedObject_15",
-}
-
-local function getProtectedObjectMessage()
-    local key = protectedObjectMessageKeys[ZombRand(#protectedObjectMessageKeys) + 1]
-    return getText(key)
 end
 
 -- Hook the actual disassemble function to block it for protected objects
@@ -288,9 +264,7 @@ local function BlockDisassembleAction()
             local originalPickupThumpable = ISMoveableDefinitions.onPickupThumpable
             ISMoveableDefinitions.onPickupThumpable = function(playerObj, thump)
                 if isProtectedObject(thump) then
-                    if playerObj and playerObj.Say then
-                        playerObj:Say(getProtectedObjectMessage())
-                    end
+                    PM.SayRandom(playerObj, PM.PROTECTED_OBJECT)
                     return
                 end
                 return originalPickupThumpable(playerObj, thump)
@@ -302,9 +276,7 @@ local function BlockDisassembleAction()
             local originalDisassembleThumpable = ISMoveableDefinitions.onDisassembleThumpable
             ISMoveableDefinitions.onDisassembleThumpable = function(playerObj, thump)
                 if isProtectedObject(thump) then
-                    if playerObj and playerObj.Say then
-                        playerObj:Say(getProtectedObjectMessage())
-                    end
+                    PM.SayRandom(playerObj, PM.PROTECTED_OBJECT)
                     return
                 end
                 return originalDisassembleThumpable(playerObj, thump)
@@ -318,8 +290,8 @@ local function BlockDisassembleAction()
         ISMoveablesAction.isValid = function(self)
             -- Helper to show message once and return false
             local function blockWithMessage()
-                if not self._refugeMessageShown and self.character and self.character.Say then
-                    self.character:Say(getProtectedObjectMessage())
+                if not self._refugeMessageShown and self.character then
+                    PM.SayRandom(self.character, PM.PROTECTED_OBJECT)
                     self._refugeMessageShown = true
                 end
                 return false
@@ -354,8 +326,8 @@ local function BlockDisassembleAction()
         ISDestroyStuffAction.isValid = function(self)
             -- Helper to show message once and return false
             local function blockWithMessage()
-                if not self._refugeMessageShown and self.character and self.character.Say then
-                    self.character:Say(getProtectedObjectMessage())
+                if not self._refugeMessageShown and self.character then
+                    PM.SayRandom(self.character, PM.PROTECTED_OBJECT)
                     self._refugeMessageShown = true
                 end
                 return false

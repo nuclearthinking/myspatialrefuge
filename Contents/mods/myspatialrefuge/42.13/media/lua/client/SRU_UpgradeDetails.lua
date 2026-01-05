@@ -56,7 +56,7 @@ end
 
 function SRU_UpgradeDetails:createChildren()
     -- Required items panel
-    local SRU_RequiredItems = require "refuge/SRU_RequiredItems"
+    local SRU_RequiredItems = require "SRU_RequiredItems"
     
     local itemsY = self.iconSize + self.padding * 3 + FONT_HGT_MEDIUM + FONT_HGT_SMALL * 4
     local itemsHeight = math.floor(FONT_HGT_MEDIUM * 6)

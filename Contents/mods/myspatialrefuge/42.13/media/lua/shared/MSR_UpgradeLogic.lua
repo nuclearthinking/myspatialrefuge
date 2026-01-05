@@ -1,7 +1,7 @@
 -- MSR_UpgradeLogic - Upgrade Logic
 
-require "shared/MSR"
-require "shared/MSR_Env"
+require "shared/core/MSR"
+require "shared/core/MSR_Env"
 require "shared/MSR_UpgradeData"
 require "shared/MSR_Transaction"
 require "shared/MSR_Config"
@@ -223,7 +223,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     if MSR.Env.isClient() then
         if ISInventoryPage and ISInventoryPage.dirtyUI then ISInventoryPage.dirtyUI() end
         
-        local MSR_UpgradeWindow = require "refuge/MSR_UpgradeWindow"
+        local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
             MSR_UpgradeWindow.instance:refreshUpgradeList()
             MSR_UpgradeWindow.instance:refreshCurrentUpgrade()

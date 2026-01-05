@@ -2,7 +2,7 @@
 
 require "shared/MSR_Config"
 require "shared/MSR_Data"
-require "shared/MSR_Env"
+require "shared/core/MSR_Env"
 require "shared/MSR_Migration"
 require "shared/MSR_Shared"
 require "shared/MSR_PlayerMessage"
