@@ -15,6 +15,7 @@
 -- - Works for any item type (cores, materials, etc.)
 
 require "shared/MSR"
+require "shared/MSR_Env"
 require "shared/MSR_Config"
 require "shared/MSR_PlayerMessage"
 
@@ -30,40 +31,20 @@ local function log(message) L.log("Transaction", message) end
 
 Transaction.STATE = {
     PENDING = "PENDING",
-    COMMITTED = "COMMITTED",
-    ROLLED_BACK = "ROLLED_BACK"
+    COMMITTED = "COMMITTED",      -- SP: items consumed locally
+    FINALIZED = "FINALIZED",      -- MP: server consumed items, local locks cleared
+    ROLLED_BACK = "ROLLED_BACK"   -- Failed: items unlocked, not consumed
 }
 
 
 
--- Resolve a player reference to a live IsoPlayer object when possible
+-- Use shared utilities from MSR namespace
 local function resolvePlayer(player)
-    if not player then return nil end
-
-    if type(player) == "number" and getSpecificPlayer then
-        return getSpecificPlayer(player)
-    end
-
-    -- If we were passed an IsoPlayer, re-resolve by playerNum to avoid stale refs
-    if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum and getSpecificPlayer then
-        local ok, num = pcall(function() return player:getPlayerNum() end)
-        if ok and num ~= nil then
-            local resolved = getSpecificPlayer(num)
-            if resolved then
-                return resolved
-            end
-        end
-    end
-
-    return player
+    return MSR.resolvePlayer(player)
 end
 
--- Safely call a player method (guards against disconnected/null IsoPlayer references)
--- Returns the method result or nil if the call fails
 local function safePlayerCall(player, methodName)
-    local resolved = resolvePlayer(player)
-    if not resolved then return nil end
-    return K.safeCall(resolved, methodName)
+    return MSR.safePlayerCall(player, methodName)
 end
 
 -----------------------------------------------------------
@@ -469,6 +450,62 @@ function Transaction.Rollback(player, transactionId, transactionType)
     return true
 end
 
+-- Finalize a transaction (server already consumed items, just clear local locks)
+-- Use this for MP success case - semantically different from Rollback (which implies failure)
+-- @param player: The player
+-- @param transactionId: The transaction ID to finalize
+-- @return: true on success, false on failure
+function Transaction.Finalize(player, transactionId)
+    -- Fail-fast validation
+    if not player then error("Transaction.Finalize: player is required") end
+    if not transactionId then error("Transaction.Finalize: transactionId is required") end
+    
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return false end
+    
+    local playerTransactions = activeTransactions[playerObj]
+    if not playerTransactions then return false end
+    
+    local transaction = nil
+    local tType = nil
+    
+    -- Find by ID
+    for t, trans in pairs(playerTransactions) do
+        if trans.id == transactionId then
+            transaction = trans
+            tType = t
+            break
+        end
+    end
+    
+    if not transaction then
+        log("FINALIZE - no transaction found (id=" .. tostring(transactionId) .. ")")
+        return false
+    end
+    
+    if transaction.status ~= Transaction.STATE.PENDING then
+        log("FINALIZE - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
+        return false
+    end
+    
+    -- Unlock all items (server already consumed them, we just clear local locks)
+    for itemType, data in pairs(transaction.lockedItems) do
+        unlockItems(playerObj, itemType, data.itemIds)
+    end
+    
+    -- Update transaction status
+    transaction.status = Transaction.STATE.FINALIZED
+    
+    -- Remove from active transactions
+    if tType then
+        playerTransactions[tType] = nil
+    end
+    
+    log("FINALIZED " .. transaction.id .. " - Server consumed items, local locks cleared")
+    
+    return true
+end
+
 -- Get a pending transaction for a player
 -- @param player: The player
 -- @param transactionType: The transaction type to look for
@@ -495,44 +532,68 @@ end
 -----------------------------------------------------------
 -- Timeout Handler
 -- Auto-rollback transactions that don't complete in time
+-- Uses a single periodic check instead of per-transaction OnTick
 -----------------------------------------------------------
 
+-- Timeout is stored in transaction.createdAt, checked periodically
+local TIMEOUT_CHECK_INTERVAL_SECONDS = 5  -- Check every 5 seconds (matches EveryTenSeconds / 2)
+local TIMEOUT_SECONDS = 5  -- 5 seconds (MSR.Config.TRANSACTION_TIMEOUT_TICKS / 60)
+
+-- No-op: timeout info is in transaction.createdAt, checked by periodic handler
 function Transaction._startTimeoutHandler(player, transactionType, transactionId)
-    local tickCount = 0
-    local playerRef = player
-    local typeRef = transactionType
-    local idRef = transactionId
+    -- Timeout is checked by _checkAllTransactionTimeouts() periodically
+    -- Transaction.createdAt is set in Transaction.Begin()
+end
+
+-- Batch check all pending transactions for timeout
+-- Called by EveryTenSeconds event handler
+function Transaction._checkAllTransactionTimeouts()
+    local now = K.time()
+    local timeoutThreshold = now - TIMEOUT_SECONDS
     
-    local function checkTimeout()
-        tickCount = tickCount + 1
-        
-        -- Check if transaction still exists and is pending
-        local transaction = Transaction.GetPending(playerRef, typeRef)
-        
-        if not transaction or transaction.id ~= idRef then
-            -- Transaction was committed or rolled back elsewhere
-            Events.OnTick.Remove(checkTimeout)
-            return
-        end
-        
-        -- Check timeout
-        if tickCount >= MSR.Config.TRANSACTION_TIMEOUT_TICKS then
-            Events.OnTick.Remove(checkTimeout)
-            
-            log("TIMEOUT - Auto-rollback: " .. idRef)
-            
-            -- Auto-rollback
-            Transaction.Rollback(playerRef, idRef)
-            
-            -- Notify player
-            if playerRef then
-                local PM = MSR.PlayerMessage
-                PM.Say(playerRef, PM.ACTION_TIMEOUT_ITEMS_UNLOCKED)
+    -- Iterate all players with transactions
+    for playerObj, playerTransactions in pairs(activeTransactions) do
+        if playerTransactions then
+            for transactionType, transaction in pairs(playerTransactions) do
+                if transaction and transaction.status == Transaction.STATE.PENDING then
+                    -- Check if transaction has timed out
+                    if transaction.createdAt and transaction.createdAt < timeoutThreshold then
+                        log("TIMEOUT - Auto-rollback: " .. tostring(transaction.id))
+                        
+                        -- Auto-rollback
+                        Transaction.Rollback(playerObj, transaction.id)
+                        
+                        -- Notify player
+                        local resolved = resolvePlayer(playerObj)
+                        if resolved then
+                            local PM = MSR.PlayerMessage
+                            if PM and PM.Say then
+                                PM.Say(resolved, PM.ACTION_TIMEOUT_ITEMS_UNLOCKED)
+                            end
+                        end
+                    end
+                end
             end
         end
     end
+end
+
+-- Register periodic timeout check (runs every 10 seconds)
+-- Only on client-side (where transactions are initiated)
+local _timeoutHandlerRegistered = false
+local function registerTimeoutHandler()
+    if _timeoutHandlerRegistered then return end
+    if MSR.Env.isDedicatedServer() then return end
+    if not Events.EveryTenSeconds then return end
     
-    Events.OnTick.Add(checkTimeout)
+    Events.EveryTenSeconds.Add(Transaction._checkAllTransactionTimeouts)
+    _timeoutHandlerRegistered = true
+    log("Registered periodic transaction timeout handler")
+end
+
+-- Register on game start
+if Events.OnGameStart then
+    Events.OnGameStart.Add(registerTimeoutHandler)
 end
 
 -----------------------------------------------------------
@@ -574,35 +635,37 @@ end
 -- Clears stale locked items from crashed/disconnected sessions
 -----------------------------------------------------------
 
+local _startupCleanupDone = false
+
 local function cleanupStaleLocksOnGameStart()
-    local ticksWaited = 0
-    local STARTUP_DELAY_TICKS = 120  -- 2 seconds for player to fully load
+    if _startupCleanupDone then return end
+    if MSR.Env.isDedicatedServer() then return end
     
-    local function doCleanup()
-        ticksWaited = ticksWaited + 1
-        if ticksWaited < STARTUP_DELAY_TICKS then return end
-        
-        Events.OnTick.Remove(doCleanup)
-        
-        local player = getPlayer and getPlayer()
-        if not player then return end
-        
-        local pmd = safePlayerCall(player, "getModData")
-        if not pmd then return end
-        
-        if pmd._lockedTransactionItems then
-            log("Startup cleanup: Clearing stale locked items")
-            pmd._lockedTransactionItems = nil
-        end
-        
-        activeTransactions[player] = nil
+    local player = getPlayer and getPlayer()
+    if not player then return end  -- Will retry on next event
+    
+    local pmd = safePlayerCall(player, "getModData")
+    if not pmd then return end
+    
+    if pmd._lockedTransactionItems then
+        log("Startup cleanup: Clearing stale locked items")
+        pmd._lockedTransactionItems = nil
     end
     
-    Events.OnTick.Add(doCleanup)
+    activeTransactions[player] = nil
+    _startupCleanupDone = true
 end
 
-if Events.OnGameStart then
-    Events.OnGameStart.Add(cleanupStaleLocksOnGameStart)
+-- Only register cleanup when client component exists (singleplayer, coop host, MP client)
+-- Transaction system manages client-side item locking, not needed on dedicated servers
+-- Use OnGameStart for initial attempt, EveryOneMinute as backup if player not ready
+if not MSR.Env.isDedicatedServer() then
+    if Events.OnGameStart then
+        Events.OnGameStart.Add(cleanupStaleLocksOnGameStart)
+    end
+    if Events.EveryOneMinute then
+        Events.EveryOneMinute.Add(cleanupStaleLocksOnGameStart)
+    end
 end
 
 -----------------------------------------------------------

@@ -7,6 +7,9 @@ require "shared/MSR_Transaction"
 require "shared/MSR_Config"
 require "shared/MSR_Shared"
 require "shared/MSR_Data"
+require "shared/MSR_RefugeExpansion"
+require "shared/MSR_PlayerMessage"
+local PM = MSR.PlayerMessage
 if MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
     return MSR.UpgradeLogic
 end
@@ -17,18 +20,9 @@ MSR.UpgradeLogic._loaded = true
 local UpgradeLogic = MSR.UpgradeLogic
 local TRANSACTION_TYPE_UPGRADE = "REFUGE_FEATURE_UPGRADE"
 
+-- Use shared utility from MSR namespace
 local function resolvePlayer(player)
-    if not player then return nil end
-    if type(player) == "number" and getSpecificPlayer then
-        return getSpecificPlayer(player)
-    end
-    if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum then
-        local ok, num = pcall(player.getPlayerNum, player)
-        if ok and num ~= nil then
-            return getSpecificPlayer(num) or player
-        end
-    end
-    return player
+    return MSR.resolvePlayer(player)
 end
 
 function UpgradeLogic.getItemSources(player)
@@ -109,35 +103,15 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
         local refugeData = MSR.Data.GetRefugeData(player)
         if not refugeData then return false, "Refuge data not found" end
         
-        local currentTier = refugeData.tier or 0
-        local nextTier = currentTier + 1
-        local oldRadius = refugeData.radius or 1
-        
-        local expandSuccess = MSR.Shared.ExpandRefuge(refugeData, nextTier, player)
-        if not expandSuccess then return false, "Expansion failed" end
-        
-        local relic = MSR.Shared.FindRelicInRefuge(
-            refugeData.centerX, refugeData.centerY, refugeData.centerZ,
-            oldRadius, refugeData.refugeId
-        )
-        if relic then
-            local md = relic:getModData()
-            if md and md.assignedCorner then
-                local moveSuccess = MSR.Shared.MoveRelic(refugeData, md.assignedCornerDx or 0, md.assignedCornerDy or 0, md.assignedCorner, relic)
-                if moveSuccess then
-                    refugeData.relicX = refugeData.centerX + ((md.assignedCornerDx or 0) * refugeData.radius)
-                    refugeData.relicY = refugeData.centerY + ((md.assignedCornerDy or 0) * refugeData.radius)
-                    refugeData.relicZ = refugeData.centerZ
-                end
-            end
+        -- Use shared expansion module
+        local success, errorMsg, resultData = MSR.RefugeExpansion.Execute(player, refugeData)
+        if not success then
+            return false, errorMsg or "Expansion failed"
         end
         
-        MSR.Data.SaveRefugeData(refugeData)
-        if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(player) end
-        
-        local tierConfig = MSR.Config.TIERS[nextTier]
-        if tierConfig and player.Say then
-            player:Say(string.format(getText("IGUI_RefugeUpgradedTo"), tierConfig.displayName))
+        -- Show tier-specific message
+        if resultData.tierConfig then
+            PM.Say(player, PM.REFUGE_UPGRADED_TO, resultData.tierConfig.displayName)
         end
     else
         MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
@@ -146,9 +120,7 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
     
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
-    if player.Say then
-        player:Say(string.format(getText("IGUI_UpgradedToLevel"), name, targetLevel))
-    end
+    PM.Say(player, PM.UPGRADED_TO_LEVEL, name, targetLevel)
     
     return true, nil
 end
@@ -165,7 +137,7 @@ function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirem
         transactionId = transaction.id
     })
     
-    if player.Say then player:Say(getText("IGUI_Upgrading")) end
+    PM.Say(player, PM.UPGRADING)
     return true, nil
 end
 
@@ -222,10 +194,12 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
     
-    -- MP client: rollback local locks (server already consumed). SP: commit locally.
+    -- Handle transaction completion:
+    -- - MP client: Finalize (server already consumed items, just clear local locks)
+    -- - SP/Coop host: Commit (consume items locally)
     if transactionId then
         if MSR.Env.isMultiplayerClient() then
-            MSR.Transaction.Rollback(playerObj, transactionId)
+            MSR.Transaction.Finalize(playerObj, transactionId)
         else
             MSR.Transaction.Commit(playerObj, transactionId)
         end
@@ -234,6 +208,12 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     if upgradeId == "expand_refuge" then
         if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(playerObj) end
     else
+        -- Set upgrade level in local state
+        -- For MP clients: ModData cache was already updated with server's refugeData before this function is called,
+        -- but we still call setPlayerUpgradeLevel to ensure the upgradeData object is properly set for immediate use
+        -- (e.g., reading speed calculations need the level to be available right away).
+        -- SaveRefugeData call inside setPlayerUpgradeLevel is a no-op on MP clients (only server can save).
+        -- For SP: This saves to GlobalModData and updates local state.
         MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
         UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
@@ -252,9 +232,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
-    if playerObj.Say then
-        playerObj:Say(string.format(getText("IGUI_UpgradedToLevel"), name, targetLevel))
-    end
+    PM.Say(playerObj, PM.UPGRADED_TO_LEVEL, name, targetLevel)
 end
 
 function UpgradeLogic.onUpgradeError(player, transactionId, reason)
@@ -265,8 +243,10 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
         MSR.Transaction.Rollback(playerObj, transactionId)
     end
     
-    if playerObj.Say then
-        playerObj:Say(reason or getText("IGUI_UpgradeFailed"))
+    if reason then
+        PM.SayRaw(playerObj, reason)
+    else
+        PM.Say(playerObj, PM.UPGRADE_FAILED)
     end
 end
 

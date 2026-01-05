@@ -1,5 +1,5 @@
 Sandbox_CN = {
-    Sandbox_MySpatialRefuge = "我的空间避难所", -- 1.5/31.12.2025
+    Sandbox_MySpatialRefuge = "My Spatial Refuge", -- 1.8/31.12.2025 # mod name, do not translate
     
     Sandbox_RefugeTeleportCooldown = "传送冷却时间", -- 1.5/31.12.2025
     Sandbox_RefugeTeleportCooldown_tooltip = "两次传送之间的秒数。0 = 无冷却。", -- 1.5/31.12.2025
@@ -9,4 +9,13 @@ Sandbox_CN = {
     
     Sandbox_RefugeCombatBlockTime = "战斗阻止时间", -- 1.5/31.12.2025
     Sandbox_RefugeCombatBlockTime_tooltip = "受到伤害后多少秒内无法传送。0 = 禁用。", -- 1.5/31.12.2025
+    
+    Sandbox_RefugeEncumbrancePenaltyEnabled = "负重惩罚", -- 1.8/05.01.2026
+    Sandbox_RefugeEncumbrancePenaltyEnabled_tooltip = "超重传送时增加冷却惩罚。防止滥用传送搬运重物。", -- 1.8/05.01.2026
+    
+    Sandbox_RefugeEncumbrancePenaltyMultiplier = "负重惩罚倍数", -- 1.8/05.01.2026
+    Sandbox_RefugeEncumbrancePenaltyMultiplier_tooltip = "每超重100%增加的冷却秒数。例如：300表示150%负重增加150秒冷却。", -- 1.8/05.01.2026
+    
+    Sandbox_RefugeEncumbrancePenaltyCap = "负重惩罚上限", -- 1.8/05.01.2026
+    Sandbox_RefugeEncumbrancePenaltyCap_tooltip = "负重惩罚最大秒数。300 = 5分钟，600 = 10分钟。", -- 1.8/05.01.2026
 }

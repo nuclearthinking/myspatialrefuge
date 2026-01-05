@@ -2,6 +2,8 @@
 
 require "shared/MSR_Transaction"
 require "shared/MSR_Integrity"
+require "shared/MSR_PlayerMessage"
+local PM = MSR.PlayerMessage
 -- Uses global L for logging (loaded early by MSR.lua)
 
 
@@ -56,8 +58,7 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
     local remaining = cooldown - (now - lastMove)
     
     if remaining > 0 then
-        local message = string.format(getText("IGUI_CannotMoveRelicYet"), math.ceil(remaining))
-        player:Say(message)
+        PM.Say(player, PM.CANNOT_MOVE_RELIC_YET, math.ceil(remaining))
         return false
     end
     
@@ -67,7 +68,7 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
             cornerDy = cornerDy,
             cornerName = cornerName
         })
-        player:Say(getText("IGUI_MovingSacredRelic"))
+        PM.Say(player, PM.MOVING_RELIC)
         
         L.debug("Context", "Sent RequestMoveRelic to server: " .. cornerName)
         
@@ -80,11 +81,9 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
         if success then
             MSR.UpdateRelicMoveTime(player)
             local translatedCornerName = MSR.TranslateCornerName(cornerName)
-            local successMsg = string.format(getText("IGUI_SacredRelicMovedTo"), translatedCornerName)
-            player:Say(successMsg)
+            PM.Say(player, PM.RELIC_MOVED_TO, translatedCornerName)
         else
-            local translationKey = MSR.Shared.GetMoveRelicTranslationKey(errorCode)
-            player:Say(getText(translationKey))
+            PM.SayMoveRelicError(player, errorCode)
         end
         
         return success
@@ -248,8 +247,8 @@ local function BlockDisassembleAction()
         ISWorldObjectContextMenu.onDisassemble = function(worldobjects, object, player)
             -- Check if this is a protected object
             if isProtectedObject(object) then
-                if player and player.Say then
-                    player:Say(getProtectedObjectMessage())
+                if player then
+                    PM.SayRandom(player, PM.PROTECTED_OBJECT)
                 end
                 return  -- Block the action
             end
@@ -390,8 +389,8 @@ local function BlockDisassembleAction()
         local originalOnDestroyWall = ISWorldObjectContextMenu.onDestroyWall
         ISWorldObjectContextMenu.onDestroyWall = function(worldobjects, wall, player)
             if isProtectedObject(wall) then
-                if player and player.Say then
-                    player:Say(getProtectedObjectMessage())
+                if player then
+                    PM.SayRandom(player, PM.PROTECTED_OBJECT)
                 end
                 return
             end

@@ -35,6 +35,13 @@ function isDebugEnabled() end
 ---@return boolean
 function isAdmin() end
 
+-- Type checking
+---Check if object is instance of a class
+---@param obj any Object to check
+---@param className string Class name (e.g., "IsoThumpable", "IsoWindow", "IsoDoor")
+---@return boolean
+function instanceof(obj, className) end
+
 -- Player functions
 ---@class IsoPlayer
 ---@field getUsername fun(self: IsoPlayer): string
@@ -70,9 +77,15 @@ function getWorld() end
 ---@field getY fun(self: IsoGridSquare): integer
 ---@field getZ fun(self: IsoGridSquare): integer
 ---@field getObjects fun(self: IsoGridSquare): ArrayList
+---@field getMovingObjects fun(self: IsoGridSquare): ArrayList Get moving objects (characters, vehicles, etc.) on this square
+---@field getTree fun(self: IsoGridSquare): IsoObject|nil Get tree object on this square
+---@field getDeadBodys fun(self: IsoGridSquare): ArrayList Get dead bodies on this square
 ---@field getFloor fun(self: IsoGridSquare): IsoObject|nil
 ---@field Is fun(self: IsoGridSquare, flag: IsoFlagType): boolean
 ---@field transmitRemoveItemFromSquare fun(self: IsoGridSquare, item: IsoObject)
+---@field transmitAddObjectToSquare fun(self: IsoGridSquare, obj: IsoObject, index: integer) Add object to square and transmit to clients
+---@field removeCorpse fun(self: IsoGridSquare, corpse: IsoObject, b: boolean) Remove corpse from square
+---@field RecalcAllWithNeighbours fun(self: IsoGridSquare, b: boolean) Recalculate all with neighbours
 ---@field AddSpecialObject fun(self: IsoGridSquare, obj: IsoObject)
 IsoGridSquare = {}
 
@@ -81,6 +94,7 @@ IsoChunk = {}
 
 ---@class IsoCell
 ---@field getGridSquare fun(self: IsoCell, x: integer, y: integer, z: integer): IsoGridSquare|nil
+---@field getZombieList fun(self: IsoCell): ArrayList Get list of zombies in this cell
 IsoCell = {}
 
 ---@return IsoCell
@@ -155,6 +169,29 @@ function clamp(value, min, max) end
 ---@return Texture|nil
 function getTexture(path) end
 
+-- Sprite loading
+---Get sprite by name. Returns nil if sprite not found.
+---@param spriteName string Sprite name/path (e.g., "blends_natural_01_64", "location_01_1")
+---@return IsoSprite|nil
+function getSprite(spriteName) end
+
+---@class IsoSprite
+---@field getName fun(self: IsoSprite): string|nil Get sprite name
+---@field newInstance fun(self: IsoSprite): IsoSprite Create a new instance of this sprite
+---@field getProperties fun(self: IsoSprite): SpriteProperties Get sprite properties
+---@field getSpriteGrid fun(self: IsoSprite): IsoSpriteGrid|nil Get sprite grid if this is a multi-sprite
+---@field getParentSprite fun(self: IsoSprite): IsoSprite|nil Get parent sprite
+IsoSprite = {}
+
+---@class SpriteProperties
+---@field has fun(self: SpriteProperties, flag: IsoFlagType|string): boolean Check if property/flag exists
+---@field get fun(self: SpriteProperties, key: string): any Get property value by key
+SpriteProperties = {}
+
+---@class IsoSpriteGrid
+---@field getAnchorSprite fun(self: IsoSpriteGrid): IsoSprite|nil Get anchor sprite
+IsoSpriteGrid = {}
+
 -- Translation
 ---@param key string
 ---@return string
@@ -220,6 +257,22 @@ function ISBaseTimedAction:setActionAnim(anim) end
 ---@param left string|nil
 ---@param right string|nil
 function ISBaseTimedAction:setOverrideHandModels(left, right) end
+
+---@class ISReadABook : ISBaseTimedAction
+---@field character IsoPlayer
+---@field item InventoryItem
+---@field playerNum integer
+---@field minutesPerPage number
+---@field maxMultiplier number|nil
+---@field startPage integer|nil
+---@field pageTimer number|nil
+---@field getDuration fun(self: ISReadABook): number Get reading duration in game time units
+ISReadABook = {}
+
+---@param character IsoPlayer
+---@param item InventoryItem
+---@return ISReadABook
+function ISReadABook:new(character, item) end
 
 ---@class ISTimedActionQueue
 ISTimedActionQueue = {}
@@ -300,3 +353,66 @@ ISEmoteRadialMenu = {}
 -- Mod namespace (your mod)
 ---@type table
 MSR = {}
+
+-- IsoObject class (base class for world objects)
+---@class IsoObject
+---@field getSprite fun(self: IsoObject): IsoSprite|nil Get sprite object
+---@field getSpriteName fun(self: IsoObject): string|nil Get sprite name as string
+---@field setSprite fun(self: IsoObject, spriteName: string) Set sprite by name
+---@field getModData fun(self: IsoObject): table Get mod data table
+---@field toppleTree fun(self: IsoObject) Topple tree (if this is a tree object)
+IsoObject = {}
+
+-- Object type enum (global table)
+---@type table<string, integer>
+IsoObjectType = {
+    FloorTile = 0,
+    wall = 0,
+    tree = 0,
+    stairsTW = 0,
+    stairsMW = 0,
+    stairsNW = 0,
+    stairsBN = 0,
+    curtainN = 0,
+    curtainS = 0,
+    curtainW = 0,
+    curtainE = 0,
+    lightswitch = 0,
+    doorFrW = 0,
+    doorFrN = 0,
+}
+
+-- Java ArrayList (used for collections returned from Java)
+---@class ArrayList
+---@field size fun(self: ArrayList): integer Get number of elements (0-based indexing)
+---@field get fun(self: ArrayList, index: integer): any Get element at index (0-based)
+---@field isEmpty fun(self: ArrayList): boolean Check if list is empty
+---@field indexOf fun(self: ArrayList, obj: any): integer Get index of object, returns -1 if not found
+ArrayList = {}
+
+-- Character traits enum (global table)
+---@type table<string, integer>
+CharacterTrait = {
+    ILLITERATE = 0,
+    FAST_READER = 0,
+    SLOW_READER = 0,
+    INSOMNIAC = 0,
+    NEEDS_LESS_SLEEP = 0,
+    NEEDS_MORE_SLEEP = 0,
+    DEXTROUS = 0,
+    ALL_THUMBS = 0,
+    DESENSITIZED = 0,
+    COWARDLY = 0,
+    BRAVE = 0,
+    HEMOPHOBIC = 0,
+}
+
+-- Skill book data (global table)
+---@type table<string, { perk: any, maxMultiplier1: number, maxMultiplier2: number, maxMultiplier3: number, maxMultiplier4: number, maxMultiplier5: number }>
+SkillBook = {}
+
+-- Item synchronization function
+---Synchronize item fields between character and item
+---@param character IsoPlayer
+---@param item InventoryItem
+function syncItemFields(character, item) end

@@ -33,6 +33,12 @@ MSR.Config = {
     COMBAT_TELEPORT_BLOCK = 10,
     TELEPORT_CAST_TIME = 3,
     
+    -- Encumbrance penalty: allows teleporting while overloaded, but adds cooldown
+    -- Formula: penalty = (weightRatio - 1.0) * MULTIPLIER, capped at CAP
+    -- Example: 150% capacity = 0.5 * 300 = 150s = 2.5 min penalty
+    ENCUMBRANCE_PENALTY_MULTIPLIER = 300,  -- seconds per 100% overload
+    ENCUMBRANCE_PENALTY_CAP = 300,         -- max 5 minutes penalty
+    
     SPRITES = {
         WALL_WEST = "walls_exterior_house_01_0",
         WALL_NORTH = "walls_exterior_house_01_1",
@@ -51,8 +57,8 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    -- v1: per-player | v2: global | v3: custom relic sprite | v4: upgrades table
-    CURRENT_DATA_VERSION = 4,
+    -- v1: per-player | v2: global | v3: custom relic sprite | v4: upgrades table | v5: roomIds
+    CURRENT_DATA_VERSION = 5,
     
     CORE_ITEM = "Base.MagicalCore",
     
@@ -74,7 +80,12 @@ MSR.Config = {
         
         REQUEST_FEATURE_UPGRADE = "RequestFeatureUpgrade",
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
-        FEATURE_UPGRADE_ERROR = "FeatureUpgradeError"
+        FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
+        
+        -- Client data sync (client -> server)
+        -- Used for persisting client-discovered data (roomIds, etc.)
+        -- Server stores in ModData; client can't write ModData directly in MP
+        SYNC_CLIENT_DATA = "SyncClientData"
     }
 }
 
@@ -96,6 +107,20 @@ end
 
 function MSR.Config.getCombatBlockTime()
     return getSandboxVar("CombatBlockTime") or MSR.Config.COMBAT_TELEPORT_BLOCK
+end
+
+function MSR.Config.isEncumbrancePenaltyEnabled()
+    local val = getSandboxVar("EncumbrancePenaltyEnabled")
+    if val == nil then return true end  -- Default enabled
+    return val
+end
+
+function MSR.Config.getEncumbrancePenaltyMultiplier()
+    return getSandboxVar("EncumbrancePenaltyMultiplier") or MSR.Config.ENCUMBRANCE_PENALTY_MULTIPLIER
+end
+
+function MSR.Config.getEncumbrancePenaltyCap()
+    return getSandboxVar("EncumbrancePenaltyCap") or MSR.Config.ENCUMBRANCE_PENALTY_CAP
 end
 
 return MSR.Config

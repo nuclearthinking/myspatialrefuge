@@ -2,7 +2,8 @@
 -- Provides standardized, localized player.Say() wrapper with format argument support
 --
 -- Usage:
---   local PM = require "shared/MSR_PlayerMessage"
+--   require "shared/MSR_PlayerMessage"
+--   local PM = MSR.PlayerMessage
 --   PM.Say(player, PM.ENTERED_REFUGE)
 --   PM.Say(player, PM.COOLDOWN_REMAINING, 30)  -- with args
 --   PM.SayRaw(player, "Already translated text")          -- bypass translation
@@ -33,8 +34,6 @@ PM.ALREADY_IN_REFUGE = "ALREADY_IN_REFUGE"
 PM.GENERATING_REFUGE = "GENERATING_REFUGE"
 PM.REFUGE_INITIALIZING = "REFUGE_INITIALIZING"
 PM.FAILED_TO_GENERATE = "FAILED_TO_GENERATE"
-PM.EXITING_REFUGE = "EXITING_REFUGE"
-PM.ENTERING_REFUGE = "ENTERING_REFUGE"
 PM.AREA_NOT_LOADED = "AREA_NOT_LOADED"
 PM.FAILED_TO_LOAD_AREA = "FAILED_TO_LOAD_AREA"
 PM.RETURN_POSITION_LOST = "RETURN_POSITION_LOST"
@@ -45,6 +44,8 @@ PM.REFUGE_ACTION_NOT_AVAILABLE = "REFUGE_ACTION_NOT_AVAILABLE"
 PM.REFUGE_EXIT_ACTION_NOT_AVAILABLE = "REFUGE_EXIT_ACTION_NOT_AVAILABLE"
 PM.CANNOT_LEAVE_BOUNDARY = "CANNOT_LEAVE_BOUNDARY"
 PM.ACTION_TIMEOUT_ITEMS_UNLOCKED = "ACTION_TIMEOUT_ITEMS_UNLOCKED"
+PM.INHERITED_REFUGE_CONNECTION = "INHERITED_REFUGE_CONNECTION"
+PM.ENCUMBRANCE_PENALTY = "ENCUMBRANCE_PENALTY"
 
 -- Relic movement messages
 PM.RELIC_MOVED_TO = "RELIC_MOVED_TO"
@@ -91,8 +92,6 @@ local MessageToTranslationKey = {
     [PM.GENERATING_REFUGE] = "IGUI_GeneratingRefuge",
     [PM.REFUGE_INITIALIZING] = "IGUI_RefugeInitializing",
     [PM.FAILED_TO_GENERATE] = "IGUI_FailedToGenerateRefuge",
-    [PM.EXITING_REFUGE] = "IGUI_ExitingRefuge",
-    [PM.ENTERING_REFUGE] = "IGUI_EnteringRefuge",
     [PM.AREA_NOT_LOADED] = "IGUI_RefugeAreaNotLoaded",
     [PM.FAILED_TO_LOAD_AREA] = "IGUI_FailedToLoadRefugeArea",
     [PM.RETURN_POSITION_LOST] = "IGUI_ReturnPositionLost",
@@ -103,6 +102,8 @@ local MessageToTranslationKey = {
     [PM.REFUGE_EXIT_ACTION_NOT_AVAILABLE] = "IGUI_RefugeExitActionNotAvailable",
     [PM.CANNOT_LEAVE_BOUNDARY] = "IGUI_CannotLeaveBoundary",
     [PM.ACTION_TIMEOUT_ITEMS_UNLOCKED] = "IGUI_ActionTimeoutItemsUnlocked",
+    [PM.INHERITED_REFUGE_CONNECTION] = "IGUI_InheritedRefugeConnection",
+    [PM.ENCUMBRANCE_PENALTY] = "IGUI_EncumbrancePenalty",
     
     -- Relic movement
     [PM.RELIC_MOVED_TO] = "IGUI_SacredRelicMovedTo",

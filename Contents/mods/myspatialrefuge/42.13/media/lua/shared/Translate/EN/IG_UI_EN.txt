@@ -21,14 +21,14 @@ IGUI_EN = {
     IGUI_GeneratingRefuge = "Generating Spatial Refuge...", -- 1.6/16.01.2026
     IGUI_RefugeInitializing = "Spatial Refuge initializing...", -- 1.7/02.01.2026
     IGUI_FailedToGenerateRefuge = "Failed to generate refuge!", -- 1.6/16.01.2026
-    IGUI_ExitingRefuge = "Exiting Spatial Refuge...", -- 1.6/16.01.2026
-    IGUI_EnteringRefuge = "Entering Spatial Refuge...", -- 1.6/16.01.2026
     IGUI_RefugeAreaNotLoaded = "Refuge area not loaded. Adjust base coordinates.", -- 1.6/16.01.2026
     IGUI_FailedToLoadRefugeArea = "Failed to load refuge area", -- 1.6/16.01.2026
     IGUI_ReturnPositionLost = "Return position lost - teleporting to default location", -- 1.6/16.01.2026
     IGUI_CannotExitNoData = "Cannot exit - no refuge data found", -- 1.6/16.01.2026
     IGUI_PortalCharging = "Refuge portal charging... (%ds)", -- 1.7/02.01.2026
     IGUI_CannotTeleportCombat = "Cannot teleport during combat!", -- 1.7/02.01.2026
+    IGUI_InheritedRefugeConnection = "I sense a connection to an ancient refuge...", -- 1.8/04.01.2026
+    IGUI_EncumbrancePenalty = "Heavy load strained the portal. Next teleport in %s.", -- 1.8/05.01.2026
     
     -- Player Messages - Relic Movement
     IGUI_SacredRelicMovedTo = "Relic moved to %s.", -- 1.7/02.01.2026

@@ -49,44 +49,67 @@ function Validation.IsFalling(player)
     return player.isFalling and player:isFalling()
 end
 
--- Manual weight check for MP consistency (isOverEncumbered() can desync between client/server)
-function Validation.IsOverEncumbered(player)
-    if not player then return false end
+-- Get weight ratio for encumbrance calculations
+-- Returns: ratio (e.g., 1.5 = 150% of max capacity), invWeight, maxWeight
+function Validation.GetWeightRatio(player)
+    if not player then return 0, 0, 0 end
     
     local invWeight, maxWeight
-    local debugMode = L.isDebug()
     
-    -- Primary: getInventory():getCapacityWeight() - matches game's internal check
-    if player.getInventory then
-        local ok, inv = pcall(function() return player:getInventory() end)
-        if ok and inv and inv.getCapacityWeight then
-            local ok2, w = pcall(function() return inv:getCapacityWeight() end)
-            if ok2 then invWeight = w end
-        end
+    -- Use getInventory():getCapacityWeight() - matches game's internal check (B42+)
+    local inv = player:getInventory()
+    if inv then
+        invWeight = inv:getCapacityWeight()
     end
     
-    -- Fallback for older API
-    if not invWeight and player.getInventoryWeight then
-        local ok, w = pcall(function() return player:getInventoryWeight() end)
-        if ok then invWeight = w end
-    end
+    maxWeight = player:getMaxWeight()
     
-    if player.getMaxWeight then
-        local ok, w = pcall(function() return player:getMaxWeight() end)
-        if ok then maxWeight = w end
-    end
-    
-    if debugMode then
-        local username = player.getUsername and player:getUsername() or "?"
-        print("[MSR_Validation] Encumbrance: " .. tostring(invWeight) .. "/" .. tostring(maxWeight) .. " (" .. username .. ")")
-    end
+    L.debug("Validation", string.format("Weight: %.1f/%.1f (%s)", 
+        invWeight or 0, maxWeight or 0, player:getUsername() or "?"))
     
     if invWeight and maxWeight and maxWeight > 0 then
-        return invWeight / maxWeight > 1.0
+        return invWeight / maxWeight, invWeight, maxWeight
     end
     
-    -- Fail-open: can't determine weight, allow action
-    return false
+    -- Cannot determine weight
+    return 0, invWeight or 0, maxWeight or 0
+end
+
+-- Manual weight check for MP consistency (isOverEncumbered() can desync between client/server)
+function Validation.IsOverEncumbered(player)
+    local ratio = Validation.GetWeightRatio(player)
+    return ratio > 1.0
+end
+
+-- Calculate encumbrance penalty in seconds for teleportation
+-- Returns 0 if disabled, not encumbered, or below threshold
+-- Example: 150% capacity with 300 multiplier = 0.5 * 300 = 150 seconds
+function Validation.GetEncumbrancePenalty(player)
+    if not player then return 0 end
+    
+    -- Check if feature is disabled
+    if not Config.isEncumbrancePenaltyEnabled() then
+        return 0
+    end
+    
+    local ratio = Validation.GetWeightRatio(player)
+    
+    -- No penalty if at or below capacity
+    if ratio <= 1.0 then
+        return 0
+    end
+    
+    local overloadFactor = ratio - 1.0  -- e.g., 1.5 -> 0.5
+    local multiplier = Config.getEncumbrancePenaltyMultiplier()
+    local cap = Config.getEncumbrancePenaltyCap()
+    
+    local penalty = overloadFactor * multiplier
+    penalty = math.min(penalty, cap)  -- Cap at maximum
+    penalty = math.floor(penalty)     -- Round down to whole seconds
+    
+    L.debug("Validation", string.format("Encumbrance penalty: %ds (ratio=%.2f)", penalty, ratio))
+    
+    return penalty
 end
 
 function Validation.IsInRefugeCoords(player)
@@ -99,6 +122,8 @@ end
 -----------------------------------------------------------
 
 -- Does NOT check cooldowns - those are context-specific (client vs server)
+-- NOTE: Encumbrance is no longer blocking - it adds a cooldown penalty instead
+-- Use Validation.GetEncumbrancePenalty() after teleport to apply penalty
 function Validation.CanPlayerTeleport(player)
     local valid, reason = Validation.IsValidPlayer(player)
     if not valid then
@@ -117,9 +142,8 @@ function Validation.CanPlayerTeleport(player)
         return false, "Cannot teleport while falling"
     end
     
-    if Validation.IsOverEncumbered(player) then
-        return false, "Cannot teleport while encumbered"
-    end
+    -- Encumbrance no longer blocks teleport - penalty is applied after successful teleport
+    -- This prevents abuse while still allowing emergency escapes
     
     return true, nil
 end

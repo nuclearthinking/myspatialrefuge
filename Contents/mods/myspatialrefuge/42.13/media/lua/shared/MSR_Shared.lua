@@ -196,7 +196,8 @@ function Shared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
     for dx = -searchRadius, searchRadius do
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
+            -- CRITICAL: Check that chunk is loaded before accessing objects
+            if square and square:getChunk() then
                 local relic = Shared.FindRelicOnSquare(square, refugeId)
                 if relic then
                     return relic
@@ -209,7 +210,8 @@ function Shared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
     for dx = -searchRadius, searchRadius do
         for dy = -searchRadius, searchRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
+            -- CRITICAL: Check that chunk is loaded before accessing objects
+            if square and square:getChunk() then
                 local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
                 if relic then
                     return relic
@@ -411,7 +413,7 @@ local function createWallObject(square, spriteName, isNorthWall)
             if obj and obj.getModData then
                 local md = obj:getModData()
                 if md and md.isRefugeBoundary and md.refugeBoundarySprite == spriteName then
-                    L.debug("Shared", "Wall already exists at " .. square:getX() .. "," .. square:getY())
+                    -- Wall already exists, return it without logging
                     return obj
                 end
             end
@@ -474,7 +476,63 @@ function Shared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
     return created and square or nil
 end
 
+-- Check if boundary walls already exist for a refuge
+function Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius)
+    local cell = getCell()
+    if not cell then return false end
+    
+    local wallHeight = MSR.Config.WALL_HEIGHT or 1
+    local minX = centerX - radius
+    local maxX = centerX + radius
+    local minY = centerY - radius
+    local maxY = centerY + radius
+    local sampleCount = 0
+    local foundCount = 0
+    
+    -- Sample a few wall positions to check if walls exist
+    for level = 0, wallHeight - 1 do
+        local currentZ = z + level
+        
+        -- Check a few sample positions on each side
+        local samplePositions = {
+            {minX, minY}, {centerX, minY}, {maxX, minY},  -- South wall samples
+            {minX, maxY + 1}, {centerX, maxY + 1}, {maxX, maxY + 1},  -- North wall samples
+            {minX, minY}, {minX, centerY}, {minX, maxY},  -- West wall samples
+            {maxX + 1, minY}, {maxX + 1, centerY}, {maxX + 1, maxY}  -- East wall samples
+        }
+        
+        for _, pos in ipairs(samplePositions) do
+            local square = cell:getGridSquare(pos[1], pos[2], currentZ)
+            if square and square:getChunk() then
+                sampleCount = sampleCount + 1
+                local objects = square:getObjects()
+                if objects then
+                    for i = 0, objects:size() - 1 do
+                        local obj = objects:get(i)
+                        if obj and obj.getModData then
+                            local md = obj:getModData()
+                            if md and md.isRefugeBoundary then
+                                foundCount = foundCount + 1
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    -- If we found walls at most sample positions, assume walls exist
+    return sampleCount > 0 and foundCount >= (sampleCount * 0.7)  -- 70% threshold
+end
+
 function Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
+    -- Check if walls already exist - if so, skip creation
+    if Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius) then
+        -- Don't log every time - this is expected behavior when walls already exist
+        return 0
+    end
+    
     local wallsCreated = 0
     local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local minX = centerX - radius
@@ -502,7 +560,9 @@ function Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
             MSR.Config.SPRITES.WALL_CORNER_SE)
     end
 
-    L.debug("Shared", "Created " .. wallsCreated .. " wall segments")
+    if wallsCreated > 0 then
+        L.debug("Shared", "Created " .. wallsCreated .. " wall segments")
+    end
     return wallsCreated
 end
 
@@ -726,8 +786,8 @@ function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, pl
 
     local cleared = 0
     local totalRadius = radius + ZOMBIE_CLEAR_BUFFER
-    local isMP = isClient() or isServer()
-    local isMPServer = isMP and isServer()
+    local isMP = MSR.Env.isMultiplayer()
+    local isMPServer = isMP and MSR.Env.isServer()
     local zombieOnlineIDs = {}
 
     local zombieList = cell:getZombieList()
@@ -809,7 +869,7 @@ function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
     local cell = getCell()
     if not cell then return 0 end
 
-    local isMP = isClient() or isServer()
+    local isMP = MSR.Env.isMultiplayer()
     if isMP and not getCachedIsServer() then
         L.debug("Shared", "ClearTreesFromArea: Skipping on client")
         return 0
@@ -869,7 +929,7 @@ function Shared.ExpandRefuge(refugeData, newTier, player)
 
     refugeData.tier = newTier
     refugeData.radius = newRadius
-    refugeData.lastExpanded = getTimestamp and getTimestamp() or os.time()
+    refugeData.lastExpanded = K.time()
 
     Shared.ClearZombiesFromArea(centerX, centerY, centerZ, newRadius, true, player)
 
@@ -892,7 +952,7 @@ function Shared.EnsureRefugeStructures(refugeData, player)
     local relicY = refugeData.relicY or centerY
     local relicZ = refugeData.relicZ or centerZ
 
-    -- Create/verify boundary walls
+    -- Create boundary walls only if they don't exist
     Shared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
     Shared.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
 
@@ -948,5 +1008,18 @@ function Shared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeI
 
     return report.relic.duplicatesRemoved
 end
+
+-----------------------------------------------------------
+-- Room ID Persistence
+-- Save room IDs to ModData so we can restore them after teleportation
+-----------------------------------------------------------
+
+-- ============================================================================
+-- ROOM PERSISTENCE SYSTEM
+-- ============================================================================
+-- NOTE: Room persistence code has been moved to MSR_RoomPersistence.lua
+-- This section is kept for reference but all functions have been removed
+-- Use MSR.RoomPersistence.Save, MSR.RoomPersistence.Restore, etc. instead
+-- ============================================================================
 
 return MSR.Shared
