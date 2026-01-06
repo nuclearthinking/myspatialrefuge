@@ -1,3 +1,11 @@
+-- Explicit core module loading for dedicated server compatibility
+-- On dedicated servers, automatic directory scanning may not complete before server code runs
+require "shared/core/MSR"
+require "shared/core/MSR_00_KahluaCompat"
+require "shared/core/MSR_01_Logging"
+require "shared/core/MSR_02_Difficulty"
+require "shared/core/MSR_Env"
+
 require "shared/MSR_Config"
 require "shared/MSR_Shared"
 require "shared/MSR_Data"
@@ -887,6 +895,13 @@ local function OnPlayerDeathServer(player)
 end
 
 local function OnServerStart()
+    -- Defensive check: ensure core modules loaded properly
+    if not MSR or not MSR.Data then
+        print("[MSR] CRITICAL ERROR: Core modules failed to load!")
+        print("[MSR] MSR=" .. tostring(MSR) .. ", MSR.Data=" .. tostring(MSR and MSR.Data))
+        return
+    end
+    
     L.debug("Server", "Server initialized")
     
     MSR.Data.InitializeModData()
@@ -895,6 +910,7 @@ end
 
 local function OnPlayerFullyConnected(player)
     if not player then return end
+    if not MSR or not MSR.Data then return end
     
     local playerUsername = player:getUsername() or "unknown"
     

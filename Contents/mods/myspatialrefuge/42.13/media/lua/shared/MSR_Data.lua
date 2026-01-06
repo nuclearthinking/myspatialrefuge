@@ -100,8 +100,25 @@ end
 -- ModData Initialization
 -----------------------------------------------------------
 
+-- Tracks whether ModData has been confirmed loaded from disk
+-- CRITICAL: Do NOT create new refuges until this is true!
+local _modDataReady = false
+
 function Data.GetModData()
     return ModData.getOrCreate(Config.MODDATA_KEY)
+end
+
+-- Check if ModData has been confirmed loaded and ready for use
+function Data.IsModDataReady()
+    return _modDataReady
+end
+
+-- Mark ModData as ready (call ONLY after confirming data is loaded from disk)
+function Data.SetModDataReady(ready)
+    _modDataReady = ready
+    if ready then
+        L.debug("Data", "ModData marked as ready")
+    end
 end
 
 -- In MP, only the server should call this to create the structure
@@ -117,6 +134,9 @@ function Data.InitializeModData()
         if not modData.ReturnPositions then
             modData.ReturnPositions = {}
         end
+        
+        -- Mark data as ready after successful initialization on server/SP
+        _modDataReady = true
     end
     
     return modData
@@ -182,6 +202,7 @@ function Data.AllocateRefugeCoordinates()
 end
 
 -- Creating new refuge data is only allowed on server or singleplayer
+-- CRITICAL: Will return nil if ModData hasn't been confirmed loaded yet
 function Data.GetOrCreateRefugeData(player)
     if not player then return nil end
     
@@ -195,6 +216,14 @@ function Data.GetOrCreateRefugeData(player)
         
         if not canCreate then
             L.debug("Data", "MP client cannot create refuge data - must request from server")
+            return nil
+        end
+        
+        -- SAFETY: Don't create new refuges if ModData hasn't been confirmed loaded
+        -- This prevents data loss when server starts but ModData isn't ready yet
+        if not _modDataReady then
+            L.debug("Data", "BLOCKED: Refusing to create refuge for " .. username .. 
+                   " - ModData not yet confirmed ready (may still be loading)")
             return nil
         end
         
