@@ -5,6 +5,7 @@
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "shared/MSR_UpgradeData"
+require "shared/MSR_UpgradeLogic"
 
 SRU_UpgradeDetails = ISPanel:derive("SRU_UpgradeDetails")
 
@@ -116,10 +117,11 @@ function SRU_UpgradeDetails:setUpgrade(upgrade, level)
         self.missingDependencies = {}
     end
     
-    -- Update required items
+    -- Update required items (uses difficulty-scaled costs)
     if self.requiredItems then
-        if self.levelData and self.levelData.requirements then
-            self.requiredItems:setRequirements(self.levelData.requirements)
+        local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, upgrade.id)
+        if requirements then
+            self.requiredItems:setRequirements(requirements)
         else
             self.requiredItems:setRequirements({})
         end
@@ -190,12 +192,18 @@ function SRU_UpgradeDetails:updateUpgradeButton()
 end
 
 function SRU_UpgradeDetails:checkHasRequiredItems()
-    if not self.levelData or not self.levelData.requirements then
+    if not self.upgrade then
+        return true
+    end
+    
+    -- Use difficulty-scaled requirements
+    local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, self.upgrade.id)
+    if not requirements then
         return true
     end
     
     -- Use upgrade logic to check items
-    return MSR.UpgradeLogic.hasRequiredItems(self.player, self.levelData.requirements)
+    return MSR.UpgradeLogic.hasRequiredItems(self.player, requirements)
 end
 
 -----------------------------------------------------------
@@ -381,25 +389,16 @@ function SRU_UpgradeDetails:wrapText(text, maxWidth, font)
 end
 
 function SRU_UpgradeDetails:formatEffect(name, value)
-    -- Format effect for display
     local displayName = getText("UI_Effect_" .. name) or name
     
     if type(value) == "number" then
-        -- Special handling for time multipliers (lower = faster)
-        -- readingSpeedMultiplier: 0.85 means 15% faster (1 - 0.85 = 0.15)
-        -- If value > 1, it means slower reading (negative speed bonus)
+        -- Time multipliers (lower = faster) - apply difficulty scaling
         if name == "readingSpeedMultiplier" or name == "refugeCastTimeMultiplier" then
-            local speedBonus = math.floor((1 - value) * 100 + 0.5)
-            -- Handle sign properly: positive shows +, negative shows -, zero shows no sign
-            local sign = ""
-            if speedBonus > 0 then
-                sign = "+"
-            elseif speedBonus < 0 then
-                sign = ""  -- Negative number already includes the minus sign
-            end
+            local scaledValue = D.positiveEffect(value)
+            local speedBonus = math.floor((1 - scaledValue) * 100 + 0.5)
+            local sign = speedBonus > 0 and "+" or ""
             return string.format("%s: %s%d%%", displayName, sign, speedBonus)
         elseif value < 1 and value > 0 then
-            -- Generic percentage multiplier
             return string.format("%s: +%d%%", displayName, math.floor(value * 100))
         else
             return string.format("%s: +%d", displayName, value)

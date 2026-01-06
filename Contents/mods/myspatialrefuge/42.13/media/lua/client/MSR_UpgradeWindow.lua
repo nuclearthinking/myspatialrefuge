@@ -231,9 +231,10 @@ function MSR_UpgradeWindow:selectUpgrade(upgradeId)
     end
     
     if self.ingredientList then
-        local requirements = MSR.UpgradeData.getLevelData(upgradeId, self.selectedLevel)
+        -- Use difficulty-scaled requirements
+        local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, upgradeId)
         if requirements then
-            self.ingredientList:setRequirements(requirements.requirements or {})
+            self.ingredientList:setRequirements(requirements)
         else
             self.ingredientList:setRequirements({})
         end

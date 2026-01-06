@@ -77,9 +77,6 @@ function MSR.UpdateTeleportTime(player)
     player:getModData().spatialRefuge_lastTeleport = K.time()
 end
 
--- Update teleport time with encumbrance penalty
--- The penalty is added to the timestamp, making the next cooldown check wait longer
--- Example: If penalty is 120s and cooldown is 10s, next teleport is blocked for 130s total
 function MSR.UpdateTeleportTimeWithPenalty(player, penaltySeconds)
     if not player then return 0 end
     
@@ -87,8 +84,6 @@ function MSR.UpdateTeleportTimeWithPenalty(player, penaltySeconds)
     local pmd = player:getModData()
     local now = K.time()
     
-    -- Store current time + penalty
-    -- This makes cooldown check wait: (now + penalty) + cooldown from now
     pmd.spatialRefuge_lastTeleport = now + penaltySeconds
     pmd.spatialRefuge_lastEncumbrancePenalty = penaltySeconds
     
@@ -99,7 +94,6 @@ function MSR.UpdateTeleportTimeWithPenalty(player, penaltySeconds)
     return penaltySeconds
 end
 
--- Get the last applied encumbrance penalty (for UI display)
 function MSR.GetLastEncumbrancePenalty(player)
     if not player then return 0 end
     return player:getModData().spatialRefuge_lastEncumbrancePenalty or 0

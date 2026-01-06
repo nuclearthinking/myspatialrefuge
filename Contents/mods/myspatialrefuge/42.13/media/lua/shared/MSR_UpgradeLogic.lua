@@ -65,7 +65,9 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     if not levelData then return false, "Invalid level data" end
     
-    if not UpgradeLogic.hasRequiredItems(playerObj, levelData.requirements or {}) then
+    -- Use getNextLevelRequirements for difficulty-scaled costs
+    local requirements = MSR.UpgradeData.getNextLevelRequirements(playerObj, upgradeId)
+    if not UpgradeLogic.hasRequiredItems(playerObj, requirements or {}) then
         return false, "Missing required items"
     end
     
@@ -84,8 +86,8 @@ function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
         return false, err
     end
     
-    local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
-    local requirements = levelData.requirements or {}
+    -- Use getNextLevelRequirements for difficulty-scaled costs
+    local requirements = MSR.UpgradeData.getNextLevelRequirements(playerObj, upgradeId) or {}
     
     if MSR.Env.isMultiplayerClient() then
         return UpgradeLogic.purchaseUpgradeMP(playerObj, upgradeId, targetLevel, requirements)

@@ -84,7 +84,7 @@ end
 local function checkTeleportCooldown(username)
     local lastTeleport = serverCooldowns.teleport[username] or 0
     local now = getServerTimestamp()
-    local cooldown = MSR.Config.TELEPORT_COOLDOWN or 60
+    local cooldown = MSR.Config.getTeleportCooldown()
     local remaining = cooldown - (now - lastTeleport)
     
     if remaining > 0 then
@@ -105,15 +105,11 @@ local function updateTeleportCooldown(username, penaltySeconds)
 end
 
 -- Calculate encumbrance penalty for a player (server-side)
+-- Penalty is always enabled and scaled by difficulty via D.negativeValue()
 local function getEncumbrancePenalty(player)
     if not player then return 0 end
     
-    -- Check if feature is enabled
-    if not MSR.Config.isEncumbrancePenaltyEnabled() then
-        return 0
-    end
-    
-    -- Use the shared validation function
+    -- Use the shared validation function (applies difficulty scaling)
     local penalty = MSR.Validation.GetEncumbrancePenalty(player)
     return penalty
 end
@@ -602,8 +598,8 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         return
     end
     
-    local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
-    local requirements = levelData and levelData.requirements or {}
+    -- Use getNextLevelRequirements for difficulty-scaled costs
+    local requirements = MSR.UpgradeData.getNextLevelRequirements(player, upgradeId) or {}
     
     if #requirements > 0 then
         for _, req in ipairs(requirements) do

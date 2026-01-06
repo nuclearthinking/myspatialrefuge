@@ -1,34 +1,27 @@
--- MSR_UpgradeData - Upgrade Data
--- Data loader and query API for the upgrade system
--- Tries YAML first, falls back to Lua definitions
+-- MSR_UpgradeData - Upgrade definitions and query API
 
 require "shared/core/MSR"
 require "shared/CUI_YamlParser"
+require "shared/MSR_Config"
 require "shared/MSR_Data"
 
--- Prevent double-loading
 if MSR.UpgradeData and MSR.UpgradeData._loaded then
     return MSR.UpgradeData
 end
 
 MSR.UpgradeData = {
     _loaded = true,
-    _upgrades = {},      -- All upgrade definitions by ID
-    _categories = {},    -- Upgrades grouped by category
+    _upgrades = {},
+    _categories = {},
     _initialized = false
 }
 
--- Local alias
 local UpgradeData = MSR.UpgradeData
 
------------------------------------------------------------
--- Upgrade Definitions (Lua)
--- Primary source - more reliable than YAML in PZ
------------------------------------------------------------
+-- Upgrade Definitions (Lua primary, YAML extends)
 
 local UPGRADE_DEFINITIONS = {
-    -- EXPAND REFUGE AREA - Increases refuge size (synced with refuge tier)
-    expand_refuge = {
+    expand_refuge = { -- synced with refuge tier
         id = "expand_refuge",
         name = "UI_Upgrade_ExpandRefuge",
         icon = "media/textures/expand_icon_128.png",
@@ -96,18 +89,11 @@ local UPGRADE_DEFINITIONS = {
     },
 }
 
------------------------------------------------------------
--- Helper Functions
------------------------------------------------------------
+-- Helpers
 
--- Get refuge upgrade data from GlobalModData (refugeData.upgrades)
--- This stores upgrades per-refuge, not per-player, enabling future cooperative play
--- @param player: IsoPlayer or player index
--- @return: upgrades table from refugeData, or nil if not available
+--- Get upgrades from refugeData (per-refuge, not per-player for future coop)
 local function getRefugeUpgradeData(player)
     if not player then return nil, nil end
-    
-    -- Get username
     local username = nil
     if type(player) == "userdata" or type(player) == "table" then
         if player.getUsername then
@@ -120,38 +106,23 @@ local function getRefugeUpgradeData(player)
     
     if not username then return nil, nil end
     
-    -- Get refugeData from GlobalModData
-    local refugeData = nil
-    if MSR.Data and MSR.Data.GetRefugeDataByUsername then
-        refugeData = MSR.Data.GetRefugeDataByUsername(username)
-    end
-    
+    local refugeData = MSR.Data and MSR.Data.GetRefugeDataByUsername and MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then return nil, nil end
     
-    -- Ensure upgrades table exists (for existing refuges created before upgrade system)
-    -- Must explicitly save to GlobalModData as PZ doesn't track nested table additions automatically
+    -- Init upgrades table for legacy refuges (PZ doesn't auto-track nested additions)
     if not refugeData.upgrades then
-        print("[UpgradeData] Initializing missing upgrades table for " .. username)
         refugeData.upgrades = {}
-        -- Save to persist the new upgrades field to GlobalModData
-        if MSR.Data and MSR.Data.SaveRefugeData then
-            MSR.Data.SaveRefugeData(refugeData)
-            print("[UpgradeData] Saved initialized upgrades table to GlobalModData")
-        end
+        if MSR.Data and MSR.Data.SaveRefugeData then MSR.Data.SaveRefugeData(refugeData) end
     end
     
     return refugeData.upgrades, refugeData
 end
 
--- Resolve player reference (handle player index or IsoPlayer)
 local function resolvePlayer(player)
     if not player then return nil end
+    if type(player) == "number" and getSpecificPlayer then return getSpecificPlayer(player) end
     
-    if type(player) == "number" and getSpecificPlayer then
-        return getSpecificPlayer(player)
-    end
-    
-    -- Re-resolve by playerNum to avoid stale references
+    -- Re-resolve to avoid stale references
     if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum and getSpecificPlayer then
         local ok, num = pcall(function() return player:getPlayerNum() end)
         if ok and num ~= nil then
@@ -165,15 +136,10 @@ local function resolvePlayer(player)
     return player
 end
 
------------------------------------------------------------
 -- Initialization
------------------------------------------------------------
--- Helper to process and register an upgrade
+
 local function processUpgrade(id, upgrade, source)
-    -- Ensure ID is set
     upgrade.id = id
-    
-    -- Ensure required fields have defaults
     upgrade.name = upgrade.name or ("Upgrade_" .. id)
     upgrade.icon = upgrade.icon or "media/ui/upgrades/default.png"
     upgrade.category = upgrade.category or "general"
@@ -181,19 +147,11 @@ local function processUpgrade(id, upgrade, source)
     upgrade.dependencies = upgrade.dependencies or {}
     upgrade.levels = upgrade.levels or {}
     
-    -- Check if upgrade already exists (YAML overriding Lua)
     local isOverride = UpgradeData._upgrades[id] ~= nil
-    
-    -- Store upgrade
     UpgradeData._upgrades[id] = upgrade
     
-    -- Index by category (only if not already indexed)
     local cat = upgrade.category
-    if not UpgradeData._categories[cat] then
-        UpgradeData._categories[cat] = {}
-    end
-    
-    -- Check if already in category list
+    if not UpgradeData._categories[cat] then UpgradeData._categories[cat] = {} end
     if not isOverride then
         table.insert(UpgradeData._categories[cat], id)
     end
@@ -201,7 +159,6 @@ local function processUpgrade(id, upgrade, source)
     return isOverride
 end
 
--- Load upgrades: Lua definitions first, then extend with YAML
 function UpgradeData.initialize()
     if UpgradeData._initialized then
         return true
@@ -214,7 +171,6 @@ function UpgradeData.initialize()
     local yamlCount = 0
     local yamlOverrides = 0
     
-    -- Step 1: Load Lua definitions (primary/base upgrades)
     print("[UpgradeData] Loading Lua definitions...")
     for id, upgrade in pairs(UPGRADE_DEFINITIONS) do
         processUpgrade(id, upgrade, "Lua")
@@ -223,13 +179,9 @@ function UpgradeData.initialize()
     end
     print("[UpgradeData] Loaded " .. luaCount .. " upgrades from Lua")
     
-    -- Step 2: Try to extend with YAML upgrades (optional/additional)
     print("[UpgradeData] Attempting to load YAML extensions...")
-    local yamlPath = "media/lua/shared/upgrades.yaml"
-    
     local ok, result = pcall(function()
-        -- Enable itemGroups expansion for this YAML
-        return CUI_YamlParser.parseFile("myspatialrefuge", yamlPath, {
+        return CUI_YamlParser.parseFile("myspatialrefuge", "media/lua/shared/upgrades.yaml", {
             expandGroups = true,
             groupsKey = "itemGroups",
             refPrefixes = { "$", "*" },
@@ -268,7 +220,6 @@ function UpgradeData.initialize()
     return true
 end
 
--- Reload upgrades (for development/debugging)
 function UpgradeData.reload()
     UpgradeData._upgrades = {}
     UpgradeData._categories = {}
@@ -276,35 +227,26 @@ function UpgradeData.reload()
     return MSR.UpgradeData.initialize()
 end
 
------------------------------------------------------------
 -- Query API
------------------------------------------------------------
 
--- Get a single upgrade by ID
 function UpgradeData.getUpgrade(id)
     UpgradeData.initialize()
     return MSR.UpgradeData._upgrades[id]
 end
 
--- Get all upgrades as a table
 function UpgradeData.getAllUpgrades()
     UpgradeData.initialize()
     return MSR.UpgradeData._upgrades
 end
 
--- Get all upgrade IDs as an array (for iteration)
 function UpgradeData.getAllUpgradeIds()
     UpgradeData.initialize()
     local ids = {}
-    for id, _ in pairs(UpgradeData._upgrades) do
-        table.insert(ids, id)
-    end
-    -- Sort alphabetically for consistent ordering
+    for id, _ in pairs(UpgradeData._upgrades) do table.insert(ids, id) end
     table.sort(ids)
     return ids
 end
 
--- Get upgrades by category
 function UpgradeData.getUpgradesByCategory(category)
     UpgradeData.initialize()
     local ids = UpgradeData._categories[category] or {}
@@ -315,7 +257,6 @@ function UpgradeData.getUpgradesByCategory(category)
     return upgrades
 end
 
--- Get all category names
 function UpgradeData.getCategories()
     UpgradeData.initialize()
     local categories = {}
@@ -326,88 +267,57 @@ function UpgradeData.getCategories()
     return categories
 end
 
--- Get level data for an upgrade
 function UpgradeData.getLevelData(upgradeId, level)
     local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return nil end
-    
-    -- Try numeric key first, then string
     return upgrade.levels[level] or upgrade.levels[tostring(level)]
 end
 
------------------------------------------------------------
--- Player Progress API
--- NOTE: Upgrade data is stored in GlobalModData (refugeData.upgrades)
--- This enables future cooperative play where multiple players share a refuge
------------------------------------------------------------
+-- Player Progress API (stored in GlobalModData for future coop)
 
--- Get player's current level for an upgrade (0 = not purchased)
 function UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return 0 end
     
-    -- Get upgrade data from refugeData (GlobalModData)
     local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
     
-    -- Special case: expand_refuge level is synced with refuge tier
-    if upgradeId == "expand_refuge" then
+    if upgradeId == "expand_refuge" then -- synced with tier
         if refugeData and refugeData.tier then
             return refugeData.tier
         end
         return 0
     end
     
-    -- Standard upgrade: read from refugeData.upgrades
     if not upgradeData then return 0 end
-    
     return upgradeData[upgradeId] or 0
 end
 
--- Set player's upgrade level (used after successful purchase)
--- NOTE: Only server/singleplayer can modify GlobalModData
+--- Only server/SP can modify GlobalModData
 function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     local playerObj = resolvePlayer(player)
-    if not playerObj then 
-        return false 
-    end
+    if not playerObj then return false end
     
-    -- expand_refuge level is determined by refuge tier, not stored separately
-    if upgradeId == "expand_refuge" then
-        -- Tier is updated by MSR.Shared.ExpandRefuge, not here
-        return true
-    end
+    if upgradeId == "expand_refuge" then return true end -- tier managed by ExpandRefuge
     
-    -- Get upgrade data from refugeData (GlobalModData)
     local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
-    if not upgradeData or not refugeData then 
-        return false 
-    end
+    if not upgradeData or not refugeData then return false end
     
-    -- Set the upgrade level
     upgradeData[upgradeId] = level
     
-    L.debug("UpgradeData", "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level) .. 
-          " | Current: " .. MSR.Data.FormatUpgradesTable(upgradeData))
-    
-    -- Save refugeData to persist the change (only works on server/SP)
-    if MSR.Data and MSR.Data.SaveRefugeData then
-        MSR.Data.SaveRefugeData(refugeData)
-    end
+    L.debug("UpgradeData", "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level))
+    if MSR.Data and MSR.Data.SaveRefugeData then MSR.Data.SaveRefugeData(refugeData) end
     
     return true
 end
 
--- Check if an upgrade is unlocked (dependencies met)
 function UpgradeData.isUpgradeUnlocked(player, upgradeId)
     local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return false end
     
-    -- Check all dependencies
     if upgrade.dependencies and #upgrade.dependencies > 0 then
         for _, depId in ipairs(upgrade.dependencies) do
             local depUpgrade = UpgradeData.getUpgrade(depId)
             if depUpgrade then
-                -- Dependency must be at max level
                 local playerLevel = UpgradeData.getPlayerUpgradeLevel(player, depId)
                 if playerLevel < (depUpgrade.maxLevel or 1) then
                     return false
@@ -419,26 +329,15 @@ function UpgradeData.isUpgradeUnlocked(player, upgradeId)
     return true
 end
 
--- Check if player can purchase next level of an upgrade
 function UpgradeData.canUpgrade(player, upgradeId)
     local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return false, "Unknown upgrade" end
-    
-    -- Check if upgrade is unlocked
-    if not UpgradeData.isUpgradeUnlocked(player, upgradeId) then
-        return false, "Dependencies not met"
-    end
-    
-    -- Check if already at max level
-    local currentLevel = UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
-    if currentLevel >= upgrade.maxLevel then
-        return false, "Already at max level"
-    end
-    
+    if not UpgradeData.isUpgradeUnlocked(player, upgradeId) then return false, "Dependencies not met" end
+    if UpgradeData.getPlayerUpgradeLevel(player, upgradeId) >= upgrade.maxLevel then return false, "Already at max level" end
     return true, nil
 end
 
--- Get requirements for the next level of an upgrade
+--- Requirements scaled by D.core() for difficulty
 function UpgradeData.getNextLevelRequirements(player, upgradeId)
     local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return nil end
@@ -453,73 +352,56 @@ function UpgradeData.getNextLevelRequirements(player, upgradeId)
     local levelData = UpgradeData.getLevelData(upgradeId, nextLevel)
     if not levelData then return nil end
     
-    return levelData.requirements or {}
+    local requirements = levelData.requirements or {}
+    local scaledRequirements = {}
+    for _, req in ipairs(requirements) do
+        local scaledReq = { type = req.type, count = req.count }
+        if req.substitutes then scaledReq.substitutes = req.substitutes end
+        if req.type == MSR.Config.CORE_ITEM then scaledReq.count = D.core(req.count) end
+        table.insert(scaledRequirements, scaledReq)
+    end
+    
+    return scaledRequirements
 end
 
--- Get effects for a specific level
 function UpgradeData.getLevelEffects(upgradeId, level)
     local levelData = UpgradeData.getLevelData(upgradeId, level)
     if not levelData then return {} end
     return levelData.effects or {}
 end
 
--- Get all active effects for a player (sum of all purchased upgrades)
+--- Aggregated effects: add (default), max (absolute), min (time multipliers)
 function UpgradeData.getPlayerActiveEffects(player)
     UpgradeData.initialize()
-    
     local playerObj = resolvePlayer(player)
     if not playerObj then return {} end
     
-    -- Effect aggregation rules:
-    -- - Most effects are additive (+) across levels.
-    -- - Some effects represent an absolute value per level (take max).
-    -- - Some effects represent a time multiplier where lower is better (take min).
-    --
-    -- NOTE: Keep this table small + explicit to avoid silently changing semantics.
     local AGGREGATORS = {
-        refugeSize = "max",              -- expand_refuge defines absolute size per level
-        readingSpeedMultiplier = "min",  -- faster_reading defines time multiplier per level (lower = faster)
-        refugeCastTimeMultiplier = "min", -- faster_refuge_cast defines time multiplier per level (lower = faster)
+        refugeSize = "max",
+        readingSpeedMultiplier = "min",
+        refugeCastTimeMultiplier = "min",
     }
     
     local function applyEffect(effects, effectName, effectValue)
         if effectName == nil or effectValue == nil then return end
-        
         local mode = AGGREGATORS[effectName] or "add"
         
         if mode == "add" then
             effects[effectName] = (effects[effectName] or 0) + effectValue
-            return
+        elseif mode == "max" then
+            effects[effectName] = math.max(effects[effectName] or effectValue, effectValue)
+        elseif mode == "min" then
+            effectValue = D.positiveEffect(effectValue) -- difficulty scaling
+            effects[effectName] = math.min(effects[effectName] or effectValue, effectValue)
+        else
+            effects[effectName] = (effects[effectName] or 0) + effectValue
         end
-        
-        if mode == "max" then
-            if effects[effectName] == nil then
-                effects[effectName] = effectValue
-            else
-                effects[effectName] = math.max(effects[effectName], effectValue)
-            end
-            return
-        end
-        
-        if mode == "min" then
-            if effects[effectName] == nil then
-                effects[effectName] = effectValue
-            else
-                effects[effectName] = math.min(effects[effectName], effectValue)
-            end
-            return
-        end
-        
-        -- Fallback: additive
-        effects[effectName] = (effects[effectName] or 0) + effectValue
     end
     
     local effects = {}
     
     for id, _ in pairs(UpgradeData._upgrades) do
         local playerLevel = UpgradeData.getPlayerUpgradeLevel(playerObj, id)
-        
-        -- Accumulate effects from all purchased levels (with per-effect aggregation)
         for level = 1, playerLevel do
             local levelEffects = UpgradeData.getLevelEffects(id, level)
             for effectName, effectValue in pairs(levelEffects) do
@@ -530,10 +412,6 @@ function UpgradeData.getPlayerActiveEffects(player)
     
     return effects
 end
-
------------------------------------------------------------
--- Initialization on game start
------------------------------------------------------------
 
 local function onGameStart()
     UpgradeData.initialize()

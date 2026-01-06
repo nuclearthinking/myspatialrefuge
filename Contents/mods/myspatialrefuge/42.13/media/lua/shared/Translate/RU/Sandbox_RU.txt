@@ -1,21 +1,11 @@
 Sandbox_RU = {
     Sandbox_MySpatialRefuge = "My Spatial Refuge", -- 1.8/31.12.2025 # mod name, do not translate
     
-    Sandbox_RefugeTeleportCooldown = "Перезарядка телепортации", -- 1.5/31.12.2025
-    Sandbox_RefugeTeleportCooldown_tooltip = "Секунды между телепортациями. 0 = без перезарядки.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeCastTime = "Время каста", -- 1.5/31.12.2025
-    Sandbox_RefugeCastTime_tooltip = "Секунды на телепортацию (можно прервать). 0 = мгновенно.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeCombatBlockTime = "Блокировка в бою", -- 1.5/31.12.2025
-    Sandbox_RefugeCombatBlockTime_tooltip = "Секунды после получения урона до возможности телепортации. 0 = отключено.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeEncumbrancePenaltyEnabled = "Штраф за перегруз", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyEnabled_tooltip = "Добавляет штраф к перезарядке при телепортации с перегрузом. Предотвращает злоупотребление телепортом для переноса тяжёлых предметов.", -- 1.8/05.01.2026
-    
-    Sandbox_RefugeEncumbrancePenaltyMultiplier = "Множитель штрафа за перегруз", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyMultiplier_tooltip = "Дополнительные секунды перезарядки за каждые 100% перегруза. Пример: 300 означает, что 150% веса добавляет 150 секунд.", -- 1.8/05.01.2026
-    
-    Sandbox_RefugeEncumbrancePenaltyCap = "Максимум штрафа за перегруз", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyCap_tooltip = "Максимальный штраф за перегруз в секундах. 300 = 5 мин, 600 = 10 мин.", -- 1.8/05.01.2026
+    Sandbox_RefugeDifficulty = "Сложность", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_tooltip = "Общий уровень сложности. Лёгкий: меньше затрат, короче перезарядки, сильнее эффекты. Сложный: больше затрат, длиннее перезарядки, слабее эффекты.", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option1 = "Очень лёгкий", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option2 = "Лёгкий", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option3 = "Обычный", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option4 = "Сложный", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option5 = "Очень сложный", -- 1.11/06.01.2026
 }

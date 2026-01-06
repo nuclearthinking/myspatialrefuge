@@ -37,11 +37,11 @@ UI_PTBR = {
 
     -- Faster Teleportation Cast
     UI_Upgrade_FasterRefugeCast = "Conjuracao de teleporte mais rapida", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L1 = "Reduz o tempo de conjuracao de teleporte em 10%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L2 = "Reduz o tempo de conjuracao de teleporte em 20%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L3 = "Reduz o tempo de conjuracao de teleporte em 30%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L4 = "Reduz o tempo de conjuracao de teleporte em 40%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L5 = "Reduz o tempo de conjuracao de teleporte em 50%.", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L1 = "Ao sintonizar com o fluxo do tempo, o Refugio Espacial permite que voce entre e saia mais rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L2 = "Ao sintonizar com o fluxo do tempo, o Refugio Espacial permite que voce entre e saia mais rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L3 = "Ao sintonizar com o fluxo do tempo, o Refugio Espacial permite que voce entre e saia mais rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L4 = "Ao sintonizar com o fluxo do tempo, o Refugio Espacial permite que voce entre e saia mais rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L5 = "Ao sintonizar com o fluxo do tempo, o Refugio Espacial permite que voce entre e saia mais rapidamente.", -- 1.11/06.01.2026
     
     UI_Effect_refugeSize = "Tamanho do refúgio", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Velocidade de leitura", -- 1.6/15.01.2026
