@@ -368,6 +368,9 @@ local function OnServerCommand(module, command, args)
                     modData.ReturnPositions[username] = args.returnPosition
                 end
                 
+                -- Mark data as ready on client after receiving valid data from server
+                MSR.Data.SetModDataReady(true)
+                
                 L.debug("Teleport", "Received ModData: refuge at " .. args.refugeData.centerX .. "," .. args.refugeData.centerY)
             end
         end
