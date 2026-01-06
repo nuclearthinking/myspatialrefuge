@@ -1,4 +1,5 @@
 require "shared/core/MSR"
+require "shared/core/MSR_02_Difficulty"
 
 if MSR.Config and MSR.Config._loaded then
     return MSR.Config
