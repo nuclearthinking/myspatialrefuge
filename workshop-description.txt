@@ -2,6 +2,9 @@
 
 Escape the apocalypse to your own personal, upgradeable spatial refuge! Build your ultimate survival space using Zombie Cores.
 
+[h2]Update 1.11 — Difficulty System[/h2]
+[b]New unified difficulty setting![/b] Choose from Very Easy, Easy, Normal, Hard, or Very Hard in sandbox options. Difficulty affects core costs, cooldowns, and upgrade effect power — making the mod easier or more challenging based on your preference.
+
 [h2]Update 1.8 — Refuge Inheritance (Singleplayer)[/h2]
 [b]Your refuge persists through death![/b] In singleplayer, if your character dies and you create a new character in the same world (via death screen), your new character will automatically inherit the previous character's refuge — including all upgrades, tier level, and stored items.
 

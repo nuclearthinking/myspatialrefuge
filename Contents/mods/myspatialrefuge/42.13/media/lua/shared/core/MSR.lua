@@ -10,8 +10,12 @@
 -- 1. shared/core/MSR.lua (this file) - creates MSR namespace
 -- 2. shared/core/MSR_00_KahluaCompat.lua - creates global K (Kahlua workarounds)
 -- 3. shared/core/MSR_01_Logging.lua - creates global L (debug logging)
--- 4. shared/core/MSR_Env.lua - creates MSR.Env (environment detection)
--- 5. shared/MSR_Config.lua, MSR_Data.lua, etc. - can use MSR, K, L safely
+-- 4. shared/core/MSR_02_Difficulty.lua - creates global D (difficulty scaling)
+-- 5. shared/core/MSR_Env.lua - creates MSR.Env (environment detection)
+-- 6. shared/MSR_Config.lua, MSR_Data.lua, etc. - can use MSR, K, L, D safely
+--
+-- NOTE: On dedicated servers, explicit require is needed for core modules.
+-- MSR_Config.lua explicitly requires MSR_02_Difficulty to ensure D exists.
 
 if MSR and MSR._loaded then
     return MSR
