@@ -37,11 +37,11 @@ UI_CN = {
 
     -- Faster Teleportation Cast
     UI_Upgrade_FasterRefugeCast = "更快的传送施法", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L1 = "传送施法时间减少 10%。", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L2 = "传送施法时间减少 20%。", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L3 = "传送施法时间减少 30%。", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L4 = "传送施法时间减少 40%。", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L5 = "传送施法时间减少 50%。", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L1 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L2 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L3 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L4 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L5 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
     
     UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026

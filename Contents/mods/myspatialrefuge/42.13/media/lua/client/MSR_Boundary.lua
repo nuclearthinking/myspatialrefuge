@@ -92,14 +92,6 @@ function MSR.CheckBoundaryViolation(player)
     return isOutside, clampedX, clampedY, bounds
 end
 
--- Legacy function for compatibility (returns center for teleport-back)
-function MSR.IsOutsideRefugeBoundary(player)
-    local isOutside, clampedX, clampedY, bounds = MSR.CheckBoundaryViolation(player)
-    if isOutside and bounds then
-        return true, bounds.centerX, bounds.centerY, clampedX, clampedY
-    end
-    return false
-end
 
 local tickCounter = 0
 

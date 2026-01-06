@@ -1,21 +1,11 @@
 Sandbox_ES = {
     Sandbox_MySpatialRefuge = "My Spatial Refuge", -- 1.8/31.12.2025 # mod name, do not translate
     
-    Sandbox_RefugeTeleportCooldown = "Enfriamiento del teletransporte", -- 1.5/31.12.2025
-    Sandbox_RefugeTeleportCooldown_tooltip = "Segundos entre teletransportes. 0 = sin enfriamiento.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeCastTime = "Tiempo de canalización", -- 1.5/31.12.2025
-    Sandbox_RefugeCastTime_tooltip = "Segundos para canalizar el teletransporte (puede interrumpirse). 0 = instantáneo.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeCombatBlockTime = "Tiempo de bloqueo en combate", -- 1.5/31.12.2025
-    Sandbox_RefugeCombatBlockTime_tooltip = "Segundos después de recibir daño antes de poder teletransportarse. 0 = desactivado.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeEncumbrancePenaltyEnabled = "Penalización por sobrecarga", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyEnabled_tooltip = "Añade penalización de enfriamiento al teletransportarse con sobrecarga. Previene abusar del teletransporte para mover objetos pesados.", -- 1.8/05.01.2026
-    
-    Sandbox_RefugeEncumbrancePenaltyMultiplier = "Multiplicador de penalización", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyMultiplier_tooltip = "Segundos adicionales de enfriamiento por cada 100% de sobrecarga. Ejemplo: 300 significa que 150% de capacidad añade 150s.", -- 1.8/05.01.2026
-    
-    Sandbox_RefugeEncumbrancePenaltyCap = "Límite de penalización", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyCap_tooltip = "Penalización máxima en segundos. 300 = 5 min, 600 = 10 min.", -- 1.8/05.01.2026
+    Sandbox_RefugeDifficulty = "Dificultad", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_tooltip = "Nivel de dificultad general. Fácil: costos más bajos, tiempos de espera más cortos, efectos más fuertes. Difícil: costos más altos, tiempos de espera más largos, efectos más débiles.", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option1 = "Muy fácil", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option2 = "Fácil", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option3 = "Normal", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option4 = "Difícil", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option5 = "Muy difícil", -- 1.11/06.01.2026
 }

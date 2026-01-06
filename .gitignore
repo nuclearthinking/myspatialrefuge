@@ -3,3 +3,4 @@ CHANGELOG.*
 docs/*
 .idea
 .vscode
+.code-graph-rag

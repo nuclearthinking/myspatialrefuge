@@ -1,6 +1,5 @@
 require "shared/core/MSR"
 
--- Guard against double-loading: another file may create empty MSR.Config table
 if MSR.Config and MSR.Config._loaded then
     return MSR.Config
 end
@@ -8,15 +7,13 @@ end
 MSR.Config = {
     _loaded = true,
     
-    -- Refuge coordinates: far northwest corner, away from all PZ map areas
-    -- (Muldraugh ~10500,9500 | West Point ~12000,7000 | Riverside ~6000,5500)
+    -- Refuge coords: far NW corner, away from PZ map areas
     REFUGE_BASE_X = 1000,
     REFUGE_BASE_Y = 1000,
     REFUGE_BASE_Z = 0,
     REFUGE_SPACING = 50,
     
-    -- size = radius * 2 + 1
-    TIERS = {
+    TIERS = { -- size = radius * 2 + 1
         [0] = { radius = 1, size = 3, cores = 0, displayName = "3x3" },
         [1] = { radius = 2, size = 5, cores = 5, displayName = "5x5" },
         [2] = { radius = 3, size = 7, cores = 10, displayName = "7x7" },
@@ -33,11 +30,9 @@ MSR.Config = {
     COMBAT_TELEPORT_BLOCK = 10,
     TELEPORT_CAST_TIME = 3,
     
-    -- Encumbrance penalty: allows teleporting while overloaded, but adds cooldown
-    -- Formula: penalty = (weightRatio - 1.0) * MULTIPLIER, capped at CAP
-    -- Example: 150% capacity = 0.5 * 300 = 150s = 2.5 min penalty
+    -- Encumbrance: penalty = (weightRatio - 1.0) * MULTIPLIER, capped at CAP
     ENCUMBRANCE_PENALTY_MULTIPLIER = 300,  -- seconds per 100% overload
-    ENCUMBRANCE_PENALTY_CAP = 300,         -- max 5 minutes penalty
+    ENCUMBRANCE_PENALTY_CAP = 300,         -- max 5 min
     
     SPRITES = {
         WALL_WEST = "walls_exterior_house_01_0",
@@ -57,8 +52,7 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    -- v1: per-player | v2: global | v3: custom relic sprite | v4: upgrades table | v5: roomIds
-    CURRENT_DATA_VERSION = 5,
+    CURRENT_DATA_VERSION = 5, -- v1:per-player v2:global v3:relic v4:upgrades v5:roomIds
     
     CORE_ITEM = "Base.MagicalCore",
     
@@ -81,20 +75,14 @@ MSR.Config = {
         REQUEST_FEATURE_UPGRADE = "RequestFeatureUpgrade",
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
-        
-        -- Client data sync (client -> server)
-        -- Used for persisting client-discovered data (roomIds, etc.)
-        -- Server stores in ModData; client can't write ModData directly in MP
-        SYNC_CLIENT_DATA = "SyncClientData"
+        SYNC_CLIENT_DATA = "SyncClientData" -- client→server for roomIds (client can't write ModData in MP)
     }
 }
 
-local function getSandboxVar(key)
-    return SandboxVars and SandboxVars.MySpatialRefuge and SandboxVars.MySpatialRefuge[key]
-end
+-- Dynamic getters (scaled by global D)
 
 function MSR.Config.getCastTime()
-    return getSandboxVar("CastTime") or MSR.Config.TELEPORT_CAST_TIME
+    return D.cooldown(MSR.Config.TELEPORT_CAST_TIME)
 end
 
 function MSR.Config.getCastTimeTicks()
@@ -102,25 +90,19 @@ function MSR.Config.getCastTimeTicks()
 end
 
 function MSR.Config.getTeleportCooldown()
-    return getSandboxVar("TeleportCooldown") or MSR.Config.TELEPORT_COOLDOWN
+    return D.cooldown(MSR.Config.TELEPORT_COOLDOWN)
 end
 
 function MSR.Config.getCombatBlockTime()
-    return getSandboxVar("CombatBlockTime") or MSR.Config.COMBAT_TELEPORT_BLOCK
-end
-
-function MSR.Config.isEncumbrancePenaltyEnabled()
-    local val = getSandboxVar("EncumbrancePenaltyEnabled")
-    if val == nil then return true end  -- Default enabled
-    return val
+    return D.cooldown(MSR.Config.COMBAT_TELEPORT_BLOCK)
 end
 
 function MSR.Config.getEncumbrancePenaltyMultiplier()
-    return getSandboxVar("EncumbrancePenaltyMultiplier") or MSR.Config.ENCUMBRANCE_PENALTY_MULTIPLIER
+    return MSR.Config.ENCUMBRANCE_PENALTY_MULTIPLIER -- D.negativeValue applied in Validation
 end
 
 function MSR.Config.getEncumbrancePenaltyCap()
-    return getSandboxVar("EncumbrancePenaltyCap") or MSR.Config.ENCUMBRANCE_PENALTY_CAP
+    return D.negativeValue(MSR.Config.ENCUMBRANCE_PENALTY_CAP)
 end
 
 return MSR.Config

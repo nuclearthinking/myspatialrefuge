@@ -1,21 +1,11 @@
 Sandbox_EN = {
     Sandbox_MySpatialRefuge = "My Spatial Refuge", -- 1.8/31.12.2025 # mod name, do not translate
     
-    Sandbox_RefugeTeleportCooldown = "Teleport Cooldown", -- 1.5/31.12.2025
-    Sandbox_RefugeTeleportCooldown_tooltip = "Seconds between refuge teleports. 0 = no cooldown.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeCastTime = "Cast Time", -- 1.5/31.12.2025
-    Sandbox_RefugeCastTime_tooltip = "Seconds to cast teleport (can be interrupted). 0 = instant.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeCombatBlockTime = "Combat Block Time", -- 1.5/31.12.2025
-    Sandbox_RefugeCombatBlockTime_tooltip = "Seconds after taking damage before you can teleport. 0 = disabled.", -- 1.5/31.12.2025
-    
-    Sandbox_RefugeEncumbrancePenaltyEnabled = "Encumbrance Penalty", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyEnabled_tooltip = "Add cooldown penalty when teleporting while over-encumbered. Prevents abusing teleport to move heavy items.", -- 1.8/05.01.2026
-    
-    Sandbox_RefugeEncumbrancePenaltyMultiplier = "Encumbrance Penalty Multiplier", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyMultiplier_tooltip = "Additional cooldown seconds per 100% over capacity. Example: 300 means 150% capacity adds 150s cooldown.", -- 1.8/05.01.2026
-    
-    Sandbox_RefugeEncumbrancePenaltyCap = "Encumbrance Penalty Cap", -- 1.8/05.01.2026
-    Sandbox_RefugeEncumbrancePenaltyCap_tooltip = "Maximum encumbrance penalty in seconds. 300 = 5 min, 600 = 10 min.", -- 1.8/05.01.2026
+    Sandbox_RefugeDifficulty = "Difficulty", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_tooltip = "Overall difficulty level. Easy: lower costs, shorter cooldowns, stronger effects. Hard: higher costs, longer cooldowns, weaker effects.", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option1 = "Very Easy", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option2 = "Easy", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option3 = "Normal", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option4 = "Hard", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_option5 = "Very Hard", -- 1.11/06.01.2026
 }

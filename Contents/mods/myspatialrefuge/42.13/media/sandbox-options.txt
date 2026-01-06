@@ -1,19 +1,4 @@
 VERSION = 1,
 
-option MySpatialRefuge.TeleportCooldown
-{type = integer, min = 0, max = 300, default = 10, page = MySpatialRefuge, translation = RefugeTeleportCooldown,}
-
-option MySpatialRefuge.CastTime
-{type = integer, min = 0, max = 30, default = 3, page = MySpatialRefuge, translation = RefugeCastTime,}
-
-option MySpatialRefuge.CombatBlockTime
-{type = integer, min = 0, max = 60, default = 10, page = MySpatialRefuge, translation = RefugeCombatBlockTime,}
-
-option MySpatialRefuge.EncumbrancePenaltyEnabled
-{type = boolean, default = true, page = MySpatialRefuge, translation = RefugeEncumbrancePenaltyEnabled,}
-
-option MySpatialRefuge.EncumbrancePenaltyMultiplier
-{type = integer, min = 0, max = 600, default = 300, page = MySpatialRefuge, translation = RefugeEncumbrancePenaltyMultiplier,}
-
-option MySpatialRefuge.EncumbrancePenaltyCap
-{type = integer, min = 0, max = 600, default = 300, page = MySpatialRefuge, translation = RefugeEncumbrancePenaltyCap,}
+option MySpatialRefuge.Difficulty
+{type = enum, numValues = 5, default = 3, page = MySpatialRefuge, translation = RefugeDifficulty,}

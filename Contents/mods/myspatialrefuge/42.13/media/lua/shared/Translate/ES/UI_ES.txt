@@ -37,11 +37,11 @@ UI_ES = {
 
     -- Faster Teleportation Cast
     UI_Upgrade_FasterRefugeCast = "Canalizacion de teletransporte mas rapida", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L1 = "Reduce el tiempo de canalizacion de teletransporte en un 10%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L2 = "Reduce el tiempo de canalizacion de teletransporte en un 20%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L3 = "Reduce el tiempo de canalizacion de teletransporte en un 30%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L4 = "Reduce el tiempo de canalizacion de teletransporte en un 40%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L5 = "Reduce el tiempo de canalizacion de teletransporte en un 50%.", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L1 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L2 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L3 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L4 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L5 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
     
     UI_Effect_refugeSize = "Tamano del refugio", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Velocidad de lectura", -- 1.6/15.01.2026

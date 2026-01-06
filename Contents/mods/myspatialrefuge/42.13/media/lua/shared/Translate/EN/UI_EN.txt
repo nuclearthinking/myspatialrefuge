@@ -37,11 +37,11 @@ UI_EN = {
 
     -- Faster Teleportation Cast
     UI_Upgrade_FasterRefugeCast = "Faster Teleportation Cast", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L1 = "Reduce teleportation cast time by 10%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L2 = "Reduce teleportation cast time by 20%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L3 = "Reduce teleportation cast time by 30%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L4 = "Reduce teleportation cast time by 40%.", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L5 = "Reduce teleportation cast time by 50%.", -- 1.8/02.01.2026
+    UI_Upgrade_FasterRefugeCast_L1 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L2 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L3 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L4 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast_L5 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
     
     UI_Effect_refugeSize = "Refuge Size", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Reading Speed", -- 1.6/15.01.2026
