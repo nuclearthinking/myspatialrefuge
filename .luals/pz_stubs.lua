@@ -55,6 +55,7 @@ function instanceof(obj, className) end
 ---@field getSquare fun(self: IsoPlayer): IsoGridSquare|nil
 ---@field getModData fun(self: IsoPlayer): table
 ---@field isLocalPlayer fun(self: IsoPlayer): boolean
+---@field DistToProper fun(self: IsoPlayer, other: IsoObject|IsoPlayer): number
 IsoPlayer = {}
 
 ---@param playerNum? integer
@@ -142,6 +143,13 @@ function getFileReader(filename, createIfNull) end
 function getFileWriter(filename, createIfNull, append) end
 
 -- UI/Core
+---@class Core
+---@field getScreenWidth fun(self: Core): integer
+---@field getScreenHeight fun(self: Core): integer
+---@field getOptionFontSize fun(self: Core): integer
+---@field getKey fun(self: Core, name: string): integer
+Core = {}
+
 ---@return Core
 function getCore() end
 
@@ -150,6 +158,168 @@ function getUIManager() end
 
 ---@return SoundManager
 function getSoundManager() end
+
+---@return TextManager
+function getTextManager() end
+
+---@return integer
+function getScreenWidth() end
+
+---@return integer
+function getScreenHeight() end
+
+-- UI Font enum
+---@class UIFont
+---@field Small any
+---@field Medium any
+---@field Large any
+---@field Title any
+---@field Massive any
+---@field MainMenu1 any
+---@field MainMenu2 any
+---@field Handwritten any
+---@field Dialogue any
+---@field Intro any
+---@field NewSmall any
+---@field NewMedium any
+---@field NewLarge any
+---@field Code any
+---@field MediumNew any
+---@field AutoNormSmall any
+---@field AutoNormMedium any
+---@field AutoNormLarge any
+UIFont = {}
+
+-- TextManager
+---@class TextManager
+---@field getFontHeight fun(self: TextManager, font: UIFont): integer
+---@field MeasureStringX fun(self: TextManager, font: UIFont, text: string): integer
+---@field MeasureStringY fun(self: TextManager, font: UIFont, text: string): integer
+TextManager = {}
+
+-- UI Base Classes
+---@class ISUIElement
+---@field x number
+---@field y number
+---@field width number
+---@field height number
+---@field anchorLeft boolean
+---@field anchorRight boolean
+---@field anchorTop boolean
+---@field anchorBottom boolean
+---@field moveWithMouse boolean
+---@field resizable boolean
+---@field drawFrame boolean
+---@field backgroundColor table
+---@field borderColor table
+---@field backgroundColorMouseOver table
+---@field addChild fun(self: ISUIElement, child: ISUIElement)
+---@field removeChild fun(self: ISUIElement, child: ISUIElement)
+---@field setVisible fun(self: ISUIElement, visible: boolean)
+---@field isVisible fun(self: ISUIElement): boolean
+---@field getX fun(self: ISUIElement): number
+---@field getY fun(self: ISUIElement): number
+---@field getWidth fun(self: ISUIElement): number
+---@field getHeight fun(self: ISUIElement): number
+---@field setX fun(self: ISUIElement, x: number)
+---@field setY fun(self: ISUIElement, y: number)
+---@field setWidth fun(self: ISUIElement, width: number)
+---@field setHeight fun(self: ISUIElement, height: number)
+---@field bringToTop fun(self: ISUIElement)
+---@field initialise fun(self: ISUIElement)
+---@field instantiate fun(self: ISUIElement)
+---@field addToUIManager fun(self: ISUIElement)
+---@field removeFromUIManager fun(self: ISUIElement)
+---@field setWantKeyEvents fun(self: ISUIElement, want: boolean)
+---@field close fun(self: ISUIElement)
+---@field onResize fun(self: ISUIElement)
+---@field update fun(self: ISUIElement)
+---@field render fun(self: ISUIElement)
+---@field prerender fun(self: ISUIElement)
+---@field getScreenWidth fun(self: ISUIElement): integer
+---@field getScreenHeight fun(self: ISUIElement): integer
+---@field drawRect fun(self: ISUIElement, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
+---@field drawRectBorder fun(self: ISUIElement, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
+---@field drawText fun(self: ISUIElement, text: string, x: number, y: number, r: number, g: number, b: number, a: number, font: UIFont)
+---@field drawTextRight fun(self: ISUIElement, text: string, x: number, y: number, r: number, g: number, b: number, a: number, font: UIFont)
+---@field drawTextCentre fun(self: ISUIElement, text: string, x: number, y: number, r: number, g: number, b: number, a: number, font: UIFont)
+---@field drawTexture fun(self: ISUIElement, texture: Texture, x: number, y: number, a: number, r: number, g: number, b: number)
+---@field drawTextureScaled fun(self: ISUIElement, texture: Texture, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
+---@field drawTextureScaledAspect fun(self: ISUIElement, texture: Texture, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
+ISUIElement = {}
+
+---@param name string
+---@return ISUIElement
+function ISUIElement:derive(name) end
+
+---@class ISPanel : ISUIElement
+---@field [any] any Allow arbitrary fields for derived classes
+ISPanel = {}
+
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@return ISPanel
+function ISPanel:new(x, y, width, height) end
+
+---@param name string
+---@return table
+function ISPanel:derive(name) end
+
+---@class ISButton : ISUIElement
+---@field title string
+---@field internal string
+---@field onclick function
+---@field onClickTarget any
+---@field enable boolean
+---@field tooltip string
+---@field [any] any Allow arbitrary fields
+ISButton = {}
+
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param title string
+---@param target any
+---@param onclick function
+---@return ISButton
+function ISButton:new(x, y, width, height, title, target, onclick) end
+
+---@class ISResizeWidget : ISUIElement
+---@field resizeFunction function
+---@field [any] any Allow arbitrary fields
+ISResizeWidget = {}
+
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param target any
+---@param ... any
+---@return ISResizeWidget
+function ISResizeWidget:new(x, y, width, height, target, ...) end
+
+-- Keyboard input
+---@class Keyboard
+---@field KEY_ESCAPE integer
+---@field KEY_RETURN integer
+---@field KEY_SPACE integer
+---@field KEY_UP integer
+---@field KEY_DOWN integer
+---@field KEY_LEFT integer
+---@field KEY_RIGHT integer
+---@field KEY_TAB integer
+---@field KEY_LSHIFT integer
+---@field KEY_RSHIFT integer
+---@field KEY_LCONTROL integer
+---@field KEY_RCONTROL integer
+Keyboard = {}
+
+---@param key integer
+---@return boolean
+function isKeyDown(key) end
 
 -- Math (PZMath)
 ---@param a number
@@ -226,8 +396,12 @@ Events = {}
 LuaEventManager = {}
 
 ---@param event string
----@param callback function
-function LuaEventManager.AddEvent(event, callback) end
+function LuaEventManager.AddEvent(event) end
+
+---Trigger a custom event registered with LuaEventManager.AddEvent
+---@param event string Event name
+---@param ... any Arguments to pass to listeners
+function triggerEvent(event, ...) end
 
 -- Timed Actions
 ---@class ISBaseTimedAction
@@ -328,6 +502,16 @@ ISMoveablesAction = {}
 -- Actions
 ---@type table
 ISDestroyStuffAction = {}
+
+---@class ISInventoryTransferAction : ISBaseTimedAction
+---@field item InventoryItem
+---@field perform fun(self: ISInventoryTransferAction)
+ISInventoryTransferAction = {}
+
+---@class ISGrabItemAction : ISBaseTimedAction
+---@field item InventoryItem
+---@field perform fun(self: ISGrabItemAction)
+ISGrabItemAction = {}
 
 -- Iso objects
 ---@type table

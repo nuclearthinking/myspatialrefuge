@@ -4,6 +4,24 @@ require "shared/MSR_UpgradeData"
 require "shared/MSR_PlayerMessage"
 require "MSR_InventoryHooks"
 
+---@class MSR_UpgradeWindow : ISPanel
+---@field player IsoPlayer
+---@field playerNum integer
+---@field padding number
+---@field headerHeight number
+---@field selectedUpgrade any
+---@field selectedLevel any
+---@field upgradeGrid any
+---@field upgradeDetails any
+---@field requiredItems any
+---@field ingredientList any
+---@field closeButton ISButton
+---@field resizeWidget ISResizeWidget
+---@field _lastRefreshTime number
+---@field _refreshThrottleMs number
+---@field _inventoryChangeHandler function
+---@field _relic any
+---@field _closeDistance number
 MSR_UpgradeWindow = ISPanel:derive("MSR_UpgradeWindow")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -57,7 +75,7 @@ function MSR_UpgradeWindow.Close()
 end
 
 function MSR_UpgradeWindow:new(x, y, width, height, player, relic)
-    local o = ISPanel:new(x, y, width, height)
+    local o = ISPanel:new(x, y, width, height) --[[@as MSR_UpgradeWindow]]
     setmetatable(o, self)
     self.__index = self
     

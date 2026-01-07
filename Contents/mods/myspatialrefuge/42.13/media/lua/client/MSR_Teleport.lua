@@ -5,6 +5,7 @@ require "shared/core/MSR_Env"
 require "shared/MSR_Integrity"
 require "shared/MSR_RoomPersistence"
 require "shared/MSR_PlayerMessage"
+require "shared/MSR_ZombieClear"
 local PM = MSR.PlayerMessage
 
 local function formatPenaltyTime(seconds)
@@ -732,10 +733,16 @@ local function onPeriodicIntegrityCheck()
     if not MSR.Data.IsPlayerInRefugeCoords(player) then return end
     
     local refugeData = MSR.GetRefugeData(player)
-    if refugeData and MSR.Integrity.CheckNeedsRepair(refugeData) then
+    if not refugeData then return end
+    
+    -- Periodic structure integrity check
+    if MSR.Integrity.CheckNeedsRepair(refugeData) then
         L.debug("Teleport", "Periodic check detected issues, running repair")
         MSR.Integrity.ValidateAndRepair(refugeData, { source = "periodic", player = player })
     end
+    
+    -- NOTE: Periodic zombie clearing is handled by MSR.ZombieClear module
+    -- It self-registers on EveryOneMinute for both client and server
 end
 
 Events.OnServerCommand.Add(OnServerCommand)

@@ -5,6 +5,7 @@
 require "shared/core/MSR"
 require "shared/MSR_Config"
 require "shared/core/MSR_Env"
+require "shared/core/MSR_03_World"
 require "shared/MSR_Data"
 
 if MSR.Integrity and MSR.Integrity._loaded then
@@ -16,7 +17,6 @@ MSR.Integrity._loaded = true
 
 local Integrity = MSR.Integrity
 
--- Sprite cache
 local _cachedRelicSprite = nil
 local _cachedResolvedSprite = nil
 local _cachedOldFallbackSprite = nil
@@ -55,11 +55,7 @@ local function getCachedRelicSprites()
 end
 
 local function removeObjectFromSquare(square, obj)
-    if not square or not obj then return false end
-    pcall(function() square:transmitRemoveItemFromSquare(obj) end)
-
-    square:RecalcAllWithNeighbours(true)
-    return true
+    return MSR.World.removeObject(square, obj, true)
 end
 
 local function findRelicOnSquareByModData(square, refugeId)
@@ -99,102 +95,77 @@ local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, ol
 end
 
 local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
-    local cell = getCell()
-    if not cell then return nil, nil end
-
     local relicSprite, resolvedSprite, oldFallbackSprite = getCachedRelicSprites()
     local searchRadius = (radius or 1) + 1
+    local foundRelic, foundBy = nil, nil
 
-    for dx = -searchRadius, searchRadius do
-        for dy = -searchRadius, searchRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square and square:getChunk() then
-                local relic = findRelicOnSquareByModData(square, refugeId)
-                if relic then
-                    return relic, "moddata"
-                end
-            end
-        end
-    end
+    -- Try ModData first
+    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
+        if foundRelic then return end
+        local relic = findRelicOnSquareByModData(square, refugeId)
+        if relic then foundRelic, foundBy = relic, "moddata" end
+    end)
+    
+    if foundRelic then return foundRelic, foundBy end
 
-    -- Fallback: find by sprite for old saves
-    for dx = -searchRadius, searchRadius do
-        for dy = -searchRadius, searchRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square and square:getChunk() then
-                local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, oldFallbackSprite)
-                if relic then
-                    return relic, "sprite"
-                end
-            end
-        end
-    end
+    -- Fallback: sprite matching for old saves
+    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
+        if foundRelic then return end
+        local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, oldFallbackSprite)
+        if relic then foundRelic, foundBy = relic, "sprite" end
+    end)
 
-    return nil, nil
+    return foundRelic, foundBy
 end
 
 local function findAllRelicsInArea(centerX, centerY, z, radius, refugeId)
-    local cell = getCell()
-    if not cell then return {} end
-
     local relicSprite, resolvedSprite, oldFallbackSprite = getCachedRelicSprites()
     local searchRadius = (radius or 1) + 2
     local foundRelics = {}
 
-    for dx = -searchRadius, searchRadius do
-        for dy = -searchRadius, searchRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            -- CRITICAL: Check that chunk is loaded before accessing objects
-            if square and square:getChunk() then
-                local objects = square:getObjects()
-                if K.isIterable(objects) then
-                    for _, obj in K.iter(objects) do
-                        if obj then
-                            local md = obj:getModData()
-                            local isRelic = false
-                            local foundBy = nil
+    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
+        MSR.World.iterateObjects(square, function(obj)
+            local md = MSR.World.getModData(obj)
+            local isRelic = false
+            local foundBy = nil
 
-                            if md and md.isSacredRelic and md.refugeId == refugeId then
-                                isRelic = true
-                                foundBy = "moddata"
-                            elseif obj.getSprite then
-                                local sprite = obj:getSprite()
-                                if sprite then
-                                    local spriteName = sprite:getName()
-                                    if spriteName == relicSprite or spriteName == resolvedSprite or
-                                        (oldFallbackSprite and spriteName == oldFallbackSprite) then
-                                        isRelic = true
-                                        foundBy = "sprite"
-                                    end
-                                end
-                            end
-
-                            if isRelic then
-                                local itemCount = 0
-                                if obj.getContainer then
-                                    local container = obj:getContainer()
-                                    if container then
-                                        local items = container:getItems()
-                                        itemCount = items and K.size(items) or 0
-                                    end
-                                end
-
-                                table.insert(foundRelics, {
-                                    obj = obj,
-                                    square = square,
-                                    foundBy = foundBy,
-                                    itemCount = itemCount,
-                                    x = square:getX(),
-                                    y = square:getY(),
-                                    z = square:getZ()
-                                })
-                            end
-                        end
+            if md and md.isSacredRelic and md.refugeId == refugeId then
+                isRelic = true
+                foundBy = "moddata"
+            elseif obj.getSprite then
+                local sprite = obj:getSprite()
+                if sprite then
+                    local spriteName = sprite:getName()
+                    if spriteName == relicSprite or spriteName == resolvedSprite or
+                        (oldFallbackSprite and spriteName == oldFallbackSprite) then
+                        isRelic = true
+                        foundBy = "sprite"
                     end
                 end
             end
-        end
-    end
+
+            if isRelic then
+                local itemCount = 0
+                if obj.getContainer then
+                    local container = obj:getContainer()
+                    if container then
+                        local items = container:getItems()
+                        itemCount = items and K.size(items) or 0
+                    end
+                end
+
+                table.insert(foundRelics, {
+                    obj = obj,
+                    square = square,
+                    foundBy = foundBy,
+                    itemCount = itemCount,
+                    x = square:getX(),
+                    y = square:getY(),
+                    z = square:getZ()
+                })
+            end
+        end)
+    end)
 
     return foundRelics
 end
@@ -380,38 +351,24 @@ end
 local function validateWalls(refugeData, report)
     if not refugeData then return 0 end
 
-    local cell = getCell()
-    if not cell then return 0 end
-
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local repaired = 0
+    local scanRadius = radius + 2
 
-    for dx = -radius - 2, radius + 2 do
-        for dy = -radius - 2, radius + 2 do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, centerZ)
-            if square then
-                local objects = square:getObjects()
-                if K.isIterable(objects) then
-                    for _, obj in K.iter(objects) do
-                        if obj and obj.getModData then
-                            local md = obj:getModData()
-                            if md and md.isRefugeBoundary then
-                                if obj.setIsThumpable then obj:setIsThumpable(false) end
-                                if obj.setIsHoppable then obj:setIsHoppable(false) end
-                                if obj.setCanBarricade then obj:setCanBarricade(false) end
-                                if obj.setIsDismantable then obj:setIsDismantable(false) end
-                                if obj.setCanBePlastered then obj:setCanBePlastered(false) end
-                                repaired = repaired + 1
-                            end
-                        end
-                    end
-                end
-            end
+    MSR.World.iterateArea(centerX, centerY, centerZ, scanRadius, function(square)
+        local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+        for _, obj in ipairs(walls) do
+            if obj.setIsThumpable then obj:setIsThumpable(false) end
+            if obj.setIsHoppable then obj:setIsHoppable(false) end
+            if obj.setCanBarricade then obj:setCanBarricade(false) end
+            if obj.setIsDismantable then obj:setIsDismantable(false) end
+            if obj.setCanBePlastered then obj:setCanBePlastered(false) end
+            repaired = repaired + 1
         end
-    end
+    end)
 
     report.walls.repaired = repaired
     return repaired

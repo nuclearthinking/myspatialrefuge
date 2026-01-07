@@ -16,6 +16,7 @@
 
 require "shared/core/MSR"
 require "shared/core/MSR_Env"
+require "shared/core/MSR_04_Inventory"
 require "shared/MSR_Config"
 require "shared/MSR_PlayerMessage"
 
@@ -82,14 +83,12 @@ local function getLockedItemsStorage(player)
     return pmd._lockedTransactionItems
 end
 
--- Get all item sources for a player (inventory + Sacred Relic storage)
--- Used internally by lockItems/consumeLockedItems
+-- Get all item sources for a player (inventory + nested containers + Sacred Relic storage)
 local function getItemSources(player, bypassCache)
-    local sources = {}
     local inv = safePlayerCall(player, "getInventory")
-    if inv then
-        table.insert(sources, inv)
-    end
+    local sources = inv and MSR.Inventory.collectNestedContainers(inv) or {}
+    
+    -- Sacred Relic container (separate storage)
     local getRelicContainer = (MSR and MSR.GetRelicContainer) or (MSR_Server and MSR_Server.GetRelicContainer)
     if getRelicContainer then
         local rc = getRelicContainer(player, bypassCache)
