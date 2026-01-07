@@ -771,68 +771,48 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         L.debug("Server", "HandleFeatureUpgradeRequest: Consumed items for " .. tostring(upgradeId))
     end
     
-    -- Special case: expand_refuge triggers the actual refuge expansion
-    if upgradeId == "expand_refuge" then
-        local refugeData = MSR.Data.GetRefugeDataByUsername(username)
-        if not refugeData then
-            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
-                transactionId = transactionId,
-                reason = "No refuge data found"
-            })
-            return
-        end
-        
-        -- Capture old radius BEFORE expansion for client-side cleanup
-        local oldRadius = refugeData.radius
-        
-        -- Execute expansion using shared module
-        local success, errorMsg, resultData = MSR.RefugeExpansion.Execute(player, refugeData)
-        
-        if success then
-            L.debug("Server", "expand_refuge: " .. username .. " expanded to tier " .. resultData.newTier)
-            
-            -- Send success response with ALL data needed for client-side cleanup
-            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
-                transactionId = transactionId,
-                upgradeId = upgradeId,
-                newLevel = targetLevel,
-                centerX = refugeData.centerX,
-                centerY = refugeData.centerY,
-                centerZ = refugeData.centerZ,
-                oldRadius = oldRadius,
-                newRadius = resultData.newRadius,
-                newTier = resultData.newTier,
-                refugeData = MSR.Data.SerializeRefugeData(refugeData)
-            })
-        else
-            L.debug("Server", "expand_refuge: FAILED - " .. tostring(errorMsg))
-            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
-                transactionId = transactionId,
-                reason = errorMsg or "Expansion failed"
-            })
-        end
+    -- Use handler pattern for upgrades with special logic
+    local handler = MSR.UpgradeLogic.getHandler(upgradeId)
+    local success, errorMsg, resultData = true, nil, nil
+    
+    if handler then
+        success, errorMsg, resultData = handler.apply(player, targetLevel)
     else
+        -- Generic upgrade: just set level
         MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
-        
-        L.debug("Server", "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
-        
-        local updatedRefugeData = MSR.Data.GetRefugeData(player)
-        
-        if L.isDebug() then
-            if updatedRefugeData and updatedRefugeData.upgrades then
-                L.debug("Server", "Upgrades after save: " .. MSR.Data.FormatUpgradesTable(updatedRefugeData.upgrades))
-            else
-                L.debug("Server", "WARNING: No upgrades in refugeData after save!")
+    end
+    
+    if not success then
+        L.debug("Server", upgradeId .. ": FAILED - " .. tostring(errorMsg))
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = errorMsg or "Upgrade failed"
+        })
+        return
+    end
+    
+    L.debug("Server", "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
+    
+    -- Build response with common fields
+    local refugeData = MSR.Data.GetRefugeData(player)
+    local response = {
+        transactionId = transactionId,
+        upgradeId = upgradeId,
+        newLevel = targetLevel,
+        refugeData = MSR.Data.SerializeRefugeData(refugeData)
+    }
+    
+    -- Add handler-specific response data (e.g., expansion needs center/radius for client cleanup)
+    if handler and handler.getResponseData then
+        local extraData = handler.getResponseData(refugeData, resultData)
+        if extraData then
+            for k, v in pairs(extraData) do
+                response[k] = v
             end
         end
-        
-        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
-            transactionId = transactionId,
-            upgradeId = upgradeId,
-            newLevel = targetLevel,
-            refugeData = MSR.Data.SerializeRefugeData(updatedRefugeData)
-        })
     end
+    
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, response)
 end
 
 -----------------------------------------------------------

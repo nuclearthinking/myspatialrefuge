@@ -66,6 +66,7 @@ function SRU_RequiredItems:createSlots()
     
     -- Calculate layout
     local slotsPerRow = math.max(1, math.floor((self.width - self.padding * 2) / (self.slotWidth + self.slotSpacing)))
+    local numRows = math.ceil(#self.requirements / slotsPerRow)
     
     for i, req in ipairs(self.requirements) do
         local row = math.floor((i - 1) / slotsPerRow)
@@ -79,6 +80,16 @@ function SRU_RequiredItems:createSlots()
         slot:setRequirement(req)
         self:addChild(slot)
         table.insert(self.slots, slot)
+    end
+    
+    -- Calculate required height to fit all rows
+    local headerHeight = self.padding + FONT_HGT_SMALL + self.padding
+    local slotsHeight = numRows * (self.slotHeight + self.slotSpacing)
+    local requiredHeight = headerHeight + slotsHeight + self.padding
+    
+    -- Update panel height if needed
+    if requiredHeight ~= self.height then
+        self:setHeight(requiredHeight)
     end
 end
 

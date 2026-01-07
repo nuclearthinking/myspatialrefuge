@@ -281,7 +281,7 @@ function UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     
     local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
     
-    if upgradeId == "expand_refuge" then -- synced with tier
+    if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then -- synced with tier
         if refugeData and refugeData.tier then
             return refugeData.tier
         end
@@ -297,7 +297,7 @@ function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    if upgradeId == "expand_refuge" then return true end -- tier managed by ExpandRefuge
+    if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then return true end -- tier managed by ExpandRefuge
     
     local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
     if not upgradeData or not refugeData then return false end
@@ -357,7 +357,12 @@ function UpgradeData.getNextLevelRequirements(player, upgradeId)
     for _, req in ipairs(requirements) do
         local scaledReq = { type = req.type, count = req.count }
         if req.substitutes then scaledReq.substitutes = req.substitutes end
-        if req.type == MSR.Config.CORE_ITEM then scaledReq.count = D.core(req.count) end
+        -- Scale costs by difficulty
+        if req.type == MSR.Config.CORE_ITEM then
+            scaledReq.count = D.core(req.count)
+        else
+            scaledReq.count = D.material(req.count)
+        end
         table.insert(scaledRequirements, scaledReq)
     end
     
@@ -380,6 +385,7 @@ function UpgradeData.getPlayerActiveEffects(player)
         refugeSize = "max",
         readingSpeedMultiplier = "min",
         refugeCastTimeMultiplier = "min",
+        relicStorageCapacity = "max",
     }
     
     local function applyEffect(effects, effectName, effectValue)

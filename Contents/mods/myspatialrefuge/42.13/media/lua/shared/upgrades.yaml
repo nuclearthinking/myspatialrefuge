@@ -310,6 +310,72 @@ upgrades:
             substitutes:
               - $alarm_clocks
 
+  refuge_core_storage:
+    id: refuge_core_storage
+    name: UI_Upgrade_RefugeCoreStorage
+    icon: Build_CrateWood
+    category: shelter
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_RefugeCoreStorage_L1
+        effects:
+          relicStorageCapacity: 30
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.Plank
+            count: 2
+          - type: Base.Nails
+            count: 20
+      2:
+        description: UI_Upgrade_RefugeCoreStorage_L2
+        effects:
+          relicStorageCapacity: 45
+        requirements:
+          - type: Base.MagicalCore
+            count: 10
+          - type: Base.Plank
+            count: 4
+          - type: Base.Nails
+            count: 30
+      3:
+        description: UI_Upgrade_RefugeCoreStorage_L3
+        effects:
+          relicStorageCapacity: 60
+        requirements:
+          - type: Base.MagicalCore
+            count: 20
+          - type: Base.Plank
+            count: 8
+          - type: Base.Nails
+            count: 50
+      4:
+        description: UI_Upgrade_RefugeCoreStorage_L4
+        effects:
+          relicStorageCapacity: 80
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.Plank
+            count: 10
+          - type: Base.Nails
+            count: 70
+      5:
+        description: UI_Upgrade_RefugeCoreStorage_L5
+        effects:
+          relicStorageCapacity: 100
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.Plank
+            count: 15
+          - type: Base.Nails
+            count: 100
+          - type: Base.ScrapMetal
+            count: 20
+
 # =============================================================================
 # EXAMPLE UPGRADE (uncomment and modify to add new upgrades)
 # =============================================================================
