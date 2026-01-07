@@ -18,6 +18,7 @@ require "shared/MSR_UpgradeLogic"
 require "shared/MSR_ReadingSpeed"
 require "shared/MSR_RoomPersistence"
 require "shared/MSR_RefugeExpansion"
+require "shared/MSR_ZombieClear"
 
 MSR_Server = MSR_Server or {}
 
@@ -166,13 +167,25 @@ end
 local function consumeItemsByIds(player, lockedItemIds)
     if not player or not lockedItemIds then return false end
     
-    local sources = MSR.Transaction.GetItemSources(player, true)
-    if not sources or #sources == 0 then 
+    -- Only need ROOT containers - getItemById searches recursively through nested containers
+    -- This is more efficient than iterating all nested containers
+    local sources = {}
+    local inv = MSR.safePlayerCall(player, "getInventory")
+    if inv then table.insert(sources, inv) end
+    
+    -- Sacred Relic container (if available)
+    local getRelicContainer = MSR.GetRelicContainer or (MSR_Server and MSR_Server.GetRelicContainer)
+    if getRelicContainer then
+        local rc = getRelicContainer(player, true)
+        if rc then table.insert(sources, rc) end
+    end
+    
+    if #sources == 0 then 
         L.debug("Server", "[DEBUG] consumeItemsByIds: No item sources found")
         return false 
     end
     
-    L.debug("Server", "[DEBUG] consumeItemsByIds: Processing " .. K.count(lockedItemIds) .. " item types from " .. #sources .. " sources")
+    L.debug("Server", "[DEBUG] consumeItemsByIds: Processing " .. K.count(lockedItemIds) .. " item types from " .. #sources .. " root sources")
     
     local totalConsumed = 0
     local totalExpected = 0
@@ -188,12 +201,21 @@ local function consumeItemsByIds(player, lockedItemIds)
                 if not container then break end
                 
                 -- Use getItemById for fast lookup (game pattern from ISCraftAction, ISMoveableCursor)
+                -- Note: getItemById searches recursively through nested containers
                 local item = container:getItemById(targetId)
                 
                 if item then
-                    -- Verify item still in container (game pattern from ISInventoryTransferAction:85)
-                    if not container:contains(item) then
-                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " found but not in container (race condition)")
+                    -- Get the ACTUAL container the item is in (may be nested - bag inside inventory)
+                    -- getItemById finds items recursively, so item may not be directly in 'container'
+                    local actualContainer = item:getContainer()
+                    if not actualContainer then
+                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " has no container (orphaned)")
+                        break
+                    end
+                    
+                    -- Verify item still in its actual container (game pattern from ISInventoryTransferAction:85)
+                    if not actualContainer:contains(item) then
+                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " found but not in actual container (race condition)")
                         break
                     end
                     
@@ -203,13 +225,13 @@ local function consumeItemsByIds(player, lockedItemIds)
                         break
                     end
                     
-                    L.debug("Server", "[DEBUG] consumeItemsByIds: Consuming item " .. targetId .. " (" .. itemType .. ")")
+                    L.debug("Server", "[DEBUG] consumeItemsByIds: Consuming item " .. targetId .. " (" .. itemType .. ") from " .. tostring(actualContainer:getType()))
                     
                     -- Use DoRemoveItem for proper removal (game pattern from ISTransferAction:98)
-                    container:DoRemoveItem(item)
+                    actualContainer:DoRemoveItem(item)
                     
                     -- Sync removal to clients (game pattern from ISTransferAction:99-101)
-                    sendRemoveItemFromContainer(container, item)
+                    sendRemoveItemFromContainer(actualContainer, item)
                     
                     found = true
                     totalConsumed = totalConsumed + 1
@@ -961,6 +983,9 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
     Events.OnTick.Add(waitForChunksAndCheck)
 end
 
+-- NOTE: Periodic zombie clearing is handled by MSR.ZombieClear module
+-- It self-registers on EveryOneMinute for both client and server
+
 local function OnPlayerDeathServer(player)
     if not player then return end
     
@@ -1064,6 +1089,7 @@ end
 Events.OnServerStarted.Add(OnServerStart)
 Events.OnClientCommand.Add(OnClientCommand)
 Events.OnPlayerDeath.Add(OnPlayerDeathServer)
+-- NOTE: EveryOneMinute zombie clearing is handled by MSR.ZombieClear module
 
 if Events.OnPlayerConnect then
     Events.OnPlayerConnect.Add(OnPlayerConnect)

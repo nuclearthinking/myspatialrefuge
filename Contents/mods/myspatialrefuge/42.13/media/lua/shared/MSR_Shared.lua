@@ -5,6 +5,7 @@
 require "shared/core/MSR"
 require "shared/MSR_Config"
 require "shared/core/MSR_Env"
+require "shared/core/MSR_03_World"
 require "shared/MSR_Integrity"
 
 -- Prevent double-loading
@@ -15,7 +16,6 @@ end
 MSR.Shared = MSR.Shared or {}
 MSR.Shared._loaded = true
 
--- Local alias
 local Shared = MSR.Shared
 
 -----------------------------------------------------------
@@ -47,7 +47,6 @@ Shared.MoveRelicError = {
     DESTINATION_BLOCKED = "DESTINATION_BLOCKED",
 }
 
--- Mapping from error code to translation key
 local MoveRelicErrorToTranslationKey = {
     [Shared.MoveRelicError.SUCCESS] = "IGUI_SacredRelicMovedTo",
     [Shared.MoveRelicError.NO_REFUGE_DATA] = "IGUI_MoveRelic_NoRefugeData",
@@ -66,39 +65,20 @@ local MoveRelicErrorToTranslationKey = {
 }
 
 --- Get translation key for a MoveRelic error code
--- @param errorCode string - one of Shared.MoveRelicError constants
--- @return string - the translation key (e.g., "IGUI_MoveRelic_BlockedByTree")
 function Shared.GetMoveRelicTranslationKey(errorCode)
     return MoveRelicErrorToTranslationKey[errorCode] or "IGUI_CannotMoveRelic"
 end
 
--- Use shared environment helpers
 local function getCachedIsServer()
     return MSR.Env.isServer()
 end
 
------------------------------------------------------------
--- World Object Utilities
------------------------------------------------------------
-
 local function addSpecialObjectToSquare(square, obj)
-    if not square or not obj or not square:getChunk() then return false end
-
-    if getCachedIsServer() then
-        square:transmitAddObjectToSquare(obj, -1)
-    else
-        square:AddSpecialObject(obj)
-    end
-    square:RecalcAllWithNeighbours(true)
-    return true
+    return MSR.World.addObject(square, obj, true)
 end
 
 local function removeObjectFromSquare(square, obj)
-    if not square or not obj then return false end
-    pcall(function() square:transmitRemoveItemFromSquare(obj) end)
-
-    square:RecalcAllWithNeighbours(true)
-    return true
+    return MSR.World.removeObject(square, obj, true)
 end
 
 -- Buffer tiles around refuge to clear zombies
@@ -133,25 +113,18 @@ function Shared.ResolveRelicSprite()
     return nil
 end
 
--- Find relic on a specific square by ModData
 function Shared.FindRelicOnSquare(square, refugeId)
     if not square then return nil end
-    local objects = square:getObjects()
-    if not objects then return nil end
-
-    for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-        if obj then
-            local md = obj:getModData()
-            if md and md.isSacredRelic and md.refugeId == refugeId then
-                return obj
-            end
-        end
-    end
-    return nil
+    
+    local relics = MSR.World.findObjects(square, function(obj)
+        local md = MSR.World.getModData(obj)
+        return md and md.isSacredRelic and md.refugeId == refugeId
+    end)
+    
+    return relics[1]  -- Return first match or nil
 end
 
--- Module-level sprite cache (resolved once per session)
+-- Sprite cache (resolved once per session)
 local _cachedRelicSprite = nil
 local _cachedResolvedSprite = nil
 local _spritesCached = false
@@ -165,62 +138,41 @@ local function getCachedRelicSprites()
     return _cachedRelicSprite, _cachedResolvedSprite
 end
 
--- Find relic on square by sprite (for old saves without ModData)
+-- Fallback for old saves without ModData
 local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
-    local objects = square:getObjects()
-    if not objects then return nil end
-
-    for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-        if obj and obj.getSprite then
-            local sprite = obj:getSprite()
-            if sprite then
-                local spriteName = sprite:getName()
-                if spriteName == relicSprite or spriteName == resolvedSprite then
-                    return obj
-                end
-            end
-        end
-    end
-    return nil
+    local relics = MSR.World.findObjects(square, function(obj)
+        if not obj.getSprite then return false end
+        local sprite = obj:getSprite()
+        if not sprite then return false end
+        local spriteName = sprite:getName()
+        return spriteName == relicSprite or spriteName == resolvedSprite
+    end)
+    
+    return relics[1]  -- Return first match or nil
 end
 
 function Shared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
-    local cell = getCell()
-    if not cell then return nil end
-
     local relicSprite, resolvedSprite = getCachedRelicSprites()
     local searchRadius = (radius or 1) + 1
+    local foundRelic = nil
 
-    -- First pass: find by ModData (preferred)
-    for dx = -searchRadius, searchRadius do
-        for dy = -searchRadius, searchRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            -- CRITICAL: Check that chunk is loaded before accessing objects
-            if square and square:getChunk() then
-                local relic = Shared.FindRelicOnSquare(square, refugeId)
-                if relic then
-                    return relic
-                end
-            end
-        end
-    end
+    -- Try ModData first (preferred)
+    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
+        if foundRelic then return end
+        local relic = Shared.FindRelicOnSquare(square, refugeId)
+        if relic then foundRelic = relic end
+    end)
+    
+    if foundRelic then return foundRelic end
 
-    -- Second pass: find by sprite (fallback for old saves)
-    for dx = -searchRadius, searchRadius do
-        for dy = -searchRadius, searchRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            -- CRITICAL: Check that chunk is loaded before accessing objects
-            if square and square:getChunk() then
-                local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
-                if relic then
-                    return relic
-                end
-            end
-        end
-    end
+    -- Fallback: sprite matching for old saves
+    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
+        if foundRelic then return end
+        local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
+        if relic then foundRelic = relic end
+    end)
 
-    return nil
+    return foundRelic
 end
 
 function Shared.SyncRelicPositionToModData(refugeData)
@@ -257,7 +209,6 @@ function Shared.SyncRelicPositionToModData(refugeData)
     return true
 end
 
--- Shorthand for error codes
 local Err = Shared.MoveRelicError
 
 function Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRelic)
@@ -269,35 +220,24 @@ function Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRe
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
 
-    -- Calculate target position
     local targetX = centerX + (cornerDx * radius)
     local targetY = centerY + (cornerDy * radius)
     local targetZ = centerZ
 
-    -- Use provided relic or search for it
-    local relic = existingRelic
-    if not relic then
-        relic = Shared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
-    end
-    if not relic then
-        return false, Err.RELIC_NOT_FOUND
-    end
+    local relic = existingRelic or Shared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
+    if not relic then return false, Err.RELIC_NOT_FOUND end
 
-    -- Get current position
     local currentSquare = relic:getSquare()
     if currentSquare and currentSquare:getX() == targetX and currentSquare:getY() == targetY then
         return false, Err.ALREADY_AT_POSITION
     end
 
-    -- Get target square
     local cell = getCell()
     if not cell then return false, Err.WORLD_NOT_READY end
 
-    -- Only use getGridSquare - don't create empty cells
     local targetSquare = cell:getGridSquare(targetX, targetY, targetZ)
     if not targetSquare then return false, Err.DESTINATION_NOT_LOADED end
 
-    -- Verify chunk is loaded
     local targetChunk = targetSquare:getChunk()
     if not targetChunk then return false, Err.DESTINATION_NOT_LOADED end
 
@@ -406,19 +346,12 @@ end
 local function createWallObject(square, spriteName, isNorthWall)
     if not square or not square:getChunk() then return nil end
 
-    local objects = square:getObjects()
-    if objects then
-        for i = 0, objects:size() - 1 do
-            local obj = objects:get(i)
-            if obj and obj.getModData then
-                local md = obj:getModData()
-                if md and md.isRefugeBoundary and md.refugeBoundarySprite == spriteName then
-                    -- Wall already exists, return it without logging
-                    return obj
-                end
-            end
-        end
-    end
+    local existingWalls = MSR.World.findObjects(square, function(obj)
+        local md = MSR.World.getModData(obj)
+        return md and md.isRefugeBoundary and md.refugeBoundarySprite == spriteName
+    end)
+    
+    if #existingWalls > 0 then return existingWalls[1] end
 
     local cell = getCell()
     if not cell then return nil end
@@ -456,11 +389,8 @@ local function createWallObject(square, spriteName, isNorthWall)
 end
 
 function Shared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
-    local cell = getCell()
-    if not cell then return nil end
-
-    local square = cell:getGridSquare(x, y, z)
-    if not square or not square:getChunk() then return nil end
+    local square = MSR.World.getSquareSafe(x, y, z)
+    if not square then return nil end
 
     local created = false
     if addNorth and createWallObject(square, MSR.Config.SPRITES.WALL_NORTH, true) then
@@ -476,11 +406,7 @@ function Shared.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
     return created and square or nil
 end
 
--- Check if boundary walls already exist for a refuge
 function Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius)
-    local cell = getCell()
-    if not cell then return false end
-    
     local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local minX = centerX - radius
     local maxX = centerX + radius
@@ -489,7 +415,6 @@ function Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius)
     local sampleCount = 0
     local foundCount = 0
     
-    -- Sample a few wall positions to check if walls exist
     for level = 0, wallHeight - 1 do
         local currentZ = z + level
         
@@ -502,21 +427,12 @@ function Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius)
         }
         
         for _, pos in ipairs(samplePositions) do
-            local square = cell:getGridSquare(pos[1], pos[2], currentZ)
-            if square and square:getChunk() then
+            local square = MSR.World.getSquareSafe(pos[1], pos[2], currentZ)
+            if square then
                 sampleCount = sampleCount + 1
-                local objects = square:getObjects()
-                if objects then
-                    for i = 0, objects:size() - 1 do
-                        local obj = objects:get(i)
-                        if obj and obj.getModData then
-                            local md = obj:getModData()
-                            if md and md.isRefugeBoundary then
-                                foundCount = foundCount + 1
-                                break
-                            end
-                        end
-                    end
+                local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+                if #walls > 0 then
+                    foundCount = foundCount + 1
                 end
             end
         end
@@ -527,10 +443,8 @@ function Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius)
 end
 
 function Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
-    -- Check if walls already exist - if so, skip creation
     if Shared.CheckBoundaryWallsExist(centerX, centerY, z, radius) then
-        -- Don't log every time - this is expected behavior when walls already exist
-        return 0
+        return 0  -- Already exist
     end
     
     local wallsCreated = 0
@@ -567,9 +481,6 @@ function Shared.CreateBoundaryWalls(centerX, centerY, z, radius)
 end
 
 function Shared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
-    local cell = getCell()
-    if not cell then return 0 end
-
     local wallsRemoved = 0
     local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local scanRadius = maxRadius + 2
@@ -577,35 +488,18 @@ function Shared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
 
     for level = 0, wallHeight - 1 do
         local currentZ = z + level
-        for dx = -scanRadius, scanRadius do
-            for dy = -scanRadius, scanRadius do
-                local square = cell:getGridSquare(centerX + dx, centerY + dy, currentZ)
-                if square then
-                    local objects = square:getObjects()
-                    if objects then
-                        local toRemove = {}
-                        for i = 0, objects:size() - 1 do
-                            local obj = objects:get(i)
-                            if obj then
-                                local md = obj:getModData()
-                                if md and md.isRefugeBoundary then
-                                    table.insert(toRemove, obj)
-                                end
-                            end
-                        end
-                        for _, obj in ipairs(toRemove) do
-                            removeObjectFromSquare(square, obj)
-                            wallsRemoved = wallsRemoved + 1
-                            table.insert(modifiedSquares, square)
-                        end
-                    end
-                end
+        MSR.World.iterateArea(centerX, centerY, currentZ, scanRadius, function(square)
+            local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+            for _, obj in ipairs(walls) do
+                MSR.World.removeObject(square, obj, false)
+                wallsRemoved = wallsRemoved + 1
+                table.insert(modifiedSquares, square)
             end
-        end
+        end)
     end
 
     for _, square in ipairs(modifiedSquares) do
-        square:RecalcAllWithNeighbours(true)
+        MSR.World.recalcSquare(square)
         if square.RecalcProperties then square:RecalcProperties() end
     end
 
@@ -614,51 +508,18 @@ function Shared.RemoveAllRefugeWalls(centerX, centerY, z, maxRadius)
 end
 
 function Shared.RemoveBoundaryWalls(centerX, centerY, z, radius)
-    local cell = getCell()
-    if not cell then return 0 end
-
     local wallsRemoved = 0
     local wallHeight = MSR.Config.WALL_HEIGHT or 1
-    local minX = centerX - radius
-    local maxX = centerX + radius
-    local minY = centerY - radius
-    local maxY = centerY + radius
-    local perimeterCoords = {}
-
-    for x = minX, maxX + 1 do
-        table.insert(perimeterCoords, { x = x, y = minY })
-        table.insert(perimeterCoords, { x = x, y = maxY + 1 })
-    end
-
-    for y = minY, maxY + 1 do
-        table.insert(perimeterCoords, { x = minX, y = y })
-        table.insert(perimeterCoords, { x = maxX + 1, y = y })
-    end
 
     for level = 0, wallHeight - 1 do
         local currentZ = z + level
-        for _, coord in ipairs(perimeterCoords) do
-            local square = cell:getGridSquare(coord.x, coord.y, currentZ)
-            if square then
-                local objects = square:getObjects()
-                if objects then
-                    local toRemove = {}
-                    for i = 0, objects:size() - 1 do
-                        local obj = objects:get(i)
-                        if obj then
-                            local md = obj:getModData()
-                            if md and md.isRefugeBoundary then
-                                table.insert(toRemove, obj)
-                            end
-                        end
-                    end
-                    for _, obj in ipairs(toRemove) do
-                        removeObjectFromSquare(square, obj)
-                        wallsRemoved = wallsRemoved + 1
-                    end
-                end
+        MSR.World.iteratePerimeter(centerX, centerY, currentZ, radius, function(square)
+            local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+            for _, obj in ipairs(walls) do
+                MSR.World.removeObject(square, obj, true)
+                wallsRemoved = wallsRemoved + 1
             end
-        end
+        end)
     end
 
     L.debug("Shared", "Removed " .. wallsRemoved .. " wall segments")
@@ -747,27 +608,18 @@ function Shared.CreateSacredRelicAtPosition(searchX, searchY, searchZ, createX, 
 
     local radius = (searchRadius or 10) + 1
 
-    -- Check for existing relic (no inline repairs - let integrity system handle that)
+    -- Check for existing relic (integrity system handles repairs)
     local existing = Shared.FindRelicInRefuge(searchX, searchY, searchZ, radius, refugeId)
-    if existing then
-        L.debug("Shared", "Found existing Sacred Relic")
-        return existing
-    end
+    if existing then return existing end
 
-    -- Final duplicate check with wider radius
-    local finalCheckRadius = radius + 2
-    local duplicateCheck = Shared.FindRelicInRefuge(searchX, searchY, searchZ, finalCheckRadius, refugeId)
-    if duplicateCheck then
-        L.debug("Shared", "Found relic in extended search")
-        return duplicateCheck
-    end
+    -- Extended search for duplicates
+    local duplicateCheck = Shared.FindRelicInRefuge(searchX, searchY, searchZ, radius + 2, refugeId)
+    if duplicateCheck then return duplicateCheck end
 
-    -- Create new relic
     local square = cell:getGridSquare(createX, createY, createZ)
     if not square or not square:getChunk() then return nil end
 
-    L.debug("Shared", "Creating Sacred Relic at stored position: " .. createX .. "," .. createY)
-
+    L.debug("Shared", "Creating Sacred Relic at " .. createX .. "," .. createY)
     return createRelicObject(square, refugeId)
 end
 
@@ -866,9 +718,6 @@ end
 -----------------------------------------------------------
 
 function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
-    local cell = getCell()
-    if not cell then return 0 end
-
     local isMP = MSR.Env.isMultiplayer()
     if isMP and not getCachedIsServer() then
         L.debug("Shared", "ClearTreesFromArea: Skipping on client")
@@ -878,23 +727,17 @@ function Shared.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
     local cleared = 0
     local totalRadius = radius + TREE_CLEAR_BUFFER
 
-    for dx = -totalRadius, totalRadius do
-        for dy = -totalRadius, totalRadius do
-            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if square then
-                local tree = square:getTree()
-                if tree then
-                    if dropLoot then
-                        if tree.toppleTree then tree:toppleTree() end
-                    else
-                        pcall(function() square:transmitRemoveItemFromSquare(tree) end)
-                        square:RecalcAllWithNeighbours(true)
-                    end
-                    cleared = cleared + 1
-                end
+    MSR.World.iterateArea(centerX, centerY, z, totalRadius, function(square)
+        local tree = square:getTree()
+        if tree then
+            if dropLoot then
+                if tree.toppleTree then tree:toppleTree() end
+            else
+                MSR.World.removeObject(square, tree, true)
             end
+            cleared = cleared + 1
         end
-    end
+    end)
 
     if cleared > 0 then
         L.debug("Shared", "Cleared " ..
@@ -952,18 +795,15 @@ function Shared.EnsureRefugeStructures(refugeData, player)
     local relicY = refugeData.relicY or centerY
     local relicZ = refugeData.relicZ or centerZ
 
-    -- Create boundary walls only if they don't exist
     Shared.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
     Shared.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
 
-    -- Create relic if needed
     local relic = Shared.CreateSacredRelicAtPosition(
         centerX, centerY, centerZ,
         relicX, relicY, relicZ,
         refugeId, radius
     )
 
-    -- Use integrity system for validation and repair
     local report = MSR.Integrity.ValidateAndRepair(refugeData, {
         source = "generation",
         player = player
@@ -978,48 +818,23 @@ function Shared.EnsureRefugeStructures(refugeData, player)
 end
 
 -----------------------------------------------------------
--- Property Repair (DEPRECATED - use MSR.Integrity.ValidateAndRepair)
+-- Deprecated (use MSR.Integrity.ValidateAndRepair)
 -----------------------------------------------------------
 
--- @deprecated Use MSR.Integrity.ValidateAndRepair() instead
--- This function is kept for backwards compatibility but delegates to the new system
+--- @deprecated Delegates to MSR.Integrity.ValidateAndRepair
 function Shared.RepairRefugeProperties(refugeData)
     if not refugeData then return 0 end
-
-    local report = MSR.Integrity.ValidateAndRepair(refugeData, {
-        source = "legacy_repair"
-    })
-
-    -- Return approximate count for backwards compatibility
-    local repaired = report.walls.repaired
-    if report.relic.found then repaired = repaired + 1 end
-
-    return repaired
+    local report = MSR.Integrity.ValidateAndRepair(refugeData, { source = "legacy_repair" })
+    return report.walls.repaired + (report.relic.found and 1 or 0)
 end
 
--- @deprecated Use MSR.Integrity.ValidateAndRepair() instead
--- Duplicate removal is now handled internally by the integrity system
+--- @deprecated Delegates to MSR.Integrity.ValidateAndRepair
 function Shared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
     if not refugeData then return 0 end
-
-    local report = MSR.Integrity.ValidateAndRepair(refugeData, {
-        source = "legacy_duplicate_removal"
-    })
-
+    local report = MSR.Integrity.ValidateAndRepair(refugeData, { source = "legacy_duplicate_removal" })
     return report.relic.duplicatesRemoved
 end
 
------------------------------------------------------------
--- Room ID Persistence
--- Save room IDs to ModData so we can restore them after teleportation
------------------------------------------------------------
-
--- ============================================================================
--- ROOM PERSISTENCE SYSTEM
--- ============================================================================
--- NOTE: Room persistence code has been moved to MSR_RoomPersistence.lua
--- This section is kept for reference but all functions have been removed
--- Use MSR.RoomPersistence.Save, MSR.RoomPersistence.Restore, etc. instead
--- ============================================================================
+-- Room persistence moved to MSR_RoomPersistence.lua
 
 return MSR.Shared
