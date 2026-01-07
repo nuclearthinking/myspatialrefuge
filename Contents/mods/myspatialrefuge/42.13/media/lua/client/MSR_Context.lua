@@ -180,7 +180,7 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     -- Show Upgrade Refuge option (opens the upgrade window)
     local function openUpgradeWindow()
         local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
-        MSR_UpgradeWindow.Open(playerObj)
+        MSR_UpgradeWindow.Open(playerObj, sacredRelic)
     end
     
     local upgradeOptionText = getText("IGUI_UpgradeRefuge")
