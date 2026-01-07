@@ -154,6 +154,82 @@ local function canProcessRequest(player)
     return true
 end
 
+-----------------------------------------------------------
+-- ID-Based Item Consumption (Server-Authoritative)
+-- Uses game-aligned patterns from ISTransferAction, ISCraftAction
+-----------------------------------------------------------
+
+-- Consume specific items by ID with network sync
+-- @param player: The player whose items to consume
+-- @param lockedItemIds: Table of {itemType = {itemId1, itemId2, ...}}
+-- @return: true if all items consumed, false if any item not found
+local function consumeItemsByIds(player, lockedItemIds)
+    if not player or not lockedItemIds then return false end
+    
+    local sources = MSR.Transaction.GetItemSources(player, true)
+    if not sources or #sources == 0 then 
+        L.debug("Server", "[DEBUG] consumeItemsByIds: No item sources found")
+        return false 
+    end
+    
+    L.debug("Server", "[DEBUG] consumeItemsByIds: Processing " .. K.count(lockedItemIds) .. " item types from " .. #sources .. " sources")
+    
+    local totalConsumed = 0
+    local totalExpected = 0
+    
+    for itemType, itemIds in pairs(lockedItemIds) do
+        L.debug("Server", "[DEBUG] consumeItemsByIds: Processing " .. #itemIds .. " IDs for " .. itemType)
+        totalExpected = totalExpected + #itemIds
+        
+        for _, targetId in ipairs(itemIds) do
+            local found = false
+            
+            for _, container in ipairs(sources) do
+                if not container then break end
+                
+                -- Use getItemById for fast lookup (game pattern from ISCraftAction, ISMoveableCursor)
+                local item = container:getItemById(targetId)
+                
+                if item then
+                    -- Verify item still in container (game pattern from ISInventoryTransferAction:85)
+                    if not container:contains(item) then
+                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " found but not in container (race condition)")
+                        break
+                    end
+                    
+                    -- Verify item type matches (safety check)
+                    if item:getFullType() ~= itemType then
+                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " type mismatch: expected " .. itemType .. ", got " .. item:getFullType())
+                        break
+                    end
+                    
+                    L.debug("Server", "[DEBUG] consumeItemsByIds: Consuming item " .. targetId .. " (" .. itemType .. ")")
+                    
+                    -- Use DoRemoveItem for proper removal (game pattern from ISTransferAction:98)
+                    container:DoRemoveItem(item)
+                    
+                    -- Sync removal to clients (game pattern from ISTransferAction:99-101)
+                    sendRemoveItemFromContainer(container, item)
+                    
+                    found = true
+                    totalConsumed = totalConsumed + 1
+                    break
+                end
+            end
+            
+            if not found then
+                L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " (" .. itemType .. ") NOT FOUND - may have been moved/consumed")
+                -- Don't fail immediately - continue processing other items
+                -- Final success is determined by total consumed count
+            end
+        end
+    end
+    
+    L.debug("Server", "[DEBUG] consumeItemsByIds: Consumed " .. totalConsumed .. "/" .. totalExpected .. " items")
+    
+    return totalConsumed == totalExpected
+end
+
 function MSR_Server.ValidateRefugeAccess(player, refugeId)
     return MSR.Validation.ValidateRefugeAccess(player, refugeId)
 end
@@ -551,9 +627,20 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     local upgradeId = args and args.upgradeId
     local targetLevel = args and args.targetLevel
     local transactionId = args and args.transactionId
+    local lockedItemIds = args and args.lockedItemIds  -- NEW: ID-based consumption
     
     L.debug("Server", "HandleFeatureUpgradeRequest: " .. username .. 
           " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
+    
+    -- Debug: Log if we received lockedItemIds
+    if lockedItemIds and not K.isEmpty(lockedItemIds) then
+        L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: Received lockedItemIds with " .. K.count(lockedItemIds) .. " item types")
+        for itemType, ids in pairs(lockedItemIds) do
+            L.debug("Server", "[DEBUG]   " .. itemType .. ": " .. #ids .. " items")
+        end
+    else
+        L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: No lockedItemIds received, will use type-based consumption")
+    end
     
     if not upgradeId or not targetLevel then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
@@ -635,7 +722,22 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     end
     
     if #requirements > 0 then
-        local consumed = MSR.UpgradeLogic.consumeItems(player, requirements)
+        local consumed = false
+        
+        -- Prefer ID-based consumption (more precise, prevents wrong item consumption)
+        if lockedItemIds and not K.isEmpty(lockedItemIds) then
+            L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: Using ID-based consumption")
+            consumed = consumeItemsByIds(player, lockedItemIds)
+            
+            if not consumed then
+                L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: ID-based consumption failed, some items may have been moved")
+            end
+        else
+            -- Fallback to type-based consumption (backwards compatibility)
+            L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: Using type-based consumption (fallback)")
+            consumed = MSR.UpgradeLogic.consumeItems(player, requirements)
+        end
+        
         if not consumed then
             L.debug("Server", "HandleFeatureUpgradeRequest: Failed to consume items for " .. username)
             sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {

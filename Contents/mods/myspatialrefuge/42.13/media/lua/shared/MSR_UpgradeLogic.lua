@@ -32,7 +32,9 @@ end
 function UpgradeLogic.getAvailableItemCount(player, requirement)
     if not requirement then return 0 end
     
-    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement)
+    -- Use filtered count: excludes favorites, crafting-consumed items, locked items
+    -- This ensures UI shows accurate counts matching what can actually be consumed
+    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement, true)
     return total
 end
 
@@ -133,10 +135,21 @@ function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirem
         return false, err or "Failed to start transaction"
     end
     
+    -- Collect locked item IDs for server verification (ID-based consumption)
+    -- This enables precise server-side consumption by specific item IDs
+    local lockedItemIds = {}
+    for itemType, data in pairs(transaction.lockedItems) do
+        lockedItemIds[itemType] = data.itemIds
+        L.debug("Upgrade", "[DEBUG] purchaseUpgradeMP: Sending " .. #data.itemIds .. " item IDs for " .. itemType)
+    end
+    
+    L.debug("Upgrade", "[DEBUG] purchaseUpgradeMP: Transaction " .. transaction.id .. " with " .. K.count(lockedItemIds) .. " item types")
+    
     sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE, {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
-        transactionId = transaction.id
+        transactionId = transaction.id,
+        lockedItemIds = lockedItemIds  -- Send specific item IDs for server consumption
     })
     
     PM.Say(player, PM.UPGRADING)

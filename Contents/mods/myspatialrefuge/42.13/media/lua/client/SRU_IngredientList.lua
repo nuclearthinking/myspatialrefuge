@@ -154,7 +154,8 @@ function SRU_IngredientList:findAvailableItems(itemTypes)
         local count = 0
         local sampleItem = nil
         
-        -- Count items from all sources
+        -- Count items from all sources (only those available for consumption)
+        -- This filters out favorites, crafting-consumed items, etc.
         for _, container in ipairs(sources) do
             if container then
                 local items = container:getItems()
@@ -162,9 +163,13 @@ function SRU_IngredientList:findAvailableItems(itemTypes)
                     for i = 0, items:size() - 1 do
                         local item = items:get(i)
                         if item and item:getFullType() == itemType then
-                            count = count + 1
-                            if not sampleItem then
-                                sampleItem = item
+                            -- Only count items that pass availability checks
+                            local available, _ = MSR.Transaction.IsItemAvailable(item, container)
+                            if available then
+                                count = count + 1
+                                if not sampleItem then
+                                    sampleItem = item
+                                end
                             end
                         end
                     end

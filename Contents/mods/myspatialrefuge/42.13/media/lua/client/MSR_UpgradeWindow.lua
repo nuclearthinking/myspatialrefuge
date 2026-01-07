@@ -1,9 +1,8 @@
--- Spatial Refuge Upgrade Window
-
 require "ISUI/ISPanel"
 require "ui/framework/CUI_Framework"
 require "shared/MSR_UpgradeData"
 require "shared/MSR_PlayerMessage"
+require "MSR_InventoryHooks"
 
 MSR_UpgradeWindow = ISPanel:derive("MSR_UpgradeWindow")
 
@@ -21,7 +20,7 @@ MSR_UpgradeWindow.DETAILS_WIDTH_RATIO = 0.40
 MSR_UpgradeWindow.INGREDIENTS_WIDTH_RATIO = 0.25
 MSR_UpgradeWindow.instance = nil
 
-function MSR_UpgradeWindow.Open(player)
+function MSR_UpgradeWindow.Open(player, relic)
     if MSR_UpgradeWindow.instance and MSR_UpgradeWindow.instance:isVisible() then
         MSR_UpgradeWindow.instance:close()
         return
@@ -41,7 +40,7 @@ function MSR_UpgradeWindow.Open(player)
     local x = (screenW - w) / 2
     local y = (screenH - h) / 2
     
-    local window = MSR_UpgradeWindow:new(x, y, w, h, playerObj)
+    local window = MSR_UpgradeWindow:new(x, y, w, h, playerObj, relic)
     window:initialise()
     window:addToUIManager()
     window:setVisible(true)
@@ -57,7 +56,7 @@ function MSR_UpgradeWindow.Close()
     end
 end
 
-function MSR_UpgradeWindow:new(x, y, width, height, player)
+function MSR_UpgradeWindow:new(x, y, width, height, player, relic)
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -75,6 +74,14 @@ function MSR_UpgradeWindow:new(x, y, width, height, player)
     o.moveWithMouse = true
     o.resizable = true
     o.drawFrame = false
+    
+    o._lastRefreshTime = 0
+    o._refreshThrottleMs = 100
+    o._inventoryChangeHandler = nil
+    
+    -- Store relic object for proximity check (same pattern as ISBaseEntityWindow)
+    o._relic = relic
+    o._closeDistance = 2  -- tiles
     
     return o
 end
@@ -142,6 +149,37 @@ function MSR_UpgradeWindow:createChildren()
     
     self:createResizeWidget()
     self:refreshUpgradeList()
+    self:registerInventoryListener()
+end
+
+function MSR_UpgradeWindow:registerInventoryListener()
+    if self._inventoryChangeHandler then return end
+    
+    local window = self
+    self._inventoryChangeHandler = function(actionType, items, state)
+        if not window:isVisible() then return end
+        window:onInventoryChanged()
+    end
+    
+    if Events.MSR_OnInventoryChange then
+        Events.MSR_OnInventoryChange.Add(self._inventoryChangeHandler)
+    end
+end
+
+function MSR_UpgradeWindow:unregisterInventoryListener()
+    if self._inventoryChangeHandler then
+        if Events.MSR_OnInventoryChange then
+            Events.MSR_OnInventoryChange.Remove(self._inventoryChangeHandler)
+        end
+        self._inventoryChangeHandler = nil
+    end
+end
+
+function MSR_UpgradeWindow:onInventoryChanged()
+    local now = K.timeMs()
+    if (now - self._lastRefreshTime) < self._refreshThrottleMs then return end
+    self._lastRefreshTime = now
+    self:refreshCurrentUpgrade()
 end
 
 function MSR_UpgradeWindow:createResizeWidget()
@@ -231,13 +269,8 @@ function MSR_UpgradeWindow:selectUpgrade(upgradeId)
     end
     
     if self.ingredientList then
-        -- Use difficulty-scaled requirements
         local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, upgradeId)
-        if requirements then
-            self.ingredientList:setRequirements(requirements)
-        else
-            self.ingredientList:setRequirements({})
-        end
+        self.ingredientList:setRequirements(requirements or {})
     end
 end
 
@@ -276,6 +309,7 @@ function MSR_UpgradeWindow:onCloseClick()
 end
 
 function MSR_UpgradeWindow:close()
+    self:unregisterInventoryListener()
     self:setVisible(false)
     self:removeFromUIManager()
     MSR_UpgradeWindow.instance = nil
@@ -326,6 +360,16 @@ function MSR_UpgradeWindow:update()
     end
     if not pcall(function() return self.player:getUsername() end) then
         self:close()
+        return
+    end
+    
+    -- Proximity check: close if player walked away from relic
+    if self._relic and self.player.DistToProper then
+        local ok, dist = pcall(function() return self.player:DistToProper(self._relic) end)
+        if not ok or dist > self._closeDistance then
+            self:close()
+            return
+        end
     end
 end
 

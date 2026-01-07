@@ -27,7 +27,6 @@ MSR.Transaction = MSR.Transaction or {}
 MSR.Transaction._loaded = true
 
 local Transaction = MSR.Transaction
-local function log(message) L.log("Transaction", message) end
 
 Transaction.STATE = {
     PENDING = "PENDING",
@@ -101,9 +100,39 @@ local function getItemSources(player, bypassCache)
     return sources
 end
 
+-----------------------------------------------------------
+-- Item Availability Checks
+-- Based on ISInventoryTransferAction.lua patterns
+-----------------------------------------------------------
 
--- Lock items for a transaction (mark as unavailable)
--- Returns: table of locked item references, or nil if not enough items
+-- Check if item can be locked for consumption
+local function isItemAvailableForLock(item, container)
+    if not item then return false, "nil item" end
+    
+    if item.getIsCraftingConsumed and item:getIsCraftingConsumed() then
+        return false, "crafting consumed"
+    end
+    
+    if item.isFavorite and item:isFavorite() then
+        return false, "favorite"
+    end
+    
+    if container and container.isRemoveItemAllowed then
+        if not container:isRemoveItemAllowed(item) then
+            return false, "removal not allowed"
+        end
+    end
+    
+    return true, nil
+end
+
+-- Public API: Used by UI to filter available items
+function Transaction.IsItemAvailable(item, container)
+    return isItemAvailableForLock(item, container)
+end
+
+
+-- Lock items for a transaction. Returns locked item IDs or nil if not enough.
 local function lockItems(player, itemType, count)
     if not player or not itemType or count <= 0 then return nil end
     player = resolvePlayer(player)
@@ -112,7 +141,6 @@ local function lockItems(player, itemType, count)
     local lockedStorage = getLockedItemsStorage(player)
     if not lockedStorage then return nil end
     
-    -- Build set of already locked item IDs for fast lookup
     local alreadyLockedIds = {}
     local alreadyLockedCount = 0
     if lockedStorage[itemType] then
@@ -122,11 +150,9 @@ local function lockItems(player, itemType, count)
         end
     end
     
-    -- Get all item sources (bypass cache for transaction safety)
-    local sources = getItemSources(player, true)
+    local sources = getItemSources(player, true)  -- bypass cache
     if #sources == 0 then return nil end
     
-    -- Count total available items across all sources
     local totalAvailable = 0
     for _, container in ipairs(sources) do
         if container and container.getCountType then
@@ -137,11 +163,10 @@ local function lockItems(player, itemType, count)
     local availableCount = totalAvailable - alreadyLockedCount
     
     if availableCount < count then
-        log("lockItems: Not enough " .. itemType .. " (need " .. count .. ", available " .. availableCount .. ")")
-        return nil -- Not enough unlocked items
+        L.debug("Transaction", "lockItems: Not enough " .. itemType .. " (need " .. count .. ", available " .. availableCount .. ")")
+        return nil
     end
     
-    -- Find and lock specific item instances from all sources
     local lockedItems = {}
     local lockedCount = 0
     
@@ -154,9 +179,12 @@ local function lockItems(player, itemType, count)
                 if item and item:getFullType() == itemType then
                     local itemId = item:getID()
                     if not alreadyLockedIds[itemId] then
-                        table.insert(lockedItems, itemId)
-                        alreadyLockedIds[itemId] = true
-                        lockedCount = lockedCount + 1
+                        local available = isItemAvailableForLock(item, container)
+                        if available then
+                            table.insert(lockedItems, itemId)
+                            alreadyLockedIds[itemId] = true
+                            lockedCount = lockedCount + 1
+                        end
                     end
                 end
             end
@@ -164,8 +192,8 @@ local function lockItems(player, itemType, count)
     end
     
     if lockedCount < count then
-        log("lockItems: Could only find " .. lockedCount .. " of " .. count .. " items")
-        return nil -- Couldn't find enough items (shouldn't happen if count was correct)
+        L.debug("Transaction", "lockItems: Could only find " .. lockedCount .. " of " .. count .. " items (some may be unavailable)")
+        return nil -- Couldn't find enough available items
     end
     
     -- Store locked item IDs
@@ -176,7 +204,6 @@ local function lockItems(player, itemType, count)
         table.insert(lockedStorage[itemType], itemId)
     end
     
-    log("lockItems: Locked " .. lockedCount .. " of " .. itemType)
     return lockedItems
 end
 
@@ -243,8 +270,11 @@ local function consumeLockedItems(player, itemType, itemIds)
     end
     
     unlockItems(player, itemType, itemIds)
-    log("consumeLockedItems: Removed " .. totalRemoved .. " of " .. #itemIds .. " " .. itemType)
-    return totalRemoved == #itemIds
+    local success = totalRemoved == #itemIds
+    if not success then
+        L.debug("Transaction", "consumeLockedItems: Partial removal - " .. totalRemoved .. "/" .. #itemIds .. " " .. itemType)
+    end
+    return success
 end
 
 -----------------------------------------------------------
@@ -325,8 +355,6 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     -- Start timeout handler
     Transaction._startTimeoutHandler(playerObj, transactionType, transactionId)
     
-    log("BEGIN " .. transactionId .. " for " .. username)
-    
     return transaction, nil
 end
 
@@ -358,12 +386,12 @@ function Transaction.Commit(player, transactionId)
     end
     
     if not transaction then
-        log("COMMIT failed - transaction not found: " .. tostring(transactionId))
+        L.debug("Transaction", "COMMIT failed - transaction not found: " .. tostring(transactionId))
         return false
     end
     
     if transaction.status ~= Transaction.STATE.PENDING then
-        log("COMMIT failed - transaction not pending: " .. tostring(transactionId) .. " (status=" .. tostring(transaction.status) .. ")")
+        L.debug("Transaction", "COMMIT failed - transaction not pending: " .. tostring(transactionId) .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
@@ -383,7 +411,9 @@ function Transaction.Commit(player, transactionId)
     -- Remove from active transactions
     playerTransactions[transactionType] = nil
     
-    log("COMMIT " .. transactionId .. " - Items consumed: " .. tostring(allConsumed))
+    if not allConsumed then
+        L.debug("Transaction", "COMMIT " .. transactionId .. " - partial consumption (some items unavailable)")
+    end
     
     return allConsumed
 end
@@ -424,12 +454,12 @@ function Transaction.Rollback(player, transactionId, transactionType)
     end
     
     if not transaction then
-        log("ROLLBACK - no transaction found (id=" .. tostring(transactionId) .. ", type=" .. tostring(transactionType) .. ")")
+        L.debug("Transaction", "ROLLBACK - no transaction found (id=" .. tostring(transactionId) .. ", type=" .. tostring(transactionType) .. ")")
         return false
     end
     
     if transaction.status ~= Transaction.STATE.PENDING then
-        log("ROLLBACK - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
+        L.debug("Transaction", "ROLLBACK - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
@@ -445,8 +475,6 @@ function Transaction.Rollback(player, transactionId, transactionType)
     if tType then
         playerTransactions[tType] = nil
     end
-    
-    log("ROLLBACK " .. transaction.id .. " - Items unlocked")
     
     return true
 end
@@ -480,12 +508,12 @@ function Transaction.Finalize(player, transactionId)
     end
     
     if not transaction then
-        log("FINALIZE - no transaction found (id=" .. tostring(transactionId) .. ")")
+        L.debug("Transaction", "FINALIZE - no transaction found (id=" .. tostring(transactionId) .. ")")
         return false
     end
     
     if transaction.status ~= Transaction.STATE.PENDING then
-        log("FINALIZE - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
+        L.debug("Transaction", "FINALIZE - transaction not pending: " .. transaction.id .. " (status=" .. tostring(transaction.status) .. ")")
         return false
     end
     
@@ -501,8 +529,6 @@ function Transaction.Finalize(player, transactionId)
     if tType then
         playerTransactions[tType] = nil
     end
-    
-    log("FINALIZED " .. transaction.id .. " - Server consumed items, local locks cleared")
     
     return true
 end
@@ -559,7 +585,7 @@ function Transaction._checkAllTransactionTimeouts()
                 if transaction and transaction.status == Transaction.STATE.PENDING then
                     -- Check if transaction has timed out
                     if transaction.createdAt and transaction.createdAt < timeoutThreshold then
-                        log("TIMEOUT - Auto-rollback: " .. tostring(transaction.id))
+                        L.debug("Transaction", "TIMEOUT - Auto-rollback: " .. tostring(transaction.id))
                         
                         -- Auto-rollback
                         Transaction.Rollback(playerObj, transaction.id)
@@ -589,7 +615,6 @@ local function registerTimeoutHandler()
     
     Events.EveryTenSeconds.Add(Transaction._checkAllTransactionTimeouts)
     _timeoutHandlerRegistered = true
-    log("Registered periodic transaction timeout handler")
 end
 
 -- Register on game start
@@ -623,7 +648,6 @@ local function OnPlayerDisconnect(player)
     if pmd then
         pmd._lockedTransactionItems = nil
     end
-    log("Disconnect cleanup for player " .. (safePlayerCall(playerObj, "getUsername") or "unknown"))
 end
 
 -- Register cleanup handlers
@@ -649,7 +673,6 @@ local function cleanupStaleLocksOnGameStart()
     if not pmd then return end
     
     if pmd._lockedTransactionItems then
-        log("Startup cleanup: Clearing stale locked items")
         pmd._lockedTransactionItems = nil
     end
     
@@ -688,8 +711,9 @@ end
 -- Count items across all sources
 -- @param player: The player
 -- @param itemType: The item type to count
+-- @param filtered: (optional) If true, only count items that pass availability checks (favorites, crafting, etc.)
 -- @return: Total count across all sources
-function Transaction.GetMultiSourceCount(player, itemType)
+function Transaction.GetMultiSourceCount(player, itemType, filtered)
     -- Fail-fast validation
     if not player then error("Transaction.GetMultiSourceCount: player is required") end
     if not itemType then error("Transaction.GetMultiSourceCount: itemType is required") end
@@ -700,27 +724,60 @@ function Transaction.GetMultiSourceCount(player, itemType)
     local sources = Transaction.GetItemSources(playerObj)
     local totalCount = 0
     
-    for _, container in ipairs(sources) do
-        if container and container.getCountType then
-            totalCount = totalCount + container:getCountType(itemType)
+    -- Get already locked item IDs for this type
+    local lockedStorage = getLockedItemsStorage(playerObj)
+    local lockedIds = {}
+    if lockedStorage and lockedStorage[itemType] then
+        for _, itemId in ipairs(lockedStorage[itemType]) do
+            lockedIds[itemId] = true
         end
     end
     
-    -- Subtract locked items
-    local lockedStorage = getLockedItemsStorage(playerObj)
-    local lockedCount = 0
-    if lockedStorage and lockedStorage[itemType] then
-        lockedCount = #lockedStorage[itemType]
+    if filtered then
+        -- Iterate items and apply availability filter (same logic as lockItems)
+        for _, container in ipairs(sources) do
+            local items = container and container.getItems and container:getItems()
+            if K.isIterable(items) then
+                for _, item in K.iter(items) do
+                    if item and item:getFullType() == itemType then
+                        local itemId = item:getID()
+                        -- Skip already locked items
+                        if not lockedIds[itemId] then
+                            -- Apply availability filter
+                            local available, _ = isItemAvailableForLock(item, container)
+                            if available then
+                                totalCount = totalCount + 1
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    else
+        -- Fast path: use container:getCountType() and subtract locked
+        for _, container in ipairs(sources) do
+            if container and container.getCountType then
+                totalCount = totalCount + container:getCountType(itemType)
+            end
+        end
+        
+        -- Subtract locked items count
+        local lockedCount = 0
+        if lockedStorage and lockedStorage[itemType] then
+            lockedCount = #lockedStorage[itemType]
+        end
+        totalCount = totalCount - lockedCount
     end
     
-    return math.max(0, totalCount - lockedCount)
+    return math.max(0, totalCount)
 end
 
 -- Count items with substitutions across all sources
 -- @param player: The player
 -- @param requirement: Requirement table with type and substitutes
+-- @param filtered: (optional) If true, only count items that pass availability checks
 -- @return: Total count of matching items, table of {itemType = count}
-function Transaction.GetSubstitutionCount(player, requirement)
+function Transaction.GetSubstitutionCount(player, requirement, filtered)
     -- Fail-fast validation
     if not player then error("Transaction.GetSubstitutionCount: player is required") end
     if not requirement then error("Transaction.GetSubstitutionCount: requirement is required") end
@@ -732,7 +789,7 @@ function Transaction.GetSubstitutionCount(player, requirement)
     local total = 0
     
     -- Primary type
-    local primaryCount = Transaction.GetMultiSourceCount(playerObj, requirement.type)
+    local primaryCount = Transaction.GetMultiSourceCount(playerObj, requirement.type, filtered)
     if primaryCount > 0 then
         counts[requirement.type] = primaryCount
         total = total + primaryCount
@@ -742,7 +799,7 @@ function Transaction.GetSubstitutionCount(player, requirement)
     if requirement.substitutes then
         for _, subType in ipairs(requirement.substitutes) do
             if not counts[subType] then
-                local subCount = Transaction.GetMultiSourceCount(playerObj, subType)
+                local subCount = Transaction.GetMultiSourceCount(playerObj, subType, filtered)
                 if subCount > 0 then
                     counts[subType] = subCount
                     total = total + subCount
