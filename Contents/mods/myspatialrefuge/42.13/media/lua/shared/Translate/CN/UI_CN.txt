@@ -43,7 +43,16 @@ UI_CN = {
     UI_Upgrade_FasterRefugeCast_L4 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
     UI_Upgrade_FasterRefugeCast_L5 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
     
+    -- Refuge Core Storage
+    UI_Upgrade_RefugeCoreStorage = "避难所核心存储", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L1 = "用空间精华注入神圣遗物，扩展其内部存储容量。", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L2 = "进一步增强遗物的空间维度，提升存储容量。", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L3 = "掌握空间压缩的艺术，显著扩展存储空间。", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L4 = "通过高级空间操控突破常规极限。", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L5 = "通过完美的空间和谐达到理论上的最大容量。", -- 1.14/07.01.2026
+    
     UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "传送速度", -- 1.8/02.01.2026
+    UI_Effect_relicStorageCapacity = "遗物存储", -- 1.14/07.01.2026
 }

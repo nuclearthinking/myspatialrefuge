@@ -25,6 +25,68 @@ local function resolvePlayer(player)
     return MSR.resolvePlayer(player)
 end
 
+--------------------------------------------------------------------------------
+-- IsoObject Sync Utilities (for MP container/property sync)
+--------------------------------------------------------------------------------
+
+--- Sync IsoObject container properties to all clients
+--- Use after modifying container capacity, type, etc.
+---@param object IsoObject The object to sync
+---@param syncModData boolean|nil Also sync ModData (default: true)
+function UpgradeLogic.syncObjectToClients(object, syncModData)
+    if not object then return end
+    if not MSR.Env.needsClientSync() then return end
+    
+    -- sendObjectChange("containers") syncs container properties including capacity
+    if object.sendObjectChange then
+        object:sendObjectChange("containers")
+        L.debug("UpgradeLogic", "Synced object container via sendObjectChange('containers')")
+    end
+    
+    -- Sync ModData if requested (default: true)
+    if syncModData ~= false and object.transmitModData then
+        object:transmitModData()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Upgrade Handler Registry (extensible pattern for custom upgrades)
+--------------------------------------------------------------------------------
+
+-- Registry of upgrade handlers for upgrades that need special server-side logic
+-- Each handler: { apply = function(player, level) -> success, error, extraData }
+local UpgradeHandlers = {}
+
+--- Register a custom upgrade handler
+--- Handler fields:
+---   apply(player, level) -> success, errorMsg, resultData (required)
+---   getResponseData(refugeData, resultData) -> table (optional, extra data for client response)
+---   invalidatesCache: boolean (optional, default true - invalidate relic cache after upgrade)
+---@param upgradeId string The upgrade ID
+---@param handler table Handler with apply function
+function UpgradeLogic.registerHandler(upgradeId, handler)
+    if not handler or type(handler.apply) ~= "function" then
+        L.log("UpgradeLogic", "ERROR: Handler for " .. upgradeId .. " must have apply function")
+        return
+    end
+    UpgradeHandlers[upgradeId] = handler
+    L.debug("UpgradeLogic", "Registered handler for upgrade: " .. upgradeId)
+end
+
+--- Get registered handler for an upgrade
+---@param upgradeId string The upgrade ID
+---@return table|nil handler The registered handler or nil
+function UpgradeLogic.getHandler(upgradeId)
+    return UpgradeHandlers[upgradeId]
+end
+
+--- Check if upgrade has a custom handler
+---@param upgradeId string The upgrade ID
+---@return boolean hasHandler
+function UpgradeLogic.hasHandler(upgradeId)
+    return UpgradeHandlers[upgradeId] ~= nil
+end
+
 function UpgradeLogic.getItemSources(player)
     return MSR.Transaction.GetItemSources(player)
 end
@@ -103,21 +165,20 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
         return false, "Failed to consume items"
     end
     
-    if upgradeId == "expand_refuge" then
-        local refugeData = MSR.Data.GetRefugeData(player)
-        if not refugeData then return false, "Refuge data not found" end
-        
-        -- Use shared expansion module
-        local success, errorMsg, resultData = MSR.RefugeExpansion.Execute(player, refugeData)
+    -- Check for custom handler (storage, expand, etc.)
+    local handler = UpgradeLogic.getHandler(upgradeId)
+    if handler then
+        local success, errorMsg, resultData = handler.apply(player, targetLevel)
         if not success then
-            return false, errorMsg or "Expansion failed"
+            return false, errorMsg or "Upgrade failed"
         end
         
-        -- Show tier-specific message
-        if resultData.tierConfig then
-            PM.Say(player, PM.REFUGE_UPGRADED_TO, resultData.tierConfig.displayName)
+        -- Handler provides its own success message via onSuccess callback
+        if handler.onSuccess then
+            handler.onSuccess(player, targetLevel, resultData)
         end
     else
+        -- Generic upgrade: just set level and apply effects
         MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
         UpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
     end
@@ -200,6 +261,95 @@ function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
     L.debug("Upgrade", "Applied effects for " .. upgradeId .. " level " .. level)
 end
 
+--- Apply storage upgrade to existing relic
+---@param player IsoPlayer|number Player or player number
+---@param level number Target upgrade level
+---@return boolean success Whether the upgrade was applied
+---@return string|nil errorMsg Error message if failed
+function UpgradeLogic.applyStorageUpgrade(player, level)
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return false, "Invalid player" end
+    
+    -- Set level first (needed for capacity calculation)
+    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
+    
+    local refugeData = MSR.Data.GetRefugeData(playerObj)
+    if not refugeData then return false, "Refuge data not found" end
+    
+    -- Find the relic
+    local relic = MSR.Integrity and MSR.Integrity.FindRelic and MSR.Integrity.FindRelic(refugeData)
+    if not relic then
+        L.log("UpgradeLogic", "WARNING: Relic not found, capacity will apply on next creation")
+        return true, nil
+    end
+    
+    local container = relic:getContainer()
+    if not container then return false, "Relic container not found" end
+    
+    local newCapacity = MSR.Config.getRelicStorageCapacity(refugeData)
+    
+    -- Downgrade safety: prevent reducing capacity below current items
+    local currentItems = container:getItems():size()
+    if currentItems > newCapacity then
+        return false, "Cannot reduce capacity below current item count (" .. currentItems .. " items)"
+    end
+    
+    container:setCapacity(newCapacity)
+    
+    -- Store level in relic ModData for integrity verification
+    local md = relic:getModData()
+    md.storageUpgradeLevel = level
+    
+    -- Sync to clients (handles both container properties and ModData)
+    UpgradeLogic.syncObjectToClients(relic, true)
+    
+    L.log("UpgradeLogic", "Updated relic storage capacity to " .. newCapacity)
+    return true, nil
+end
+
+--------------------------------------------------------------------------------
+-- Register Built-in Upgrade Handlers
+--------------------------------------------------------------------------------
+
+local UPGRADES = MSR.Config.UPGRADES
+
+-- Storage upgrade handler
+UpgradeLogic.registerHandler(UPGRADES.CORE_STORAGE, {
+    apply = function(player, level)
+        return UpgradeLogic.applyStorageUpgrade(player, level)
+    end,
+    invalidatesCache = true
+})
+
+-- Expansion handler (uses RefugeExpansion module)
+UpgradeLogic.registerHandler(UPGRADES.EXPAND_REFUGE, {
+    apply = function(player, level)
+        local refugeData = MSR.Data.GetRefugeData(player)
+        if not refugeData then return false, "Refuge data not found" end
+        
+        local success, errorMsg, resultData = MSR.RefugeExpansion.Execute(player, refugeData)
+        return success, errorMsg, resultData
+    end,
+    -- Provide extra data for client response (needed for wall cleanup)
+    getResponseData = function(refugeData, resultData)
+        if not resultData then return nil end
+        return {
+            centerX = refugeData.centerX,
+            centerY = refugeData.centerY,
+            centerZ = refugeData.centerZ,
+            oldRadius = resultData.oldRadius,
+            newRadius = resultData.newRadius,
+            newTier = resultData.newTier
+        }
+    end,
+    onSuccess = function(player, level, resultData)
+        if resultData and resultData.tierConfig then
+            PM.Say(player, PM.REFUGE_UPGRADED_TO, resultData.tierConfig.displayName)
+        end
+    end,
+    invalidatesCache = true
+})
+
 function UpgradeLogic.getPlayerEffect(player, effectName)
     local effects = MSR.UpgradeData.getPlayerActiveEffects(player)
     return effects[effectName] or 0
@@ -220,21 +370,28 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
         end
     end
     
-    if upgradeId == "expand_refuge" then
+    -- Upgrade-specific post-completion handling
+    if upgradeId == UPGRADES.EXPAND_REFUGE then
         if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(playerObj) end
-    else
-        -- Set upgrade level in local state
-        -- For MP clients: ModData cache was already updated with server's refugeData before this function is called,
-        -- but we still call setPlayerUpgradeLevel to ensure the upgradeData object is properly set for immediate use
-        -- (e.g., reading speed calculations need the level to be available right away).
-        -- SaveRefugeData call inside setPlayerUpgradeLevel is a no-op on MP clients (only server can save).
-        -- For SP: This saves to GlobalModData and updates local state.
-        MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
-        UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
     
-    if MSR.InvalidateRelicContainerCache then MSR.InvalidateRelicContainerCache() end
+    -- Update local upgrade level state
+    -- For upgrades with custom handlers (storage, expand), level is already saved server-side
+    -- but we sync local state for immediate UI/effect access
+    -- For generic upgrades, this also triggers SaveRefugeData (no-op on MP clients)
+    local handler = UpgradeLogic.getHandler(upgradeId)
+    if not handler then
+        UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
+    end
+    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
     
+    -- Invalidate caches if handler requires it (default: true for handlers, always for generic)
+    local shouldInvalidateCache = not handler or handler.invalidatesCache ~= false
+    if shouldInvalidateCache and MSR.InvalidateRelicContainerCache then
+        MSR.InvalidateRelicContainerCache()
+    end
+    
+    -- Refresh UI
     if MSR.Env.isClient() then
         if ISInventoryPage and ISInventoryPage.dirtyUI then ISInventoryPage.dirtyUI() end
         

@@ -565,13 +565,10 @@ local function OnServerCommand(module, command, args)
                 end
             end
             
-            if args.upgradeId == "expand_refuge" then
-                if MSR.InvalidateRelicContainerCache then MSR.InvalidateRelicContainerCache() end
-            end
-            
+            -- onUpgradeComplete handles cache invalidation based on handler config
             MSR.UpgradeLogic.onUpgradeComplete(player, args.upgradeId, args.newLevel, args.transactionId)
             
-            if args.upgradeId == "expand_refuge" and args.centerX and args.centerY and args.centerZ then
+            if args.upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE and args.centerX and args.centerY and args.centerZ then
                 local ctx = {
                     oldRadius = args.oldRadius or 5,
                     newRadius = args.newRadius or 3,

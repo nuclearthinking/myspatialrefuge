@@ -43,7 +43,16 @@ UI_EN = {
     UI_Upgrade_FasterRefugeCast_L4 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
     UI_Upgrade_FasterRefugeCast_L5 = "By attuning to the flow of time, the Spatial Refuge allows you to enter and exit more swiftly.", -- 1.11/06.01.2026
     
+    -- Refuge Core Storage
+    UI_Upgrade_RefugeCoreStorage = "Refuge Core Storage", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L1 = "Infuse the sacred relic with spatial essence, expanding its internal storage capacity.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L2 = "Further enhance the relic's spatial dimensions, increasing storage capacity.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L3 = "Master the art of spatial compression, significantly expanding storage.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L4 = "Push beyond normal limits with advanced spatial manipulation.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L5 = "Achieve the maximum theoretical capacity through perfect spatial harmony.", -- 1.14/07.01.2026
+    
     UI_Effect_refugeSize = "Refuge Size", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Reading Speed", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "Teleportation Speed", -- 1.8/02.01.2026
+    UI_Effect_relicStorageCapacity = "Relic Storage", -- 1.14/07.01.2026
 }

@@ -43,7 +43,16 @@ UI_ES = {
     UI_Upgrade_FasterRefugeCast_L4 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
     UI_Upgrade_FasterRefugeCast_L5 = "Al sintonizarse con el flujo del tiempo, el Refugio Espacial te permite entrar y salir mas rapidamente.", -- 1.11/06.01.2026
     
+    -- Refuge Core Storage
+    UI_Upgrade_RefugeCoreStorage = "Almacenamiento del nucleo del refugio", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L1 = "Infunde la reliquia sagrada con esencia espacial, expandiendo su capacidad de almacenamiento interno.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L2 = "Mejora aun mas las dimensiones espaciales de la reliquia, aumentando la capacidad de almacenamiento.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L3 = "Domina el arte de la compresion espacial, expandiendo significativamente el almacenamiento.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L4 = "Supera los limites normales con manipulacion espacial avanzada.", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage_L5 = "Alcanza la capacidad teorica maxima a traves de la armonia espacial perfecta.", -- 1.14/07.01.2026
+    
     UI_Effect_refugeSize = "Tamano del refugio", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Velocidad de lectura", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "Velocidad de teletransporte", -- 1.8/02.01.2026
+    UI_Effect_relicStorageCapacity = "Almacenamiento de reliquia", -- 1.14/07.01.2026
 }

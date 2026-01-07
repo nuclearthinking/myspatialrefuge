@@ -582,7 +582,10 @@ local function createRelicObject(square, refugeId)
     relic:setIsContainer(true)
     local container = relic:getContainer()
     if container then
-        container:setCapacity(MSR.Config.RELIC_STORAGE_CAPACITY or 20)
+        -- Get capacity based on upgrade level (refugeId is the username)
+        local refugeData = MSR.Data.GetRefugeDataByUsername(refugeId)
+        local capacity = MSR.Config.getRelicStorageCapacity(refugeData)
+        container:setCapacity(capacity)
     end
 
     if addSpecialObjectToSquare(square, relic) then
