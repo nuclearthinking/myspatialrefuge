@@ -1,38 +1,22 @@
--- MSR_KahluaCompat - Kahlua Compatibility Utilities
--- Provides workarounds for standard Lua functions missing in Kahlua engine
+-- 01_KahluaCompat - Workarounds for missing Lua functions in Kahlua
+-- Creates global K table. Kahlua lacks: next(), os.*, rawget/rawset
 --
--- Kahlua is the Java-based Lua implementation used by Project Zomboid.
--- Many standard Lua functions (next, os.*, rawget, etc.) are NOT available.
--- This module provides safe alternatives via the global `K` table.
+-- Key functions:
+--   K.isEmpty(tbl), K.count(tbl), K.firstKey(tbl) - table checks (no next())
+--   K.iter(obj), K.size(obj), K.toTable(list)     - Java ArrayList handling
+--   K.time(), K.timeMs()                          - timestamps (no os.time())
+--   K.safeCall(obj, method, ...)                  - safe method invocation
 --
--- USAGE: After this module loads, use `K` anywhere without require:
---   K.isEmpty(tbl)    - Check if table is empty (no next() in Kahlua)
---   K.count(tbl)      - Count hash table entries
---   K.firstKey(tbl)   - Get first key without next()
---   K.isArrayLike()   - Detect array vs hash
---   K.safeCall()      - Safe method call with pcall
---
--- NOTE: PZ provides built-in utilities in env.lua and luautils.lua:
---   luautils.tableContains() - Check if table contains value
---   luautils.indexOf()       - Find index in array
---   LuaTableUtil:contains()  - Check if array contains element
---
--- WARNING: PZ's xpairs() can fail with "Expected a table" for some Java objects!
---   Use K.iter() instead - it safely handles all Java ArrayLists with 0-based get().
+-- WARNING: PZ's xpairs() fails on some Java objects - use K.iter() instead
 
--- Return early if already loaded
 if K and K._loaded then
     return K
 end
 
--- Create global K table (no dependencies - can be loaded first)
 K = K or {}
 K._loaded = true
 
--- Also expose via MSR namespace for compatibility (if MSR exists)
-if MSR then
-    MSR.KahluaCompat = K
-end
+if MSR then MSR.KahluaCompat = K end
 
 -----------------------------------------------------------
 -- Table Utilities

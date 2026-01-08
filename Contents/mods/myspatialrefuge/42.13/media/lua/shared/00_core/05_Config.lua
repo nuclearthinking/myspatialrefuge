@@ -1,5 +1,8 @@
-require "shared/core/MSR"
-require "shared/core/MSR_02_Difficulty"
+-- 05_Config - Static configuration values and difficulty-scaled getters
+-- All constants for refuge dimensions, timers, sprites, commands
+
+require "shared/00_core/00_MSR"
+require "shared/00_core/03_Difficulty"
 
 if MSR.Config and MSR.Config._loaded then
     return MSR.Config
@@ -46,11 +49,6 @@ MSR.Config = {
     
     RELIC_STORAGE_CAPACITY = 20,
     RELIC_MOVE_COOLDOWN = 30,
-    
-    -- Storage capacity by upgrade level (max 100 due to engine limit for IsoObject containers)
-    STORAGE_CAPACITY_BY_LEVEL = {
-        [0] = 20, [1] = 30, [2] = 45, [3] = 60, [4] = 80, [5] = 100
-    },
     WALL_HEIGHT = 1,
     
     TRANSACTION_TIMEOUT_TICKS = 300,
@@ -61,12 +59,6 @@ MSR.Config = {
     CURRENT_DATA_VERSION = 5, -- v1:per-player v2:global v3:relic v4:upgrades v5:roomIds
     
     CORE_ITEM = "Base.MagicalCore",
-    
-    -- Upgrade IDs (avoid hardcoded strings across codebase)
-    UPGRADES = {
-        EXPAND_REFUGE = "expand_refuge",
-        CORE_STORAGE = "refuge_core_storage",
-    },
     
     COMMAND_NAMESPACE = "SpatialRefuge",
     COMMANDS = {
@@ -115,17 +107,6 @@ end
 
 function MSR.Config.getEncumbrancePenaltyCap()
     return D.negativeValue(MSR.Config.ENCUMBRANCE_PENALTY_CAP)
-end
-
---- Get relic storage capacity based on upgrade level stored in refugeData
----@param refugeData table|nil Refuge data table containing upgrades
----@return integer capacity Storage capacity in slots
-function MSR.Config.getRelicStorageCapacity(refugeData)
-    local baseCapacity = MSR.Config.RELIC_STORAGE_CAPACITY or 20
-    if not refugeData or not refugeData.upgrades then return baseCapacity end
-    
-    local upgradeLevel = refugeData.upgrades[MSR.Config.UPGRADES.CORE_STORAGE] or 0
-    return MSR.Config.STORAGE_CAPACITY_BY_LEVEL[upgradeLevel] or baseCapacity
 end
 
 return MSR.Config

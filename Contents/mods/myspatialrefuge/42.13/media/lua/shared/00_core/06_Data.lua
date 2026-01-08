@@ -2,9 +2,9 @@
 -- ModData management functions accessible by both client and server
 -- This ensures consistent data access in multiplayer
 
-require "shared/core/MSR"
-require "shared/MSR_Config"
-require "shared/core/MSR_Env"
+require "shared/00_core/00_MSR"
+require "shared/00_core/05_Config"
+require "shared/00_core/04_Env"
 
 if MSR.Data and MSR.Data._loaded then
     return MSR.Data
@@ -13,16 +13,24 @@ end
 MSR.Data = MSR.Data or {}
 MSR.Data._loaded = true
 
--- Local aliases for internal use
 local Data = MSR.Data
 local Config = MSR.Config
+
+-- Recovery if Config failed to load (should not happen with proper load order)
+if not Config then
+    print("[MSR.Data] CRITICAL: MSR.Config is nil - attempting recovery...")
+    pcall(function() require "shared/00_core/05_Config" end)
+    Config = MSR.Config
+    if not Config then
+        print("[MSR.Data] FATAL: Config recovery failed. Check load order.")
+    end
+end
 
 -----------------------------------------------------------
 -- Debug Helpers
 -----------------------------------------------------------
 
--- Format upgrades table for debug logging
--- Returns string like "{faster_reading=3, other=1}" or "nil"
+-- Format upgrades table for logging: "{key=val, ...}" or "nil"
 local function formatUpgradesTable(upgrades)
     if not upgrades then return "nil" end
     if K.isEmpty(upgrades) then return "{}" end
@@ -38,10 +46,9 @@ function Data.FormatUpgradesTable(upgrades)
 end
 
 -----------------------------------------------------------
--- RefugeData Serialization (DRY helper)
+-- RefugeData Serialization
 -----------------------------------------------------------
 
--- Use this instead of manually copying fields everywhere
 function Data.SerializeRefugeData(refugeData)
     if not refugeData then return nil end
     return {

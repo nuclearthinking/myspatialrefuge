@@ -1,7 +1,7 @@
 -- MSR_02_Difficulty.lua - Unified Difficulty System
 -- Global D table for difficulty scaling. Load order: after MSR_01_Logging, before MSR_Env
 
-require "shared/core/MSR"
+require "shared/00_core/00_MSR"
 
 if MSR.Difficulty and MSR.Difficulty._loaded then
     return MSR.Difficulty
@@ -13,37 +13,32 @@ MSR.Difficulty = {
     _loaded = true,
     [1] = { -- Very Easy
         coreCost = 0.5,
-        materialCost = 0.5,
         cooldown = 0.5,
         effectPower = 1.2
     },
     [2] = { -- Easy
         coreCost = 0.75,
-        materialCost = 0.75,
         cooldown = 0.75,
         effectPower = 1.1
     },
     [3] = { -- Normal
         coreCost = 1.0,
-        materialCost = 1.0,
         cooldown = 1.0,
         effectPower = 1.0
     },
     [4] = { -- Hard
         coreCost = 1.5,
-        materialCost = 1.25,
         cooldown = 1.5,
         effectPower = 0.9
     },
     [5] = { -- Very Hard
         coreCost = 2.0,
-        materialCost = 1.5,
         cooldown = 2.0,
         effectPower = 0.8
     }
 }
 
---- @param category string "coreCost", "materialCost", "cooldown", or "effectPower"
+--- @param category string "coreCost", "cooldown", or "effectPower"
 --- @return number Multiplier (defaults to 1.0)
 function MSR.GetDifficultyMultiplier(category)
     local difficultyIndex = SandboxVars and SandboxVars.MySpatialRefuge 
@@ -69,17 +64,10 @@ end
 
 D = D or {}
 
---- Scale core cost. Example: D.core(100) → 50/75/100/150/200
+--- Scale core cost. Example: D.core(100) → 75/100/150
 function D.core(baseValue)
     if type(baseValue) ~= "number" then return baseValue end
     return math.max(1, math.ceil(baseValue * MSR.GetDifficultyMultiplier("coreCost")))
-end
-
---- Scale material cost (Planks, Nails, ScrapMetal, etc).
---- Example: D.material(10) → 5/8/10/13/15
-function D.material(baseValue)
-    if type(baseValue) ~= "number" then return baseValue end
-    return math.max(1, math.ceil(baseValue * MSR.GetDifficultyMultiplier("materialCost")))
 end
 
 --- Scale cooldown. Example: D.cooldown(10) → 7/10/15

@@ -1,10 +1,10 @@
 -- MSR_RefugeExpansion - Unified expansion logic for SP and MP
 
-require "shared/core/MSR"
-require "shared/core/MSR_Env"
-require "shared/MSR_Config"
+require "shared/00_core/00_MSR"
+require "shared/00_core/04_Env"
+require "shared/00_core/05_Config"
 require "shared/MSR_Shared"
-require "shared/MSR_Data"
+require "shared/00_core/06_Data"
 require "shared/MSR_Validation"
 require "shared/MSR_Integrity"
 

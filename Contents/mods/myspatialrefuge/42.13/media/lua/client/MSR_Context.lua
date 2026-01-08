@@ -3,7 +3,7 @@
 require "shared/MSR_Transaction"
 require "shared/MSR_Integrity"
 require "shared/MSR_PlayerMessage"
-require "shared/core/MSR_Env"
+require "shared/00_core/04_Env"
 
 local PM = MSR.PlayerMessage
 

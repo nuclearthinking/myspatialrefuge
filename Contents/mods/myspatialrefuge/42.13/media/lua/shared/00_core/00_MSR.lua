@@ -1,21 +1,9 @@
--- MSR.lua - Global namespace for My Spatial Refuge mod
--- All mod modules register themselves under the MSR namespace to avoid conflicts
+-- 00_MSR - Global namespace for My Spatial Refuge mod
+-- All modules register under MSR namespace to avoid conflicts
+-- Creates globals: MSR, and helpers MSR.resolvePlayer, MSR.safePlayerCall
 --
--- LOCATION: shared/core/MSR.lua
--- This file is in the core/ subdirectory to ensure it loads FIRST.
--- PZ loads subdirectories before parent files, and within a directory,
--- period (.) sorts before underscore (_), so this file loads before MSR_00*.
---
--- LOAD ORDER (PZ loads alphabetically, period < underscore):
--- 1. shared/core/MSR.lua (this file) - creates MSR namespace
--- 2. shared/core/MSR_00_KahluaCompat.lua - creates global K (Kahlua workarounds)
--- 3. shared/core/MSR_01_Logging.lua - creates global L (debug logging)
--- 4. shared/core/MSR_02_Difficulty.lua - creates global D (difficulty scaling)
--- 5. shared/core/MSR_Env.lua - creates MSR.Env (environment detection)
--- 6. shared/MSR_Config.lua, MSR_Data.lua, etc. - can use MSR, K, L, D safely
---
--- NOTE: On dedicated servers, explicit require is needed for core modules.
--- MSR_Config.lua explicitly requires MSR_02_Difficulty to ensure D exists.
+-- Load order (shared/00_core/): 00→01→02→03→04→05→06→99
+-- Globals created: MSR (this), K (01), L (02), D (03)
 
 if MSR and MSR._loaded then
     return MSR
@@ -24,8 +12,7 @@ end
 MSR = MSR or {}
 MSR._loaded = true
 
--- Note: K and L globals are created by MSR_00/01 files AFTER this file loads.
--- Use K and L directly in your code, not MSR.KahluaCompat/MSR.Logging.
+-- K, L, D globals created by 01-03 modules after this file loads
 
 -----------------------------------------------------------
 -- Shared Utilities
