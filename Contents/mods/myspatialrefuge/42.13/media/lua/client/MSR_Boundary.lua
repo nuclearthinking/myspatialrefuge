@@ -6,8 +6,18 @@ require "shared/MSR_PlayerMessage"
 -- Weak table for last warning time per player
 local lastBoundaryWarning = setmetatable({}, {__mode = "k"})
 
+-- Weak table to suppress boundary check during approach teleport
+local boundaryCheckSuppressed = setmetatable({}, {__mode = "k"})
+
 -- Cached bounds per player
 local cachedBounds = setmetatable({}, {__mode = "k"})
+
+-- Suppress boundary check during teleport (approach phase is outside refuge)
+function MSR.SuppressBoundaryCheck(player, suppress)
+    if player then
+        boundaryCheckSuppressed[player] = suppress and true or nil
+    end
+end
 function MSR.GetRefugeBounds(refugeData)
     if not refugeData then return nil end
     
@@ -44,6 +54,11 @@ end
 
 function MSR.CheckBoundaryViolation(player)
     if not player then return false end
+    
+    -- Skip during approach teleport phase
+    if boundaryCheckSuppressed[player] then
+        return false
+    end
     
     -- Only check if player is in refuge area
     if not MSR.IsPlayerInRefuge or not MSR.IsPlayerInRefuge(player) then

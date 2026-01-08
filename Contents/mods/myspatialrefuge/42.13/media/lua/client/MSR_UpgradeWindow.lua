@@ -99,7 +99,7 @@ function MSR_UpgradeWindow:new(x, y, width, height, player, relic)
     
     -- Store relic object for proximity check (same pattern as ISBaseEntityWindow)
     o._relic = relic
-    o._closeDistance = 2  -- tiles
+    o._closeDistance = 3  -- tiles
     
     return o
 end

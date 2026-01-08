@@ -70,6 +70,9 @@ function D.core(baseValue)
     return math.max(1, math.ceil(baseValue * MSR.GetDifficultyMultiplier("coreCost")))
 end
 
+--- Scale material cost (same as core). Example: D.material(5) → 3/5/8
+D.material = D.core
+
 --- Scale cooldown. Example: D.cooldown(10) → 7/10/15
 function D.cooldown(baseValue)
     if type(baseValue) ~= "number" then return baseValue end

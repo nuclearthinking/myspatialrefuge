@@ -58,29 +58,6 @@ function MSR.CanEnterRefuge(player)
     return true, nil
 end
 
--- Recalculate visibility/lighting after teleportation
-local function recalculateRefugeBuildings(centerX, centerY, centerZ, radius)
-    local cell = getCell()
-    if not cell then return false end
-    
-    local recalculated = 0
-    for x = centerX - radius - 1, centerX + radius + 1 do
-        for y = centerY - radius - 1, centerY + radius + 1 do
-            local square = cell:getGridSquare(x, y, centerZ)
-            if square and square:getChunk() then
-                square:RecalcAllWithNeighbours(true)
-                recalculated = recalculated + 1
-            end
-        end
-    end
-    
-    if recalculated > 0 then
-        L.debug("Teleport", "Recalculated " .. recalculated .. " squares for visibility")
-    end
-    
-    return recalculated > 0
-end
-
 local function doSingleplayerEnter(player, refugeData)
     local teleportX = refugeData.centerX
     local teleportY = refugeData.centerY
@@ -208,8 +185,8 @@ local function doSingleplayerEnter(player, refugeData)
             relicCreated = true
         end
         
-        -- Wait for chunks to load, then recalculate buildings (120 ticks = 2 seconds)
-        if not buildingsRecalculated and floorPrepared and relicCreated and wallsCreated and tickCount >= 120 then
+        -- Wait for chunks to load, then apply cutaway fix
+        if not buildingsRecalculated and floorPrepared and relicCreated and wallsCreated then
             local allChunksReady = true
             for x = -radius-1, radius+1 do
                 for y = -radius-1, radius+1 do
@@ -223,15 +200,12 @@ local function doSingleplayerEnter(player, refugeData)
             end
             
             if allChunksReady then
-                if MSR.RoomPersistence and MSR.RoomPersistence.Restore then
-                    local restored = MSR.RoomPersistence.Restore(refugeData)
-                    if restored > 0 then
-                        L.debug("Teleport", string.format("Restored %d room IDs after enter", restored))
-                    end
-                end
-                
-                recalculateRefugeBuildings(teleportX, teleportY, teleportZ, radius)
                 buildingsRecalculated = true
+                
+                -- Single integration point: Apply cutaway fix
+                if MSR.RoomPersistence and MSR.RoomPersistence.ApplyCutaway then
+                    MSR.RoomPersistence.ApplyCutaway(refugeData)
+                end
             end
         end
         
@@ -432,6 +406,12 @@ local function OnServerCommand(module, command, args)
             if MSR.Env.isMultiplayerClient() then
                 local refugeData = MSR.GetRefugeData(player)
                 if refugeData then
+                    -- Merge roomIds from server (server stores what client synced earlier)
+                    if args.roomIds then
+                        refugeData.roomIds = args.roomIds
+                        L.debug("Teleport", string.format("Received %d roomIds from server", K.count(args.roomIds)))
+                    end
+                    
                     local repairTicks = 0
                     local function delayedIntegrityCheck()
                         repairTicks = repairTicks + 1
@@ -450,20 +430,10 @@ local function OnServerCommand(module, command, args)
                             
                             Events.OnTick.Remove(delayedBuildingRecalc)
                             
-                            -- Restore room IDs AFTER teleport in (saved before teleport out)
-                            if MSR.RoomPersistence and MSR.RoomPersistence.Restore then
-                                local restored = MSR.RoomPersistence.Restore(refugeData)
-                                if restored > 0 then
-                                    L.debug("Teleport", string.format("Restored %d room IDs after enter", restored))
-                                end
+                            -- Apply cutaway fix
+                            if MSR.RoomPersistence and MSR.RoomPersistence.ApplyCutaway then
+                                MSR.RoomPersistence.ApplyCutaway(refugeData)
                             end
-                            
-                            recalculateRefugeBuildings(
-                                refugeData.centerX, 
-                                refugeData.centerY, 
-                                refugeData.centerZ, 
-                                refugeData.radius or 1
-                            )
                         end
                         Events.OnTick.Add(delayedBuildingRecalc)
                     end
