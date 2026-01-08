@@ -20,11 +20,11 @@
 --
 -- Note: These are Lua functions. Access via debug console (press ~ with debug mode).
 
-require "shared/core/MSR"
-require "shared/core/MSR_00_KahluaCompat"
-require "shared/core/MSR_01_Logging"
-require "shared/MSR_Config"
-require "shared/MSR_Data"
+require "shared/00_core/00_MSR"
+require "shared/00_core/01_KahluaCompat"
+require "shared/00_core/02_Logging"
+require "shared/00_core/05_Config"
+require "shared/00_core/06_Data"
 
 local Config = MSR.Config
 local Data = MSR.Data

@@ -1,4 +1,4 @@
-require "shared/MSR_Config"
+require "shared/00_core/05_Config"
 require "shared/MSR_PlayerMessage"
 require "shared/MSR_UpgradeData"
 

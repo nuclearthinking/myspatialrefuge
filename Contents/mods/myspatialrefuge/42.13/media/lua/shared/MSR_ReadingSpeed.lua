@@ -1,6 +1,6 @@
-require "shared/core/MSR"
-require "shared/core/MSR_Env"
-require "shared/MSR_Data"
+require "shared/00_core/00_MSR"
+require "shared/00_core/04_Env"
+require "shared/00_core/06_Data"
 require "shared/MSR_UpgradeData"
 
 if MSR.ReadingSpeed and MSR.ReadingSpeed._loaded then

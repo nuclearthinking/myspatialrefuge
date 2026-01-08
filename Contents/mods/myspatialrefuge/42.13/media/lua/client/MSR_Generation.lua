@@ -1,7 +1,7 @@
 -- Spatial Refuge Generation Module (Client)
 
 require "shared/MSR_Shared"
-require "shared/MSR_Config"
+require "shared/00_core/05_Config"
 require "shared/MSR_PlayerMessage"
 -- Uses global L for logging (loaded early by MSR.lua)
 

@@ -1,14 +1,14 @@
 -- Explicit core module loading for dedicated server compatibility
 -- On dedicated servers, automatic directory scanning may not complete before server code runs
-require "shared/core/MSR"
-require "shared/core/MSR_00_KahluaCompat"
-require "shared/core/MSR_01_Logging"
-require "shared/core/MSR_02_Difficulty"
-require "shared/core/MSR_Env"
+require "shared/00_core/00_MSR"
+require "shared/00_core/01_KahluaCompat"
+require "shared/00_core/02_Logging"
+require "shared/00_core/03_Difficulty"
+require "shared/00_core/04_Env"
 
-require "shared/MSR_Config"
+require "shared/00_core/05_Config"
 require "shared/MSR_Shared"
-require "shared/MSR_Data"
+require "shared/00_core/06_Data"
 require "shared/MSR_Validation"
 require "shared/MSR_Migration"
 require "shared/MSR_UpgradeData"

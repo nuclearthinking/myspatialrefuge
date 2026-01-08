@@ -1,8 +1,8 @@
 -- MSR_Validation - Shared validation logic for client and server
 
-require "shared/core/MSR"
-require "shared/MSR_Config"
-require "shared/MSR_Data"
+require "shared/00_core/00_MSR"
+require "shared/00_core/05_Config"
+require "shared/00_core/06_Data"
 
 if MSR.Validation and MSR.Validation._loaded then
     return MSR.Validation

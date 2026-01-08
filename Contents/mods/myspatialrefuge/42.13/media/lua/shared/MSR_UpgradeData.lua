@@ -1,9 +1,9 @@
 -- MSR_UpgradeData - Upgrade definitions and query API
 
-require "shared/core/MSR"
+require "shared/00_core/00_MSR"
 require "shared/CUI_YamlParser"
-require "shared/MSR_Config"
-require "shared/MSR_Data"
+require "shared/00_core/05_Config"
+require "shared/00_core/06_Data"
 
 if MSR.UpgradeData and MSR.UpgradeData._loaded then
     return MSR.UpgradeData

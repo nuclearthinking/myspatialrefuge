@@ -2,11 +2,11 @@
 -- Unified validation and repair system for refuge structures
 -- Consolidates all repair logic into a single, idempotent mechanism
 
-require "shared/core/MSR"
-require "shared/MSR_Config"
-require "shared/core/MSR_Env"
-require "shared/core/MSR_03_World"
-require "shared/MSR_Data"
+require "shared/00_core/00_MSR"
+require "shared/00_core/05_Config"
+require "shared/00_core/04_Env"
+require "shared/helpers/World"
+require "shared/00_core/06_Data"
 
 if MSR.Integrity and MSR.Integrity._loaded then
     return MSR.Integrity

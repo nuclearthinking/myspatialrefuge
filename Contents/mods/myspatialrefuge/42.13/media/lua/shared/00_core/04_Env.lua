@@ -1,8 +1,8 @@
--- MSR_Env - Environment Helpers
--- Cached environment detection for server/client/singleplayer
--- Use these instead of calling isServer()/isClient() directly for performance
+-- 04_Env - Cached environment detection (server/client/singleplayer)
+-- Use Env.isServer() etc. instead of raw isServer() for performance
 
-require "shared/core/MSR"
+require "shared/00_core/00_MSR"
+require "shared/00_core/02_Logging"
 
 if MSR.Env and MSR.Env._loaded then
     return MSR.Env
@@ -18,7 +18,6 @@ local _cachedIsClient = nil
 local _cachedCanModify = nil
 local _cacheValid = false
 
--- getPlayer() returns nil during loading/menu
 local function isGameReady()
     return getPlayer and getPlayer() ~= nil
 end
@@ -74,9 +73,7 @@ function Env.isClient()
     return isClient()
 end
 
--- In MP: only server should modify shared ModData
--- In SP: can modify (there is no separate server)
--- In MP Client: cannot modify (server owns data)
+-- SP or server can modify; MP client cannot
 function Env.canModifyData()
     if not _cacheValid and isGameReady() then
         Env.isServer()
@@ -85,7 +82,6 @@ function Env.canModifyData()
     if _cacheValid then
         return _cachedCanModify
     end
-    -- SP (both false) or any server context can modify
     return (not isServer() and not isClient()) or isServer()
 end
 
@@ -129,7 +125,6 @@ function Env.needsClientSync()
     return Env.isServer()
 end
 
--- NOTE: os.time() does NOT exist in Kahlua
 function Env.getTimestamp()
     if getTimestamp then
         return getTimestamp()

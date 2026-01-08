@@ -1,26 +1,17 @@
--- MSR_Logging - Centralized logging utility
--- Provides consistent debug logging across all MSR modules
---
--- This module has NO dependencies and can be loaded first (like MSR_KahluaCompat)
--- Creates global L table for logging, also exposed as MSR.Logging if MSR exists
---
--- USAGE: After this module loads, use `L` anywhere without require:
---   L.log("Tag", "message")     - Log with tag prefix (only when debug enabled)
---   L.debug("Tag", "message")   - Alias for log (clearer intent)
---   L.isDebug()                 - Check if debug mode is enabled
+-- 02_Logging - Debug logging utility, creates global L table
+-- L.log/debug(tag, msg) - only when getDebug() is true
+-- L.error/warn(tag, msg) - always prints
+-- L.isDebug() - check debug state
 
--- Return early if already loaded
 if L and L._loaded then
     return L
 end
 
--- Create global L table (no dependencies - can be loaded first)
 L = L or {}
 L._loaded = true
 
--- Lazy debug state - evaluated on first call
-local _debugEnabled = nil
-local _debugChecked = false
+-- Lazy-evaluated debug state
+local _debugEnabled, _debugChecked = nil, false
 
 local function checkDebugEnabled()
     if not _debugChecked then
@@ -50,9 +41,20 @@ end
 --- @param message string The message to log
 L.debug = L.log
 
--- Also expose via MSR namespace for compatibility (if MSR exists)
-if MSR then
-    MSR.Logging = L
+--- Log an error message (ALWAYS prints, regardless of debug mode)
+--- @param tag string Module/component name
+--- @param message string The error message to log
+function L.error(tag, message)
+    print("[MSR-ERROR] [" .. tag .. "] " .. tostring(message))
 end
+
+--- Log a warning message (ALWAYS prints, regardless of debug mode)
+--- @param tag string Module/component name
+--- @param message string The warning message to log
+function L.warn(tag, message)
+    print("[MSR-WARN] [" .. tag .. "] " .. tostring(message))
+end
+
+if MSR then MSR.Logging = L end
 
 return L

@@ -2,10 +2,10 @@
 -- Centralized zombie clearing logic for refuge areas
 -- Prevents zombie respawns inside protected refuge space
 
-require "shared/core/MSR"
-require "shared/MSR_Config"
-require "shared/MSR_Data"
-require "shared/core/MSR_Env"
+require "shared/00_core/00_MSR"
+require "shared/00_core/05_Config"
+require "shared/00_core/06_Data"
+require "shared/00_core/04_Env"
 
 if MSR.ZombieClear and MSR.ZombieClear._loaded then
     return MSR.ZombieClear
