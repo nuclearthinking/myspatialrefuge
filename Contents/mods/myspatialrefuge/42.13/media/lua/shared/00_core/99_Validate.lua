@@ -14,8 +14,6 @@ if MSR._coreValidated then
     return
 end
 
-local VERSION = "1.14.1"  -- sync with mod.info
-
 local function log(msg)
     print("[MSR] " .. msg)
 end
@@ -56,7 +54,7 @@ local function validate(name, target, requiredFields, isModule)
 end
 
 local function runValidation()
-    log("=== Core Module Validation v" .. VERSION .. " ===")
+    log("=== Core Module Validation v" .. (MSR.VERSION or "?") .. " ===")
     
     local passed, total = 0, #validations
     
@@ -70,10 +68,11 @@ local function runValidation()
     
     local allPassed = (passed == total)
     if allPassed then
-        log("Core modules initialized successfully")
+        log("My Spatial Refuge v" .. (MSR.VERSION or "?") .. " loaded successfully")
     else
         log("WARNING: Some core modules failed validation!")
         log("Check mod load order and file integrity")
+        log("If you see this error, try re-subscribing to the mod on Steam Workshop")
     end
     
     return allPassed

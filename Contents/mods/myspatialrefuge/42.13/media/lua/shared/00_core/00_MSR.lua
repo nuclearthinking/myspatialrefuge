@@ -12,6 +12,22 @@ end
 MSR = MSR or {}
 MSR._loaded = true
 
+local function getModVersion()
+    if not getModInfoByID then return "?" end
+    
+    local modInfo = getModInfoByID("myspatialrefuge") or getModInfoByID("\\myspatialrefuge")
+    if modInfo and modInfo.getModVersion then
+        local ok, version = pcall(function() return modInfo:getModVersion() end)
+        if ok and version then return version end
+    end
+    
+    return "?"
+end
+
+MSR.VERSION = getModVersion()
+
+print("[MSR] My Spatial Refuge v" .. MSR.VERSION .. " initializing...")
+
 -- K, L, D globals created by 01-03 modules after this file loads
 
 -----------------------------------------------------------

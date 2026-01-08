@@ -508,7 +508,8 @@ function MSR_Server.HandleChunksReady(player, args)
                 centerY = refugeDataRef.centerY,
                 centerZ = refugeDataRef.centerZ,
                 tier = refugeDataRef.tier,
-                radius = refugeDataRef.radius
+                radius = refugeDataRef.radius,
+                roomIds = refugeDataRef.roomIds  -- Include roomIds for cutaway fix in MP
             })
             
             L.debug("Server", "Phase 2 complete: Sent GenerationComplete to " .. usernameRef)

@@ -242,7 +242,7 @@ function RoomPersistence.HandleSyncFromClient(player, args)
 end
 
 
---- Restore room IDs from saved ModData
+--- Restore room IDs and refresh contents in a single optimized pass
 function RoomPersistence.Restore(refugeData)
     if not refugeData then return 0 end
     
@@ -256,21 +256,51 @@ function RoomPersistence.Restore(refugeData)
     local metaGrid = cell and getWorld():getMetaGrid()
     if not metaGrid then return 0 end
     
+    -- Cache room objects (avoid repeated lookups for same roomId)
+    local roomCache = {}  -- roomId -> room object or false (invalid)
+    local function getRoom(roomId)
+        if roomCache[roomId] == nil then
+            local roomObj = metaGrid:getRoomByID(roomId)
+            roomCache[roomId] = roomObj or false
+        end
+        return roomCache[roomId]
+    end
+    
+    -- Group squares by roomId (single pass through data)
+    local roomSquares = {}  -- roomId -> {squares}
     local restoredCount, skippedCount = 0, 0
     
     for key, roomId in pairs(refugeData.roomIds) do
-        local x, y, z = parseRoomDataKey(key)
-        if roomId and roomId ~= -1 and x and y and z then
-            local square = cell:getGridSquare(x, y, z)
-            if square and square:getChunk() then
-                if square:getRoomID() == roomId then
-                    skippedCount = skippedCount + 1
-                else
-                    local roomDef = metaGrid:getRoomDefByID(roomId)
-                    local roomObj = roomDef and metaGrid:getRoomByID(roomId)
-                    if roomObj then
-                        square:setRoomID(roomId)
-                        restoredCount = restoredCount + 1
+        if roomId and roomId ~= -1 then
+            -- Inline key parsing (avoid function call overhead)
+            local x, y, z
+            local i = 1
+            for part in string.gmatch(key, "[^,]+") do
+                if i == 1 then x = tonumber(part)
+                elseif i == 2 then y = tonumber(part)
+                else z = tonumber(part) end
+                i = i + 1
+            end
+            
+            if x and y and z then
+                local square = cell:getGridSquare(x, y, z)
+                if square and square:getChunk() then
+                    -- Check if room is valid (cached lookup)
+                    local room = getRoom(roomId)
+                    if room then
+                        -- Restore roomId if needed
+                        if square:getRoomID() ~= roomId then
+                            square:setRoomID(roomId)
+                            restoredCount = restoredCount + 1
+                        else
+                            skippedCount = skippedCount + 1
+                        end
+                        
+                        -- Collect square for room content refresh
+                        if not roomSquares[roomId] then
+                            roomSquares[roomId] = {}
+                        end
+                        table.insert(roomSquares[roomId], square)
                     else
                         skippedCount = skippedCount + 1
                     end
@@ -279,122 +309,98 @@ function RoomPersistence.Restore(refugeData)
         end
     end
     
+    -- Refresh room contents (water sources, light switches) if any restored
     if restoredCount > 0 then
         L.debug("RoomPersistence", string.format("Restored %d roomIds (%d skipped)", restoredCount, skippedCount))
-        RoomPersistence.RefreshRoomContents(refugeData)
+        RoomPersistence.RefreshRoomContents(roomSquares, roomCache)
     end
     
     return restoredCount
 end
 
 --- Repopulate room contents (waterSources, lightSwitches) after restoration
-function RoomPersistence.RefreshRoomContents(refugeData)
-    if not refugeData or not refugeData.roomIds then return 0 end
-    
-    local cell = getCell()
-    if not cell then return 0 end
-    
-    local metaGrid = getWorld():getMetaGrid()
-    if not metaGrid then return 0 end
-    
-    local roomSquares = {}  -- roomId -> squares
-    for key, roomId in pairs(refugeData.roomIds) do
-        if roomId and roomId ~= -1 then
-            local x, y, z = parseRoomDataKey(key)
-            if x and y and z then
-                local square = cell:getGridSquare(x, y, z)
-                if square and square:getChunk() then
-                    if not roomSquares[roomId] then
-                        roomSquares[roomId] = {}
-                    end
-                    table.insert(roomSquares[roomId], square)
-                end
-            end
-        end
-    end
+--- @param roomSquares table roomId -> {squares} mapping (pre-computed)
+--- @param roomCache table roomId -> room object cache (pre-computed)
+function RoomPersistence.RefreshRoomContents(roomSquares, roomCache)
+    if not roomSquares then return 0 end
     
     local refreshedRooms = 0
     
     for roomId, squares in pairs(roomSquares) do
-        repeat  -- Lua 5.1: repeat-until true for early exit
-            local success, room = pcall(function()
-                return metaGrid:getRoomByID(roomId)
-            end)
+        local room = roomCache and roomCache[roomId]
+        if not room then
+            -- Fallback if cache not provided
+            local metaGrid = getWorld():getMetaGrid()
+            if metaGrid then
+                room = metaGrid:getRoomByID(roomId)
+            end
+        end
+        
+        if room then
+            -- Add squares to room
+            if room.addSquare then
+                for _, square in ipairs(squares) do
+                    pcall(function() room:addSquare(square) end)
+                end
+            end
             
-            if not success or not room then break end
+            -- Find water sources and light switches
+            local hasWaterSources = room.waterSources and room.waterSources.add
+            local hasLightSwitches = room.lightSwitches and room.lightSwitches.add
             
-            local addedSquares = 0
-            local waterSourcesFound = 0
-            local lightSwitchesFound = 0
-            
-            for _, square in ipairs(squares) do
-                if room.addSquare then
-                    local addSuccess = pcall(function()
-                        room:addSquare(square)
-                    end)
-                    if addSuccess then
-                        addedSquares = addedSquares + 1
+            if hasWaterSources or hasLightSwitches then
+                for _, square in ipairs(squares) do
+                    local objects = square:getObjects()
+                    if objects then
+                        for i = 0, objects:size() - 1 do
+                            local obj = objects:get(i)
+                            if obj then
+                                -- Water sources
+                                if hasWaterSources and (obj.hasWater or obj.getUsesExternalWaterSource) then
+                                    local isWater = obj.hasWater and obj:hasWater()
+                                    if not isWater and obj.getUsesExternalWaterSource then
+                                        isWater = pcall(function() return obj:getUsesExternalWaterSource() end)
+                                    end
+                                    if isWater and not room.waterSources:contains(obj) then
+                                        pcall(function() room.waterSources:add(obj) end)
+                                    end
+                                end
+                                
+                                -- Light switches
+                                if hasLightSwitches and instanceof(obj, "IsoLightSwitch") then
+                                    if not room.lightSwitches:contains(obj) then
+                                        pcall(function() room.lightSwitches:add(obj) end)
+                                    end
+                                end
+                            end
+                        end
                     end
                 end
-                
-                MSR.World.iterateObjects(square, function(obj)
-                    -- Water sources
-                    if obj.hasWater or obj.getUsesExternalWaterSource then
-                        local isWaterSource = false
-                        if obj.getUsesExternalWaterSource then
-                            local usesExternal = pcall(function() return obj:getUsesExternalWaterSource() end)
-                            isWaterSource = usesExternal
-                        end
-                        if isWaterSource or (obj.hasWater and obj:hasWater()) then
-                            if room.waterSources and room.waterSources.add then
-                                local addWaterSuccess = pcall(function()
-                                    if not room.waterSources:contains(obj) then
-                                        room.waterSources:add(obj)
-                                    end
-                                end)
-                                if addWaterSuccess then
-                                    waterSourcesFound = waterSourcesFound + 1
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Light switches
-                    if instanceof(obj, "IsoLightSwitch") then
-                        if room.lightSwitches and room.lightSwitches.add then
-                            local addLightSuccess = pcall(function()
-                                if not room.lightSwitches:contains(obj) then
-                                    room.lightSwitches:add(obj)
-                                end
-                            end)
-                            if addLightSuccess then
-                                lightSwitchesFound = lightSwitchesFound + 1
-                            end
-                        end
-                    end
-                end)
             end
             
-            if addedSquares > 0 or waterSourcesFound > 0 or lightSwitchesFound > 0 then
-                refreshedRooms = refreshedRooms + 1
-                L.debug("RoomPersistence", string.format("Room %d: added %d squares, %d water sources, %d light switches",
-                    roomId, addedSquares, waterSourcesFound, lightSwitchesFound))
-            end
-        until true
+            refreshedRooms = refreshedRooms + 1
+        end
     end
     
     return refreshedRooms
 end
 
---- Remove room IDs outside refuge bounds
-function RoomPersistence.CleanupStaleData(refugeData)
-    if not refugeData or not refugeData.roomIds then return 0 end
+-----------------------------------------------------------
+-- Direct Cutaway Control (bypasses room system)
+-----------------------------------------------------------
+
+--- Directly set cutaway flags on upper floor squares
+--- This forces transparency regardless of room state
+--- @param refugeData table The refuge data
+--- @param playerIndex number The player index (0-based, default 0)
+--- @return number Number of squares with cutaway applied
+function RoomPersistence.ForceCutaway(refugeData, playerIndex)
+    if not refugeData then return 0 end
     
-    migrateRoomData(refugeData)
-    
+    playerIndex = playerIndex or 0
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
+    local centerZ = refugeData.centerZ or 0
     local tier = refugeData.tier or 0
     local tierData = MSR.Config.TIERS[tier]
     local radius = tierData and tierData.radius or 1
@@ -402,105 +408,60 @@ function RoomPersistence.CleanupStaleData(refugeData)
     local cell = getCell()
     if not cell then return 0 end
     
-    local minX = centerX - radius
-    local maxX = centerX + radius
-    local minY = centerY - radius
-    local maxY = centerY + radius
+    local timestamp = getTimestampMs()
+    local cutawayCount = 0
+    local scanRadius = radius + 1
     
-    local removedCount = 0
-    
-    for key, _ in pairs(refugeData.roomIds) do
-        local x, y, z = parseRoomDataKey(key)
-        if x and y and z then
-            if x < minX - 1 or x > maxX + 1 or y < minY - 1 or y > maxY + 1 or z ~= centerZ then
-                refugeData.roomIds[key] = nil
-                removedCount = removedCount + 1
+    -- Set cutaway on all floors ABOVE player z-level
+    for z = centerZ + 1, centerZ + 3 do
+        for x = centerX - scanRadius, centerX + scanRadius do
+            for y = centerY - scanRadius, centerY + scanRadius do
+                local square = cell:getGridSquare(x, y, z)
+                if square then
+                    pcall(function()
+                        -- Flag 1 = CLDSF_SHOULD_RENDER (cutaway should render/be transparent)
+                        square:setPlayerCutawayFlag(playerIndex, 1, timestamp)
+                        square:setSquareChanged()
+                    end)
+                    cutawayCount = cutawayCount + 1
+                end
             end
-            -- Keep entries for unloaded chunks (might be temporary)
-        else
-            refugeData.roomIds[key] = nil  -- Invalid key
-            removedCount = removedCount + 1
         end
     end
     
-    if removedCount > 0 then
-        MSR.Data.SaveRefugeData(refugeData)
-        L.debug("RoomPersistence", string.format("Cleanup: Removed %d stale room IDs", removedCount))
+    -- Invalidate render chunks to apply changes
+    for x = centerX - scanRadius, centerX + scanRadius do
+        for y = centerY - scanRadius, centerY + scanRadius do
+            for z = centerZ, centerZ + 3 do
+                local square = cell:getGridSquare(x, y, z)
+                if square then
+                    pcall(function()
+                        square:invalidateRenderChunkLevel(2048) -- DIRTY_CUTAWAYS flag
+                    end)
+                end
+            end
+        end
     end
     
-    return removedCount
+    L.debug("RoomPersistence", string.format("Applied cutaway to %d upper floor squares", cutawayCount))
+    return cutawayCount
 end
 
---- Verify restoration success (for debugging)
-function RoomPersistence.Verify(refugeData)
-    if not refugeData then return nil end
+-----------------------------------------------------------
+-- Single Integration Point
+-----------------------------------------------------------
+
+--- Apply cutaway fix after entering refuge
+--- This is the ONLY function that needs to be called from MSR_Teleport
+--- @param refugeData table The refuge data
+function RoomPersistence.ApplyCutaway(refugeData)
+    if not refugeData then return end
     
-    migrateRoomData(refugeData)
+    -- Restore room associations (required for cutaway to work)
+    RoomPersistence.Restore(refugeData)
     
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local tier = refugeData.tier or 0
-    local tierData = MSR.Config.TIERS[tier]
-    local radius = tierData and tierData.radius or 1
-    
-    local cell = getCell()
-    if not cell then return nil end
-    
-    local stats = {
-        totalSquares = 0,
-        squaresWithRoomId = 0,
-        savedRooms = 0,
-        restoredRooms = 0,
-        missingRooms = 0
-    }
-    
-    if refugeData.roomIds then
-        for _ in pairs(refugeData.roomIds) do
-            stats.savedRooms = stats.savedRooms + 1
-        end
-    end
-    
-    local minX = centerX - radius
-    local maxX = centerX + radius
-    local minY = centerY - radius
-    local maxY = centerY + radius
-    
-    for x = minX - 1, maxX + 1 do
-        for y = minY - 1, maxY + 1 do
-            local square = cell:getGridSquare(x, y, centerZ)
-            if square and square:getChunk() then
-                stats.totalSquares = stats.totalSquares + 1
-                
-                local roomId = -1
-                if square.getRoomID then
-                    roomId = square:getRoomID()
-                end
-                
-                if roomId ~= -1 then
-                    stats.squaresWithRoomId = stats.squaresWithRoomId + 1
-                end
-                
-                -- Check if this square should have a room (from saved data)
-                local key = getRoomDataKey(x, y, centerZ)
-                local savedRoomId = refugeData.roomIds and refugeData.roomIds[key]
-                
-                if savedRoomId then
-                    if roomId == savedRoomId then
-                        stats.restoredRooms = stats.restoredRooms + 1
-                    else
-                        stats.missingRooms = stats.missingRooms + 1
-                    end
-                end
-            end
-        end
-    end
-    
-    local restorationRate = stats.savedRooms > 0 and (stats.restoredRooms / stats.savedRooms * 100) or 0
-    L.debug("RoomPersistence", string.format("VERIFY: %d total squares, %d with roomId, %d saved, %d restored, %d missing (%.1f%% restoration rate)", 
-        stats.totalSquares, stats.squaresWithRoomId, stats.savedRooms, stats.restoredRooms, stats.missingRooms, restorationRate))
-    
-    return stats
+    -- Apply direct cutaway flags
+    RoomPersistence.ForceCutaway(refugeData, 0)
 end
 
 -----------------------------------------------------------

@@ -60,6 +60,14 @@ MSR.Config = {
     
     CORE_ITEM = "Base.MagicalCore",
     
+    -- Upgrade IDs (must match upgrades.yaml and MSR_UpgradeData.lua)
+    UPGRADES = {
+        EXPAND_REFUGE = "expand_refuge",          -- hardcoded in MSR_UpgradeData
+        CORE_STORAGE = "refuge_core_storage",     -- from upgrades.yaml
+        FASTER_READING = "faster_reading",        -- from upgrades.yaml
+        FASTER_CAST = "faster_refuge_cast",       -- from upgrades.yaml
+    },
+    
     COMMAND_NAMESPACE = "SpatialRefuge",
     COMMANDS = {
         REQUEST_MODDATA = "RequestModData",
@@ -107,6 +115,28 @@ end
 
 function MSR.Config.getEncumbrancePenaltyCap()
     return D.negativeValue(MSR.Config.ENCUMBRANCE_PENALTY_CAP)
+end
+
+function MSR.Config.getRelicStorageCapacity(refugeData)
+    local baseCapacity = MSR.Config.RELIC_STORAGE_CAPACITY
+    
+    if not refugeData then return baseCapacity end
+    
+    local upgrades = refugeData.upgrades
+    if not upgrades then return baseCapacity end
+    
+    local storageLevel = upgrades[MSR.Config.UPGRADES.CORE_STORAGE] or 0
+    if storageLevel <= 0 then return baseCapacity end
+    
+    -- Get capacity from upgrade data if available
+    if MSR.UpgradeData and MSR.UpgradeData.getLevelEffects then
+        local effects = MSR.UpgradeData.getLevelEffects(MSR.Config.UPGRADES.CORE_STORAGE, storageLevel)
+        if effects and effects.relicStorageCapacity then
+            return effects.relicStorageCapacity
+        end
+    end
+    
+    return baseCapacity
 end
 
 return MSR.Config
