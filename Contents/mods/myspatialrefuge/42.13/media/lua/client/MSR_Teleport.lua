@@ -6,6 +6,8 @@ require "shared/MSR_Integrity"
 require "shared/MSR_RoomPersistence"
 require "shared/MSR_PlayerMessage"
 require "shared/MSR_ZombieClear"
+require "client/MSR_VehicleTeleport"
+
 local PM = MSR.PlayerMessage
 
 local function formatPenaltyTime(seconds)
@@ -44,7 +46,7 @@ function MSR.CanEnterRefuge(player)
     local canTeleport, remaining = MSR.Validation.CheckCooldown(lastTeleport, cooldown, now)
     
     if not canTeleport then
-        return false, string.format(getText("IGUI_PortalCharging"), remaining)
+        return false, PM.GetFormattedText(PM.COOLDOWN_REMAINING, remaining)
     end
     
     local lastDamage = MSR.GetLastDamageTime and MSR.GetLastDamageTime(player) or 0
@@ -52,7 +54,7 @@ function MSR.CanEnterRefuge(player)
     local canCombat, _ = MSR.Validation.CheckCooldown(lastDamage, combatBlock, now)
     
     if not canCombat then
-        return false, getText("IGUI_CannotTeleportCombat")
+        return false, PM.GetText(PM.CANNOT_TELEPORT_COMBAT)
     end
     
     return true, nil
@@ -237,6 +239,14 @@ local function doSingleplayerExit(player, returnPos)
         L.debug("Teleport", string.format("doSingleplayerExit: Saved %d room IDs before exit", saved))
     end
     
+    -- Store vehicle data before clearing return position
+    local fromVehicle = returnPos.fromVehicle
+    local vehicleId = returnPos.vehicleId
+    local vehicleSeat = returnPos.vehicleSeat
+    local vehicleX = returnPos.vehicleX
+    local vehicleY = returnPos.vehicleY
+    local vehicleZ = returnPos.vehicleZ
+    
     MSR.ClearReturnPosition(player)
     -- Don't update cooldown on exit - preserve penalty from enter
     
@@ -244,26 +254,42 @@ local function doSingleplayerExit(player, returnPos)
     local teleportDone = false
     local tickCount = 0
     
+    -- Vehicle return: teleport to vehicle position for re-entry
+    local actualTargetX = targetX
+    local actualTargetY = targetY
+    local actualTargetZ = targetZ
+    if fromVehicle and vehicleX and vehicleY and vehicleZ then
+        actualTargetX = vehicleX
+        actualTargetY = vehicleY
+        actualTargetZ = vehicleZ
+        L.debug("Teleport", string.format("Vehicle return: teleporting to vehicle position %.1f,%.1f,%.1f instead of exit position", vehicleX, vehicleY, vehicleZ))
+    end
+    
     local function doExitTeleport()
         tickCount = tickCount + 1
         
         if not teleportDone then
-            teleportPlayer:teleportTo(targetX, targetY, targetZ)
-            teleportPlayer:setLastX(targetX)
-            teleportPlayer:setLastY(targetY)
-            teleportPlayer:setLastZ(targetZ)
+            teleportPlayer:teleportTo(actualTargetX, actualTargetY, actualTargetZ)
+            teleportPlayer:setLastX(actualTargetX)
+            teleportPlayer:setLastY(actualTargetY)
+            teleportPlayer:setLastZ(actualTargetZ)
             teleportDone = true
-            addSound(teleportPlayer, targetX, targetY, targetZ, 10, 1)
+            addSound(teleportPlayer, actualTargetX, actualTargetY, actualTargetZ, 10, 1)
             PM.Say(teleportPlayer, PM.EXITED_REFUGE)
             return
         end
         
         if tickCount == 2 and MSR.IsPlayerInRefuge(teleportPlayer) then
-            teleportPlayer:teleportTo(targetX, targetY, targetZ)
+            teleportPlayer:teleportTo(actualTargetX, actualTargetY, actualTargetZ)
         end
         
         if tickCount >= 3 then
             Events.OnTick.Remove(doExitTeleport)
+            
+            -- Attempt to re-enter vehicle if teleported from one
+            if fromVehicle and vehicleId and MSR.VehicleTeleport then
+                MSR.VehicleTeleport.TryReenterVehicle(teleportPlayer, vehicleId, vehicleSeat, vehicleX, vehicleY, vehicleZ)
+            end
         end
     end
     
@@ -285,12 +311,32 @@ function MSR.EnterRefuge(player)
         return false
     end
     
+    -- Get vehicle data before exiting
+    local vehicleData = nil
+    if player:getVehicle() and MSR.VehicleTeleport then
+        vehicleData = MSR.VehicleTeleport.GetVehicleDataForEntry(player)
+        MSR.VehicleTeleport.ExitVehicleForTeleport(player)
+    end
+    
     local returnX, returnY, returnZ = player:getX(), player:getY(), player:getZ()
     
     if MSR.Env.isMultiplayerClient() then
-        sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_ENTER, {
+        local requestArgs = {
             returnX = returnX, returnY = returnY, returnZ = returnZ
-        })
+        }
+        -- Include vehicle data if teleporting from vehicle
+        if vehicleData then
+            requestArgs.fromVehicle = true
+            requestArgs.vehicleId = vehicleData.vehicleId
+            requestArgs.vehicleSeat = vehicleData.vehicleSeat
+            requestArgs.vehicleX = vehicleData.vehicleX
+            requestArgs.vehicleY = vehicleData.vehicleY
+            requestArgs.vehicleZ = vehicleData.vehicleZ
+            L.debug("Teleport", string.format("Including vehicle data: id=%s seat=%s pos=%.1f,%.1f,%.1f", 
+                tostring(vehicleData.vehicleId), tostring(vehicleData.vehicleSeat),
+                vehicleData.vehicleX or 0, vehicleData.vehicleY or 0, vehicleData.vehicleZ or 0))
+        end
+        sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_ENTER, requestArgs)
         L.debug("Teleport", "Sent RequestEnter to server")
         return true
     end
@@ -305,7 +351,16 @@ function MSR.EnterRefuge(player)
         end
     end
     
-    MSR.SaveReturnPosition(player, returnX, returnY, returnZ)
+    -- Save return position (with or without vehicle data)
+    local username = player:getUsername()
+    if vehicleData then
+        MSR.Data.SaveReturnPositionWithVehicle(username, returnX, returnY, returnZ, 
+            vehicleData.vehicleId, vehicleData.vehicleSeat,
+            vehicleData.vehicleX, vehicleData.vehicleY, vehicleData.vehicleZ)
+    else
+        MSR.SaveReturnPosition(player, returnX, returnY, returnZ)
+    end
+    
     return doSingleplayerEnter(player, refugeData)
 end
 
@@ -476,6 +531,15 @@ local function OnServerCommand(module, command, args)
             addSound(player, args.returnX, args.returnY, args.returnZ, 10, 1)
             
             L.debug("Teleport", "ExitReady: teleported to " .. args.returnX .. "," .. args.returnY)
+            
+            -- Attempt to re-enter vehicle if teleported from one
+            if args.fromVehicle and args.vehicleId and MSR.VehicleTeleport then
+                L.debug("Teleport", string.format("Attempting vehicle re-entry: id=%s seat=%s pos=%.1f,%.1f,%.1f", 
+                    tostring(args.vehicleId), tostring(args.vehicleSeat),
+                    args.vehicleX or 0, args.vehicleY or 0, args.vehicleZ or 0))
+                MSR.VehicleTeleport.TryReenterVehicle(player, args.vehicleId, args.vehicleSeat, 
+                    args.vehicleX, args.vehicleY, args.vehicleZ)
+            end
         end
         
     elseif command == MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE then

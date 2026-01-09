@@ -36,6 +36,39 @@ function Validation.IsInVehicle(player)
     return player:getVehicle() ~= nil
 end
 
+function Validation.IsVehicleMoving(player)
+    if not player then return false end
+    local vehicle = player:getVehicle()
+    if not vehicle then return false end
+    local speed = vehicle:getCurrentSpeedKmHour()
+    return speed ~= nil and math.abs(speed) > 0.1
+end
+
+function Validation.HasVehicleTeleportUpgrade(player)
+    if not player then return false end
+    if not MSR.UpgradeData then return false end
+    local level = MSR.UpgradeData.getPlayerUpgradeLevel(player, Config.UPGRADES.VEHICLE_TELEPORT)
+    return level >= 1
+end
+
+--- Check if player can teleport from their current vehicle state
+--- Returns true if not in vehicle, or if in stationary vehicle with upgrade
+function Validation.CanTeleportFromVehicle(player)
+    if not Validation.IsInVehicle(player) then
+        return true, nil
+    end
+    
+    if not Validation.HasVehicleTeleportUpgrade(player) then
+        return false, getText("IGUI_VehicleTeleportRequired")
+    end
+    
+    if Validation.IsVehicleMoving(player) then
+        return false, getText("IGUI_CannotTeleportInMovingVehicle")
+    end
+    
+    return true, nil
+end
+
 function Validation.IsClimbing(player)
     if not player then return false end
     return player.isClimbing and player:isClimbing()
@@ -101,14 +134,17 @@ end
 -----------------------------------------------------------
 
 --- Does NOT check cooldowns. Encumbrance adds penalty instead of blocking.
+--- Vehicle teleport is allowed if player has vehicle_teleport upgrade and vehicle is stationary.
 function Validation.CanPlayerTeleport(player)
     local valid, reason = Validation.IsValidPlayer(player)
     if not valid then
         return false, reason
     end
     
-    if Validation.IsInVehicle(player) then
-        return false, "Cannot teleport while in vehicle"
+    -- Check vehicle teleport conditions (allows if not in vehicle, or has upgrade + stationary)
+    local canVehicleTeleport, vehicleReason = Validation.CanTeleportFromVehicle(player)
+    if not canVehicleTeleport then
+        return false, vehicleReason
     end
     
     if Validation.IsClimbing(player) then

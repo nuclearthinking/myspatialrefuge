@@ -25,6 +25,7 @@ IGUI_EN = {
     IGUI_FailedToLoadRefugeArea = "Failed to load refuge area", -- 1.6/16.01.2026
     IGUI_ReturnPositionLost = "Return position lost - teleporting to default location", -- 1.6/16.01.2026
     IGUI_CannotExitNoData = "Cannot exit - no refuge data found", -- 1.6/16.01.2026
+    IGUI_NotInRefuge = "Not in refuge", -- 1.16/09.01.2026
     IGUI_PortalCharging = "Refuge portal charging... (%ds)", -- 1.7/02.01.2026
     IGUI_CannotTeleportCombat = "Cannot teleport during combat!", -- 1.7/02.01.2026
     IGUI_InheritedRefugeConnection = "I sense a connection to an ancient refuge...", -- 1.8/04.01.2026
@@ -64,6 +65,13 @@ IGUI_EN = {
     IGUI_RefugeExitActionNotAvailable = "Error: Refuge exit action not available", -- 1.7/02.01.2026
     IGUI_CannotLeaveBoundary = "Cannot leave refuge boundary!", -- 1.7/02.01.2026
     IGUI_ActionTimeoutItemsUnlocked = "Action timed out - items unlocked", -- 1.7/02.01.2026
+    
+    -- Vehicle Teleport Messages
+    IGUI_CannotTeleportInMovingVehicle = "Cannot teleport while vehicle is moving", -- 1.16/09.01.2026
+    IGUI_VehicleTeleportRequired = "Vehicle Teleport upgrade required to teleport from vehicle", -- 1.16/09.01.2026
+    IGUI_VehicleNotFound = "Vehicle not found - you were returned on foot", -- 1.16/09.01.2026
+    IGUI_ReturnedToVehicle = "Returned to vehicle", -- 1.16/09.01.2026
+    IGUI_VehicleEntryFailed = "Could not enter vehicle - seat may be occupied", -- 1.16/09.01.2026
     
     -- Protected Object Messages (random responses when trying to destroy refuge structures)
     IGUI_ProtectedObject_1 = "I don't want to do that...", -- 1.7/02.01.2026

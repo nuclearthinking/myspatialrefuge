@@ -332,8 +332,31 @@ function MSR_Server.HandleEnterRequest(player, args)
         return
     end
     
+    -- Handle vehicle data - only accept if player has vehicle_teleport upgrade
+    local acceptVehicleData = false
+    if args and args.fromVehicle and args.vehicleId then
+        -- Server-side validation: check upgrade ownership (anti-cheat)
+        if refugeData.upgrades then
+            local vehicleTeleportLevel = refugeData.upgrades[MSR.Config.UPGRADES.VEHICLE_TELEPORT] or 0
+            acceptVehicleData = vehicleTeleportLevel >= 1
+        end
+        
+        if not acceptVehicleData then
+            L.debug("Server", "Client sent vehicle data but doesn't have upgrade - ignoring")
+        else
+            L.debug("Server", string.format("Accepting vehicle data: id=%s seat=%s", 
+                tostring(args.vehicleId), tostring(args.vehicleSeat)))
+        end
+    end
+    
+    -- Save return position (with or without vehicle data)
     if args and args.returnX and args.returnY and args.returnZ then
-        MSR.Data.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ)
+        if acceptVehicleData then
+            MSR.Data.SaveReturnPositionWithVehicle(username, args.returnX, args.returnY, args.returnZ,
+                args.vehicleId, args.vehicleSeat, args.vehicleX, args.vehicleY, args.vehicleZ)
+        else
+            MSR.Data.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ)
+        end
     end
     
     L.debug("Server", "Phase 1: Sending TeleportTo for " .. username)
@@ -564,11 +587,27 @@ function MSR_Server.HandleExitRequest(player, args)
     -- Don't update cooldown on exit - preserve the penalty from enter
     MSR.Data.ClearReturnPositionByUsername(username)
     
-    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.EXIT_READY, {
+    -- Build response with vehicle data if present
+    local response = {
         returnX = returnPos.x,
         returnY = returnPos.y,
         returnZ = returnPos.z
-    })
+    }
+    
+    -- Include vehicle data only if it was saved (nil otherwise)
+    if returnPos.fromVehicle then
+        response.fromVehicle = returnPos.fromVehicle
+        response.vehicleId = returnPos.vehicleId
+        response.vehicleSeat = returnPos.vehicleSeat
+        response.vehicleX = returnPos.vehicleX
+        response.vehicleY = returnPos.vehicleY
+        response.vehicleZ = returnPos.vehicleZ
+        L.debug("Server", string.format("Including vehicle data in exit: id=%s seat=%s pos=%.1f,%.1f,%.1f", 
+            tostring(returnPos.vehicleId), tostring(returnPos.vehicleSeat),
+            returnPos.vehicleX or 0, returnPos.vehicleY or 0, returnPos.vehicleZ or 0))
+    end
+    
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.EXIT_READY, response)
     
     L.debug("Server", "Sent ExitReady to " .. username)
 end

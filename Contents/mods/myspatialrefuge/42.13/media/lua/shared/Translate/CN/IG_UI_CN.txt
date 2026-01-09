@@ -25,10 +25,20 @@ IGUI_CN = {
     IGUI_FailedToLoadRefugeArea = "加载避难所区域失败", -- 1.6/16.01.2026
     IGUI_ReturnPositionLost = "返回位置丢失——将传送到默认位置", -- 1.6/16.01.2026
     IGUI_CannotExitNoData = "无法离开——未找到避难所数据", -- 1.6/16.01.2026
+    IGUI_NotInRefuge = "不在避难所中", -- 1.16/09.01.2026
     IGUI_PortalCharging = "避难所传送门充能中... (%d秒)", -- 1.7/02.01.2026
     IGUI_CannotTeleportCombat = "战斗中无法传送！", -- 1.7/02.01.2026
     IGUI_InheritedRefugeConnection = "我感觉到与古老避难所的联系...", -- 1.8/04.01.2026
     IGUI_EncumbrancePenalty = "沉重的负荷使传送门承受压力。下次传送需等待 %s。", -- 1.8/05.01.2026
+    IGUI_UpgradeCooldown = "请稍后再进行升级", -- 1.15.2/09.01.2026
+    IGUI_UpgradeAlreadyProcessing = "升级请求正在处理中", -- 1.15.2/09.01.2026
+    
+    -- Vehicle Teleport Messages
+    IGUI_VehicleTeleportRequired = "从载具传送需要【载具传送】升级", -- 1.16/09.01.2026
+    IGUI_CannotTeleportInMovingVehicle = "载具行驶中无法传送", -- 1.16/09.01.2026
+    IGUI_VehicleNotFound = "未找到载具——你已步行返回", -- 1.16/09.01.2026
+    IGUI_ReturnedToVehicle = "已返回载具", -- 1.16/09.01.2026
+    IGUI_VehicleEntryFailed = "无法进入载具——座位可能已被占用", -- 1.16/09.01.2026
 
     -- Player Messages - Relic Movement
     IGUI_SacredRelicMovedTo = "遗物已移动到 %s。", -- 1.7/02.01.2026

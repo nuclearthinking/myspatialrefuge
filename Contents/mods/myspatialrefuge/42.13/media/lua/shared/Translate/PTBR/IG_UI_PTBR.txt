@@ -25,10 +25,20 @@ IGUI_PTBR = {
     IGUI_FailedToLoadRefugeArea = "Falha ao carregar a área do refúgio", -- 1.6/16.01.2026
     IGUI_ReturnPositionLost = "Posição de retorno perdida — teletransportando para o local padrão", -- 1.6/16.01.2026
     IGUI_CannotExitNoData = "Não é possível sair — nenhum dado do refúgio foi encontrado", -- 1.6/16.01.2026
+    IGUI_NotInRefuge = "Não está no refúgio", -- 1.16/09.01.2026
     IGUI_PortalCharging = "Portal do refúgio carregando... (%ds)", -- 1.7/02.01.2026
     IGUI_CannotTeleportCombat = "Não é possível se teletransportar durante o combate!", -- 1.7/02.01.2026
     IGUI_InheritedRefugeConnection = "Eu sinto uma conexão com um refúgio antigo...", -- 1.8/04.01.2026
     IGUI_EncumbrancePenalty = "A carga pesada sobrecarregou o portal. Próximo teletransporte em %s.", -- 1.8/05.01.2026
+    IGUI_UpgradeCooldown = "Por favor, aguarde antes de melhorar novamente", -- 1.15.2/09.01.2026
+    IGUI_UpgradeAlreadyProcessing = "A solicitação de melhoria já está sendo processada", -- 1.15.2/09.01.2026
+    
+    -- Vehicle Teleport Messages
+    IGUI_VehicleTeleportRequired = "A melhoria Teletransporte Veicular é necessária para se teletransportar de um veículo", -- 1.16/09.01.2026
+    IGUI_CannotTeleportInMovingVehicle = "Não é possível se teletransportar enquanto o veículo está em movimento", -- 1.16/09.01.2026
+    IGUI_VehicleNotFound = "Veículo não encontrado — você retornou a pé", -- 1.16/09.01.2026
+    IGUI_ReturnedToVehicle = "Retornou ao veículo", -- 1.16/09.01.2026
+    IGUI_VehicleEntryFailed = "Não foi possível entrar no veículo — o assento pode estar ocupado", -- 1.16/09.01.2026
 
     -- Player Messages - Relic Movement
     IGUI_SacredRelicMovedTo = "Relíquia movida para %s.", -- 1.7/02.01.2026
