@@ -12,7 +12,6 @@ IGUI_CN = {
     IGUI_RelicDirection_Down = "下", -- 1.6/16.01.2026
     IGUI_RelicDirection_Center = "中心", -- 1.6/16.01.2026
     IGUI_UpgradeRefuge = "升级避难所", -- 1.6/16.01.2026
-    IGUI_UpgradeRefuge_Tooltip = "扩展你的避难所并解锁新功能", -- 1.6/16.01.2026
 
     -- Player Messages - Teleportation
     IGUI_EnteredRefuge = "已进入空间避难所", -- 1.6/16.01.2026
