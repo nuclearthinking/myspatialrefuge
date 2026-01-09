@@ -12,7 +12,6 @@ IGUI_ES = {
     IGUI_RelicDirection_Down = "Abajo", -- 1.6/16.01.2026
     IGUI_RelicDirection_Center = "Centro", -- 1.6/16.01.2026
     IGUI_UpgradeRefuge = "Mejorar refugio", -- 1.6/16.01.2026
-    IGUI_UpgradeRefuge_Tooltip = "Expande tu refugio y desbloquea nuevas funciones", -- 1.6/16.01.2026
 
     -- Player Messages - Teleportation
     IGUI_EnteredRefuge = "Has entrado al Refugio Espacial", -- 1.6/16.01.2026

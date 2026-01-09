@@ -249,7 +249,7 @@ upgrades:
   faster_refuge_cast:
     id: faster_refuge_cast
     name: UI_Upgrade_FasterRefugeCast
-    icon: media/textures/teleportation_speedup_128.png
+    icon: media/textures/Item_Pocketwatch.png
     category: general
     maxLevel: 5
     dependencies: []
