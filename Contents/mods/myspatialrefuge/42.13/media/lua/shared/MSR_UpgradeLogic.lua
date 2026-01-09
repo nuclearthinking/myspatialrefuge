@@ -39,7 +39,8 @@ function UpgradeLogic.syncObjectToClients(object, syncModData)
     end
 end
 
-local UpgradeHandlers = {} -- { apply(player, level) -> success, error, extraData }
+-- Handler: { apply(player, level) -> success, error, extraData }
+local UpgradeHandlers = {}
 
 --- Register upgrade handler
 ---@param upgradeId string
@@ -71,7 +72,7 @@ end
 
 function UpgradeLogic.getAvailableItemCount(player, requirement)
     if not requirement then return 0 end
-    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement, true) -- filtered: excludes equipped/favorite/locked
+    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement, true)
     return total
 end
 
@@ -100,7 +101,7 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     if targetLevel <= currentLevel then return false, "Already at this level" end
     if targetLevel > upgrade.maxLevel then return false, "Exceeds max level" end
     if targetLevel > currentLevel + 1 then return false, "Must upgrade one level at a time" end
-
+    
     local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     if not levelData then return false, "Invalid level data" end
 
@@ -108,16 +109,16 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     if not UpgradeLogic.hasRequiredItems(playerObj, requirements or {}) then
         return false, "Missing required items"
     end
-
+    
     return true, nil
 end
 
 function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player" end
-
+    
     L.debug("Upgrade", "purchaseUpgrade: " .. tostring(upgradeId) .. " level " .. tostring(targetLevel))
-
+    
     local canPurchase, err = UpgradeLogic.canPurchaseUpgrade(playerObj, upgradeId, targetLevel)
     if not canPurchase then
         L.debug("Upgrade", "CANNOT purchase - " .. tostring(err))
@@ -151,11 +152,11 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
         MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
         UpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
     end
-
+    
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     PM.Say(player, PM.UPGRADED_TO_LEVEL, name, targetLevel)
-
+    
     return true, nil
 end
 
@@ -164,21 +165,20 @@ function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirem
     if not transaction then
         return false, err or "Failed to start transaction"
     end
-
+    
     local lockedItemIds = {}
     for itemType, data in pairs(transaction.lockedItems) do
         lockedItemIds[itemType] = data.itemIds
     end
 
     L.debug("Upgrade", "Transaction " .. transaction.id .. " with " .. K.count(lockedItemIds) .. " item types")
-
     sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE, {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
         transactionId = transaction.id,
         lockedItemIds = lockedItemIds
     })
-
+    
     PM.Say(player, PM.UPGRADING)
     return true, nil
 end
@@ -186,15 +186,15 @@ end
 function UpgradeLogic.consumeItems(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
-
+    
     local resolved = MSR.Transaction.ResolveSubstitutions(playerObj, requirements)
     if not resolved then return false end
-
+    
     local sources = MSR.Transaction.GetItemSources(playerObj)
     if not sources or #sources == 0 then return false end
-
+    
     local needsSync = MSR.Env.needsClientSync() and sendRemoveItemFromContainer
-
+    
     for itemType, count in pairs(resolved) do
         local remaining = count
         for _, container in ipairs(sources) do
@@ -212,15 +212,17 @@ function UpgradeLogic.consumeItems(player, requirements)
                 end
             end
         end
+        
         if remaining > 0 then return false end
     end
+    
     return true
 end
 
 function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
     local effects = MSR.UpgradeData.getLevelEffects(upgradeId, level)
     if not effects then return end
-
+    
     L.debug("Upgrade", "Applied effects for " .. upgradeId .. " level " .. level)
 end
 
@@ -231,7 +233,7 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player" end
 
-    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level) -- must set before capacity calc
+    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
 
     local refugeData = MSR.Data.GetRefugeData(playerObj)
     if not refugeData then return false, "Refuge data not found" end
@@ -269,7 +271,6 @@ local function registerBuiltinHandlers()
         L.debug("UpgradeLogic", "Handlers already registered, skipping")
         return
     end
-
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.CORE_STORAGE, {
         apply = function(player, level)
             return UpgradeLogic.applyStorageUpgrade(player, level)
@@ -303,6 +304,7 @@ local function registerBuiltinHandlers()
         end,
         invalidatesCache = true
     })
+end
 
     L.debug("UpgradeLogic", "Built-in handlers registered")
 end
@@ -315,15 +317,16 @@ end
 function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transactionId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
-
+    
+    -- MP client: Finalize (clear locks), SP: Commit (consume items)
     if transactionId then
         if MSR.Env.isMultiplayerClient() then
-            MSR.Transaction.Finalize(playerObj, transactionId) -- MP: clear locks (server consumed items)
+            MSR.Transaction.Finalize(playerObj, transactionId)
         else
-            MSR.Transaction.Commit(playerObj, transactionId) -- SP: consume items
+            MSR.Transaction.Commit(playerObj, transactionId)
         end
     end
-
+    
     if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
         if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(playerObj) end
     end
@@ -341,7 +344,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
 
     if MSR.Env.isClient() then
         if ISInventoryPage and ISInventoryPage.dirtyUI then ISInventoryPage.dirtyUI() end
-
+        
         local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
             MSR_UpgradeWindow.instance:setUpgradePending(false)
@@ -349,7 +352,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
             MSR_UpgradeWindow.instance:refreshCurrentUpgrade()
         end
     end
-
+    
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
     PM.Say(playerObj, PM.UPGRADED_TO_LEVEL, name, targetLevel)
@@ -358,7 +361,7 @@ end
 function UpgradeLogic.onUpgradeError(player, transactionId, reason)
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
-
+    
     if transactionId then
         MSR.Transaction.Rollback(playerObj, transactionId)
     end
