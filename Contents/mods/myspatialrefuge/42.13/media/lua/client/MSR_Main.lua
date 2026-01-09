@@ -180,19 +180,23 @@ end
 
 MSR.worldReady = false
 
+-- Track if we're in initial game load phase (OnGameStart will handle inheritance)
+local _initialLoadPhase = false
+
 -- Check for orphan refuges and claim them (singleplayer only)
+-- Only shows message when inheritance actually happens (claiming an orphan)
+-- HasOrphanRefuge() returns false after claiming, so safe to call multiple times
 local function checkRefugeInheritance(player)
     if not MSR.Env.isSingleplayer() then return end
     
-    local existingRefuge = MSR.Data.GetRefugeData(player)
-    if existingRefuge and existingRefuge.inheritedFrom then
-        L.debug("Main", "Inherited refuge from " .. existingRefuge.inheritedFrom)
-        PM.Say(player, PM.INHERITED_REFUGE_CONNECTION)
-        return
-    end
-    
+    -- Only claim orphan if one exists - this is when inheritance actually happens
     if MSR.Data.HasOrphanRefuge() then
-        MSR.Data.GetOrCreateRefugeData(player)
+        local refugeData = MSR.Data.GetOrCreateRefugeData(player)
+        -- Show message immediately after claiming orphan refuge
+        if refugeData and refugeData.inheritedFrom then
+            L.debug("Main", "Inherited refuge from " .. refugeData.inheritedFrom)
+            PM.Say(player, PM.INHERITED_REFUGE_CONNECTION)
+        end
     end
 end
 
@@ -200,12 +204,18 @@ local function OnGameStart()
     if not isClient() then
         MSR.InitializeModData()
         
+        -- Mark that we're in initial load phase (OnCreatePlayer should skip)
+        _initialLoadPhase = true
+        
         local tickCount = 0
         local function delayedInit()
             tickCount = tickCount + 1
             if tickCount < 30 then return end
             
             Events.OnTick.Remove(delayedInit)
+            
+            -- Initial load phase complete
+            _initialLoadPhase = false
             
             local player = getPlayer()
             if not player then return end
@@ -230,8 +240,38 @@ local function OnInitWorld()
     MSR.worldReady = true
 end
 
+-- Check inheritance when new character is created (same session after death)
+local function OnCreatePlayer(playerIndex, player)
+    if not player then return end
+    if not MSR.Env.isSingleplayer() then return end
+    
+    -- Small delay to ensure world is ready
+    local tickCount = 0
+    local function delayedCheck()
+        tickCount = tickCount + 1
+        if tickCount < 10 then return end
+        
+        Events.OnTick.Remove(delayedCheck)
+        
+        -- Skip if this is initial game load (OnGameStart will handle it)
+        -- Check here because OnCreatePlayer might fire before OnGameStart sets the flag
+        if _initialLoadPhase then return end
+        
+        -- Re-get player in case reference changed
+        local currentPlayer = getPlayer()
+        if not currentPlayer then return end
+        
+        checkRefugeInheritance(currentPlayer)
+    end
+    
+    Events.OnTick.Add(delayedCheck)
+end
+
 Events.OnGameStart.Add(OnGameStart)
 Events.OnInitWorld.Add(OnInitWorld)
 Events.OnPlayerGetDamage.Add(OnPlayerDamage)
+if Events.OnCreatePlayer then
+    Events.OnCreatePlayer.Add(OnCreatePlayer)
+end
 
 return MSR

@@ -31,7 +31,11 @@ function MSR.GenerateNewRefuge(player)
     local refugeData = MSR.GetOrCreateRefugeData(player)
     if not refugeData then return nil end
     
-    MSR.PlayerMessage.Say(player, MSR.PlayerMessage.REFUGE_INITIALIZING)
+    -- Only show initializing message for truly new refuges
+    -- Inheritance message is handled by MSR_Main.lua on character creation
+    if not refugeData.inheritedFrom then
+        MSR.PlayerMessage.Say(player, MSR.PlayerMessage.REFUGE_INITIALIZING)
+    end
     return refugeData
 end
 
