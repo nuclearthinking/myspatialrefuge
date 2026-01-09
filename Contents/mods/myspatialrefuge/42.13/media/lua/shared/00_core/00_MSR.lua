@@ -1,15 +1,12 @@
--- 00_MSR - Global namespace for My Spatial Refuge mod
--- All modules register under MSR namespace to avoid conflicts
--- Creates globals: MSR, and helpers MSR.resolvePlayer, MSR.safePlayerCall
---
--- Load order (shared/00_core/): 00→01→02→03→04→05→06→99
--- Globals created: MSR (this), K (01), L (02), D (03)
+-- 00_MSR - Global namespace for My Spatial Refuge
+-- Load order: 00→01→02→03→04→05→06→99 | Globals: MSR, K, L, D
 
-if MSR and MSR._loaded then
+MSR = MSR or {} -- Must be first line to prevent cascade failures
+
+if MSR._loaded then
     return MSR
 end
 
-MSR = MSR or {}
 MSR._loaded = true
 
 local function getModVersion()
@@ -28,25 +25,17 @@ MSR.VERSION = getModVersion()
 
 print("[MSR] My Spatial Refuge v" .. MSR.VERSION .. " initializing...")
 
--- K, L, D globals created by 01-03 modules after this file loads
-
------------------------------------------------------------
--- Shared Utilities
------------------------------------------------------------
-
---- Resolve a player reference to a live IsoPlayer object
---- Handles player index, IsoPlayer object, or stale references
---- @param player number|IsoPlayer Player index or IsoPlayer object
---- @return IsoPlayer|nil Resolved player object or nil if invalid
+--- Resolve player reference to live IsoPlayer (handles index, object, or stale refs)
+--- @param player number|IsoPlayer
+--- @return IsoPlayer|nil
 function MSR.resolvePlayer(player)
     if not player then return nil end
     
-    -- If player is a number, get player by index
     if type(player) == "number" and getSpecificPlayer then
         return getSpecificPlayer(player)
     end
     
-    -- If player is userdata/table with getPlayerNum, re-resolve to avoid stale refs
+    -- Re-resolve to avoid stale references in MP
     if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum then
         local ok, num = pcall(function() return player:getPlayerNum() end)
         if ok and num ~= nil and getSpecificPlayer then
@@ -58,20 +47,18 @@ function MSR.resolvePlayer(player)
     return player
 end
 
---- Safely call a method on a player (guards against disconnected/null refs)
---- @param player any Player reference
---- @param methodName string Method name to call
---- @return any|nil Method result or nil if call fails
+--- Safely call method on player (guards against disconnected/null refs)
+--- @param player any
+--- @param methodName string
+--- @return any|nil
 function MSR.safePlayerCall(player, methodName)
     local resolved = MSR.resolvePlayer(player)
     if not resolved then return nil end
     
-    -- Use K.safeCall if available (loaded by MSR_00_KahluaCompat after this file)
     if K and K.safeCall then
         return K.safeCall(resolved, methodName)
     end
     
-    -- Fallback: direct pcall
     local ok, method = pcall(function() return resolved[methodName] end)
     if not ok or not method then return nil end
     
