@@ -51,8 +51,14 @@ UI_CN = {
     UI_Upgrade_RefugeCoreStorage_L4 = "通过高级空间操控突破常规极限。", -- 1.14/07.01.2026
     UI_Upgrade_RefugeCoreStorage_L5 = "通过完美的空间和谐达到理论上的最大容量。", -- 1.14/07.01.2026
     
+    -- Vehicle Teleport
+    UI_Upgrade_VehicleTeleport = "载具传送", -- 1.16/09.01.2026
+    UI_Upgrade_VehicleTeleport_L1 = "在载具周围编织空间丝线，你现在可以在静止的载具中坐着进入避难所。离开时，你将返回到原来的座位。", -- 1.16/09.01.2026
+    
     UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "传送速度", -- 1.8/02.01.2026
     UI_Effect_relicStorageCapacity = "遗物存储", -- 1.14/07.01.2026
+    UI_Effect_vehicleTeleportEnabled = "载具传送", -- 1.16/09.01.2026
+    UI_Effect_Unlocked = "已解锁", -- 1.16/09.01.2026
 }

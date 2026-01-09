@@ -169,6 +169,18 @@ itemGroups:
   alarm_clocks:
     - Base.AlarmClock2
 
+  # Vehicle tires - all types (regular, performance, old)
+  vehicle_tires:
+    - Base.NormalTire1
+    - Base.NormalTire2
+    - Base.NormalTire3
+    - Base.ModernTire1
+    - Base.ModernTire2
+    - Base.ModernTire3
+    - Base.OldTire1
+    - Base.OldTire2
+    - Base.OldTire3
+
 upgrades:
   faster_reading:
     id: faster_reading
@@ -375,6 +387,26 @@ upgrades:
             count: 100
           - type: Base.ScrapMetal
             count: 20
+
+  vehicle_teleport:
+    id: vehicle_teleport
+    name: UI_Upgrade_VehicleTeleport
+    icon: Item_CarTire
+    category: general
+    maxLevel: 1
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_VehicleTeleport_L1
+        effects:
+          vehicleTeleportEnabled: 1
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.NormalTire1
+            count: 4
+            substitutes:
+              - $vehicle_tires
 
 # =============================================================================
 # EXAMPLE UPGRADE (uncomment and modify to add new upgrades)

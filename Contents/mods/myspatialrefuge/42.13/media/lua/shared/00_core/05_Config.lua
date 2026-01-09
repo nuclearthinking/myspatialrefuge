@@ -66,6 +66,7 @@ MSR.Config = {
         CORE_STORAGE = "refuge_core_storage",     -- from upgrades.yaml
         FASTER_READING = "faster_reading",        -- from upgrades.yaml
         FASTER_CAST = "faster_refuge_cast",       -- from upgrades.yaml
+        VEHICLE_TELEPORT = "vehicle_teleport",    -- from upgrades.yaml
     },
     
     COMMAND_NAMESPACE = "SpatialRefuge",

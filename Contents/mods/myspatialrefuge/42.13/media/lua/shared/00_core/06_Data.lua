@@ -522,6 +522,48 @@ function Data.SaveReturnPositionByUsername(username, x, y, z)
     return true
 end
 
+--- Save return position with vehicle data (for vehicle teleport upgrade)
+--- Structure: {x, y, z, fromVehicle, vehicleId, vehicleSeat, vehicleX, vehicleY, vehicleZ}
+function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicleSeat, vehicleX, vehicleY, vehicleZ)
+    if not username then return false end
+    
+    if not canModifyData() then
+        L.debug("Data", "MP client cannot save return position")
+        return false
+    end
+    
+    -- Never save refuge coordinates as return position
+    if Data.IsInRefugeCoordinates(x, y) then
+        L.debug("Data", "WARNING: Attempted to save refuge coordinates as return position - blocked!")
+        return false
+    end
+    
+    local modData = Data.InitializeModData()
+    if not modData then return false end
+    
+    if not modData.ReturnPositions then
+        modData.ReturnPositions = {}
+    end
+    
+    modData.ReturnPositions[username] = {
+        x = x,
+        y = y,
+        z = z,
+        fromVehicle = true,
+        vehicleId = vehicleId,
+        vehicleSeat = vehicleSeat,
+        vehicleX = vehicleX,
+        vehicleY = vehicleY,
+        vehicleZ = vehicleZ
+    }
+    Data.TransmitModData()
+    
+    L.debug("Data", string.format("Saved return position with vehicle: %s at %.1f,%.1f,%.1f vehicleId=%s seat=%s",
+        username, x, y, z, tostring(vehicleId), tostring(vehicleSeat)))
+    
+    return true
+end
+
 function Data.ClearReturnPosition(player)
     if not player then return end
     

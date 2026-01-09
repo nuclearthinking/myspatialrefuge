@@ -391,6 +391,12 @@ end
 function SRU_UpgradeDetails:formatEffect(name, value)
     local displayName = getText("UI_Effect_" .. name) or name
     
+    -- Boolean/unlock effects (name ends with "Enabled") - show as unlocked ability
+    if string.sub(name, -7) == "Enabled" then
+        local unlockText = getText("UI_Effect_Unlocked") or "Unlocked"
+        return string.format("%s: %s", displayName, unlockText)
+    end
+    
     if type(value) == "number" then
         -- Time multipliers (lower = faster) - apply difficulty scaling
         if name == "readingSpeedMultiplier" or name == "refugeCastTimeMultiplier" then

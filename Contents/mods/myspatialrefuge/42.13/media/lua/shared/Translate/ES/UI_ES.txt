@@ -51,8 +51,14 @@ UI_ES = {
     UI_Upgrade_RefugeCoreStorage_L4 = "Supera los limites normales con manipulacion espacial avanzada.", -- 1.14/07.01.2026
     UI_Upgrade_RefugeCoreStorage_L5 = "Alcanza la capacidad teorica maxima a traves de la armonia espacial perfecta.", -- 1.14/07.01.2026
     
+    -- Vehicle Teleport
+    UI_Upgrade_VehicleTeleport = "Teletransporte Vehicular", -- 1.16/09.01.2026
+    UI_Upgrade_VehicleTeleport_L1 = "Tejiendo hilos de espacio alrededor de tu vehiculo, ahora puedes entrar al refugio mientras estas sentado en un vehiculo estacionario. Al salir, regresaras al mismo asiento.", -- 1.16/09.01.2026
+    
     UI_Effect_refugeSize = "Tamano del refugio", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Velocidad de lectura", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "Velocidad de teletransporte", -- 1.8/02.01.2026
     UI_Effect_relicStorageCapacity = "Almacenamiento de reliquia", -- 1.14/07.01.2026
+    UI_Effect_vehicleTeleportEnabled = "Teletransporte Vehicular", -- 1.16/09.01.2026
+    UI_Effect_Unlocked = "Desbloqueado", -- 1.16/09.01.2026
 }
