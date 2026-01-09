@@ -63,7 +63,7 @@ MSR.Config = {
     ESSENCE_ENABLED = true,
     ESSENCE_RETENTION_PERCENT = 75,  -- % of earned XP recovered when absorbing essence
     ESSENCE_ITEM = "Base.MSR_ExperienceEssence",
-    
+
     -- Upgrade IDs (must match upgrades.yaml)
     UPGRADES = {
         EXPAND_REFUGE = "expand_refuge",
@@ -93,7 +93,7 @@ MSR.Config = {
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
         SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
-        
+
         -- XP Essence commands
         XP_ESSENCE_ABSORB = "XPEssenceAbsorb"
     }
@@ -139,7 +139,7 @@ function MSR.Config.getRelicStorageCapacity(refugeData)
     
     local storageLevel = upgrades[MSR.Config.UPGRADES.CORE_STORAGE] or 0
     if storageLevel <= 0 then return baseCapacity end
-    
+
     if MSR.UpgradeData and MSR.UpgradeData.getLevelEffects then
         local effects = MSR.UpgradeData.getLevelEffects(MSR.Config.UPGRADES.CORE_STORAGE, storageLevel)
         if effects and effects.relicStorageCapacity then
