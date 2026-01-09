@@ -1,5 +1,4 @@
--- 05_Config - Static configuration values and difficulty-scaled getters
--- All constants for refuge dimensions, timers, sprites, commands
+-- 05_Config - Static configuration and difficulty-scaled getters
 
 require "shared/00_core/00_MSR"
 require "shared/00_core/03_Difficulty"
@@ -60,13 +59,13 @@ MSR.Config = {
     
     CORE_ITEM = "Base.MagicalCore",
     
-    -- Upgrade IDs (must match upgrades.yaml and MSR_UpgradeData.lua)
+    -- Upgrade IDs (must match upgrades.yaml)
     UPGRADES = {
-        EXPAND_REFUGE = "expand_refuge",          -- hardcoded in MSR_UpgradeData
-        CORE_STORAGE = "refuge_core_storage",     -- from upgrades.yaml
-        FASTER_READING = "faster_reading",        -- from upgrades.yaml
-        FASTER_CAST = "faster_refuge_cast",       -- from upgrades.yaml
-        VEHICLE_TELEPORT = "vehicle_teleport",    -- from upgrades.yaml
+        EXPAND_REFUGE = "expand_refuge",
+        CORE_STORAGE = "refuge_core_storage",
+        FASTER_READING = "faster_reading",
+        FASTER_CAST = "faster_refuge_cast",
+        VEHICLE_TELEPORT = "vehicle_teleport",
     },
     
     COMMAND_NAMESPACE = "SpatialRefuge",
@@ -92,7 +91,7 @@ MSR.Config = {
     }
 }
 
--- Dynamic getters (scaled by global D)
+-- Dynamic getters (difficulty-scaled via D)
 
 function MSR.Config.getCastTime()
     return D.cooldown(MSR.Config.TELEPORT_CAST_TIME)
@@ -129,7 +128,6 @@ function MSR.Config.getRelicStorageCapacity(refugeData)
     local storageLevel = upgrades[MSR.Config.UPGRADES.CORE_STORAGE] or 0
     if storageLevel <= 0 then return baseCapacity end
     
-    -- Get capacity from upgrade data if available
     if MSR.UpgradeData and MSR.UpgradeData.getLevelEffects then
         local effects = MSR.UpgradeData.getLevelEffects(MSR.Config.UPGRADES.CORE_STORAGE, storageLevel)
         if effects and effects.relicStorageCapacity then
