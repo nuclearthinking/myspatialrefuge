@@ -397,6 +397,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
         
         local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
+            MSR_UpgradeWindow.instance:setUpgradePending(false)
             MSR_UpgradeWindow.instance:refreshUpgradeList()
             MSR_UpgradeWindow.instance:refreshCurrentUpgrade()
         end
@@ -415,8 +416,22 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
         MSR.Transaction.Rollback(playerObj, transactionId)
     end
     
+    -- Re-enable upgrade window if open
+    if MSR.Env.isClient() then
+        local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
+        if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
+            MSR_UpgradeWindow.instance:setUpgradePending(false)
+        end
+    end
+    
     if reason then
-        PM.SayRaw(playerObj, reason)
+        -- Use PM key if available, else raw display
+        local translationKey = PM.GetTranslationKey(reason)
+        if translationKey then
+            PM.Say(playerObj, reason)
+        else
+            PM.SayRaw(playerObj, reason)
+        end
     else
         PM.Say(playerObj, PM.UPGRADE_FAILED)
     end

@@ -96,6 +96,7 @@ function MSR_UpgradeWindow:new(x, y, width, height, player, relic)
     o._lastRefreshTime = 0
     o._refreshThrottleMs = 100
     o._inventoryChangeHandler = nil
+    o._pendingUpgrade = false  -- Guard against fast double-clicks
     
     -- Store relic object for proximity check (same pattern as ISBaseEntityWindow)
     o._relic = relic
@@ -304,22 +305,44 @@ function MSR_UpgradeWindow:refreshCurrentUpgrade()
     end
 end
 
+function MSR_UpgradeWindow:canCurrentlyUpgrade()
+    if not self.selectedUpgrade then return false end
+    local canUpgrade, _ = MSR.UpgradeLogic.canPurchaseUpgrade(self.player, self.selectedUpgrade.id, self.selectedLevel)
+    return canUpgrade
+end
+
+function MSR_UpgradeWindow:setUpgradePending(pending)
+    self._pendingUpgrade = pending
+    if self.upgradeDetails and self.upgradeDetails.upgradeButton then
+        self.upgradeDetails.upgradeButton:setEnable(not pending and self:canCurrentlyUpgrade())
+    end
+end
+
 function MSR_UpgradeWindow:onUpgradeClick()
     if not self.selectedUpgrade then return end
+    if self._pendingUpgrade then return end  -- Guard against double-click
+    
+    self:setUpgradePending(true)
     
     local success, err = MSR.UpgradeLogic.purchaseUpgrade(self.player, self.selectedUpgrade.id, self.selectedLevel)
     
-    if success then
+    if not success then
+        self:setUpgradePending(false)
+        if self.player then
+            local PM = MSR.PlayerMessage
+            if err then
+                PM.SayRaw(self.player, err)
+            else
+                PM.Say(self.player, PM.UPGRADE_FAILED)
+            end
+        end
+    elseif not MSR.Env.isMultiplayerClient() then
+        -- SP/Host: upgrade ran synchronously, reset pending and refresh now
+        self:setUpgradePending(false)
         self:refreshUpgradeList()
         self:refreshCurrentUpgrade()
-    elseif self.player then
-        local PM = MSR.PlayerMessage
-        if err then
-            PM.SayRaw(self.player, err)
-        else
-            PM.Say(self.player, PM.UPGRADE_FAILED)
-        end
     end
+    -- MP client: wait for server response (onUpgradeComplete)
 end
 
 function MSR_UpgradeWindow:onCloseClick()

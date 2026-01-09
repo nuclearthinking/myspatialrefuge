@@ -49,14 +49,19 @@ end
 
 -----------------------------------------------------------
 -- Transaction Storage
--- Uses weak keys so transactions are cleaned up when player disconnects
+-- Uses username as key for stable lookups across player object changes
 -----------------------------------------------------------
 
--- Active transactions per player: player -> { transactionType -> transaction }
-local activeTransactions = setmetatable({}, {__mode = "k"})
+-- Active transactions per player: username -> { transactionType -> transaction }
+-- Using username (string) instead of player object reference for stability
+-- Player objects in PZ can change reference between calls
+local activeTransactions = {}
 
 -- Transaction counter for unique IDs
 local transactionCounter = 0
+
+-- Timeout constants (defined early for use in Begin() immediate expiry check)
+local TIMEOUT_SECONDS = 5  -- 5 seconds before auto-rollback
 
 -- Generate unique transaction ID
 local function generateTransactionId(player, transactionType)
@@ -317,9 +322,18 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     
     if K.isEmpty(resolvedRequirements) then return nil, "No items specified" end
     
-    -- Check for existing transaction
+    -- Check for existing transaction (with immediate expiration check)
     local existing = Transaction.GetPending(playerObj, transactionType)
-    if existing then return nil, "Transaction already in progress" end
+    if existing then
+        -- Check if existing transaction has expired (immediate cleanup)
+        local now = K.time()
+        if existing.createdAt and (now - existing.createdAt) > TIMEOUT_SECONDS then
+            L.debug("Transaction", "Found expired pending transaction, cleaning up: " .. tostring(existing.id))
+            Transaction.Rollback(playerObj, existing.id)
+        else
+            return nil, "Transaction already in progress"
+        end
+    end
     
     -- Lock items
     local lockedItems = {}
@@ -342,14 +356,17 @@ function Transaction.Begin(player, transactionType, itemRequirements)
         type = transactionType,
         lockedItems = lockedItems,
         createdAt = K.time(),
-        status = Transaction.STATE.PENDING
+        status = Transaction.STATE.PENDING,
+        username = username  -- Store username for timeout handler
     }
     
-    -- Store transaction
-    if not activeTransactions[playerObj] then
-        activeTransactions[playerObj] = {}
+    -- Store transaction by username (stable key, survives player object changes)
+    if not activeTransactions[username] then
+        activeTransactions[username] = {}
     end
-    activeTransactions[playerObj][transactionType] = transaction
+    activeTransactions[username][transactionType] = transaction
+    
+    L.debug("Transaction", "BEGIN: " .. transactionId .. " for " .. username)
     
     -- Start timeout handler
     Transaction._startTimeoutHandler(playerObj, transactionType, transactionId)
@@ -369,8 +386,11 @@ function Transaction.Commit(player, transactionId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    -- Find the transaction
-    local playerTransactions = activeTransactions[playerObj]
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return false end
+    
+    -- Find the transaction by username
+    local playerTransactions = activeTransactions[username]
     if not playerTransactions then return false end
     
     local transaction = nil
@@ -432,7 +452,10 @@ function Transaction.Rollback(player, transactionId, transactionType)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    local playerTransactions = activeTransactions[playerObj]
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return false end
+    
+    local playerTransactions = activeTransactions[username]
     if not playerTransactions then return false end
     
     local transaction = nil
@@ -491,7 +514,10 @@ function Transaction.Finalize(player, transactionId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
     
-    local playerTransactions = activeTransactions[playerObj]
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return false end
+    
+    local playerTransactions = activeTransactions[username]
     if not playerTransactions then return false end
     
     local transaction = nil
@@ -544,7 +570,10 @@ function Transaction.GetPending(player, transactionType)
     local playerObj = resolvePlayer(player)
     if not playerObj then return nil end
     
-    local playerTransactions = activeTransactions[playerObj]
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return nil end
+    
+    local playerTransactions = activeTransactions[username]
     if not playerTransactions then return nil end
     
     local transaction = playerTransactions[transactionType]
@@ -561,9 +590,7 @@ end
 -- Uses a single periodic check instead of per-transaction OnTick
 -----------------------------------------------------------
 
--- Timeout is stored in transaction.createdAt, checked periodically
-local TIMEOUT_CHECK_INTERVAL_SECONDS = 5  -- Check every 5 seconds (matches EveryTenSeconds / 2)
-local TIMEOUT_SECONDS = 5  -- 5 seconds (MSR.Config.TRANSACTION_TIMEOUT_TICKS / 60)
+-- Note: TIMEOUT_SECONDS is defined at top of file for use in Begin() immediate expiry check
 
 -- No-op: timeout info is in transaction.createdAt, checked by periodic handler
 function Transaction._startTimeoutHandler(player, transactionType, transactionId)
@@ -577,29 +604,43 @@ function Transaction._checkAllTransactionTimeouts()
     local now = K.time()
     local timeoutThreshold = now - TIMEOUT_SECONDS
     
-    -- Iterate all players with transactions
-    for playerObj, playerTransactions in pairs(activeTransactions) do
-        if playerTransactions then
-            for transactionType, transaction in pairs(playerTransactions) do
-                if transaction and transaction.status == Transaction.STATE.PENDING then
-                    -- Check if transaction has timed out
-                    if transaction.createdAt and transaction.createdAt < timeoutThreshold then
-                        L.debug("Transaction", "TIMEOUT - Auto-rollback: " .. tostring(transaction.id))
-                        
-                        -- Auto-rollback
-                        Transaction.Rollback(playerObj, transaction.id)
-                        
-                        -- Notify player
-                        local resolved = resolvePlayer(playerObj)
-                        if resolved then
-                            local PM = MSR.PlayerMessage
-                            if PM and PM.Say then
-                                PM.Say(resolved, PM.ACTION_TIMEOUT_ITEMS_UNLOCKED)
-                            end
-                        end
-                    end
-                end
+    -- Get local player (client-side only)
+    local player = getPlayer and getPlayer()
+    if not player then return end
+    
+    local username = safePlayerCall(player, "getUsername")
+    if not username then return end
+    
+    -- Only check local player's transactions (client-side handler)
+    local playerTransactions = activeTransactions[username]
+    if not playerTransactions then return end
+    
+    -- Collect expired transactions first (avoid modifying during iteration)
+    local expiredTransactions = {}
+    for transactionType, transaction in pairs(playerTransactions) do
+        if transaction and transaction.status == Transaction.STATE.PENDING then
+            -- Check if transaction has timed out
+            if transaction.createdAt and transaction.createdAt < timeoutThreshold then
+                table.insert(expiredTransactions, {
+                    transactionType = transactionType,
+                    transaction = transaction
+                })
             end
+        end
+    end
+    
+    -- Now rollback expired transactions
+    for _, expired in ipairs(expiredTransactions) do
+        L.debug("Transaction", "TIMEOUT - Auto-rollback: " .. tostring(expired.transaction.id) .. 
+                " (age=" .. (now - expired.transaction.createdAt) .. "s)")
+        
+        -- Auto-rollback
+        Transaction.Rollback(player, expired.transaction.id)
+        
+        -- Notify player
+        local PM = MSR.PlayerMessage
+        if PM and PM.Say then
+            PM.Say(player, PM.ACTION_TIMEOUT_ITEMS_UNLOCKED)
         end
     end
 end
@@ -629,8 +670,11 @@ local function OnPlayerDisconnect(player)
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
     
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return end
+    
     -- Rollback any pending transactions
-    local playerTransactions = activeTransactions[playerObj]
+    local playerTransactions = activeTransactions[username]
     if playerTransactions then
         for transactionType, transaction in pairs(playerTransactions) do
             if transaction.status == Transaction.STATE.PENDING then
@@ -640,7 +684,7 @@ local function OnPlayerDisconnect(player)
     end
     
     -- Clear transaction storage
-    activeTransactions[playerObj] = nil
+    activeTransactions[username] = nil
     
     -- Clear locked items storage
     local pmd = safePlayerCall(playerObj, "getModData")
@@ -668,15 +712,61 @@ local function cleanupStaleLocksOnGameStart()
     local player = getPlayer and getPlayer()
     if not player then return end  -- Will retry on next event
     
+    local username = safePlayerCall(player, "getUsername")
+    
     local pmd = safePlayerCall(player, "getModData")
     if not pmd then return end
     
     if pmd._lockedTransactionItems then
+        L.debug("Transaction", "Startup cleanup: clearing stale locked items for " .. tostring(username))
         pmd._lockedTransactionItems = nil
     end
     
-    activeTransactions[player] = nil
+    if username then
+        activeTransactions[username] = nil
+    end
     _startupCleanupDone = true
+end
+
+--- Force cleanup all pending transactions for current player
+--- Use this to recover from stuck transactions
+--- @return number count Number of transactions cleaned up
+function Transaction.ForceCleanup()
+    local player = getPlayer and getPlayer()
+    if not player then return 0 end
+    
+    local username = safePlayerCall(player, "getUsername")
+    if not username then return 0 end
+    
+    local count = 0
+    local playerTransactions = activeTransactions[username]
+    if playerTransactions then
+        for transactionType, transaction in pairs(playerTransactions) do
+            if transaction then
+                L.debug("Transaction", "FORCE CLEANUP: " .. tostring(transaction.id) .. " (status=" .. tostring(transaction.status) .. ")")
+                -- Unlock any locked items
+                if transaction.lockedItems then
+                    for itemType, data in pairs(transaction.lockedItems) do
+                        unlockItems(player, itemType, data.itemIds)
+                    end
+                end
+                count = count + 1
+            end
+        end
+        activeTransactions[username] = nil
+    end
+    
+    -- Also clear locked items storage
+    local pmd = safePlayerCall(player, "getModData")
+    if pmd and pmd._lockedTransactionItems then
+        pmd._lockedTransactionItems = nil
+    end
+    
+    if count > 0 then
+        L.log("Transaction", "Force cleaned " .. count .. " stuck transaction(s) for " .. username)
+    end
+    
+    return count
 end
 
 -- Only register cleanup when client component exists (singleplayer, coop host, MP client)

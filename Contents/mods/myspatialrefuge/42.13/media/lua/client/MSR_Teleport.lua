@@ -64,9 +64,11 @@ local function doSingleplayerEnter(player, refugeData)
     local teleportZ = refugeData.centerZ
     local teleportPlayer = player
     local refugeId = refugeData.refugeId
-    local tier = refugeData.tier or 0
-    local tierData = MSR.Config.TIERS[tier]
-    local radius = tierData and tierData.radius or 1
+    -- Use refugeData.radius directly (authoritative value) - tier lookup can be stale
+    local radius = refugeData.radius or 1
+    
+    L.debug("Teleport", string.format("doSingleplayerEnter: center=%d,%d radius=%d tier=%s", 
+        teleportX, teleportY, radius, tostring(refugeData.tier)))
     
     -- Penalty must be calculated before teleport (weight may change after)
     local encumbrancePenalty = MSR.Validation.GetEncumbrancePenalty(player)
@@ -227,6 +229,13 @@ end
 
 local function doSingleplayerExit(player, returnPos)
     local targetX, targetY, targetZ = returnPos.x, returnPos.y, returnPos.z
+    
+    -- Save room IDs BEFORE teleport out (will restore after teleport in)
+    local refugeData = MSR.GetRefugeData(player)
+    if refugeData and MSR.RoomPersistence then
+        local saved = MSR.RoomPersistence.Save(refugeData)
+        L.debug("Teleport", string.format("doSingleplayerExit: Saved %d room IDs before exit", saved))
+    end
     
     MSR.ClearReturnPosition(player)
     -- Don't update cooldown on exit - preserve penalty from enter

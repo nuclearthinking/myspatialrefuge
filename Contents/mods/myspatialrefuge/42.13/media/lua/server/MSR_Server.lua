@@ -25,6 +25,14 @@ MSR_Server = MSR_Server or {}
 local _serverRelicContainerCache = {}
 local CACHE_DURATION = 5
 
+-- Pending upgrade tracking for duplicate request protection
+local pendingUpgrades = {}  -- Key: "username_upgradeId" -> timestamp
+local PENDING_TIMEOUT = 10  -- seconds
+
+-- Completion cooldown - prevents rapid-fire upgrades
+local upgradeCompletionTimes = {}  -- Key: "username_upgradeId" -> timestamp
+local COMPLETION_COOLDOWN = 1  -- seconds
+
 function MSR_Server.InvalidateRelicContainerCacheForUser(username)
     if username then
         _serverRelicContainerCache[username] = nil
@@ -650,22 +658,67 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     local upgradeId = args and args.upgradeId
     local targetLevel = args and args.targetLevel
     local transactionId = args and args.transactionId
-    local lockedItemIds = args and args.lockedItemIds  -- NEW: ID-based consumption
+    local lockedItemIds = args and args.lockedItemIds
+    
+    -- Reused for pending checks and completion recording
+    local lockKey = upgradeId and (username .. "_" .. upgradeId) or nil
+    local now = K.time()
+    
+    local function clearPendingLock()
+        if lockKey then
+            pendingUpgrades[lockKey] = nil
+        end
+    end
     
     L.debug("Server", "HandleFeatureUpgradeRequest: " .. username .. 
           " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
     
-    -- Debug: Log if we received lockedItemIds
+    -- Duplicate request protection
+    if lockKey then
+        if pendingUpgrades[lockKey] then
+            local elapsed = now - pendingUpgrades[lockKey]
+            if elapsed < PENDING_TIMEOUT then
+                L.debug("Server", "Rejecting duplicate upgrade request for " .. lockKey .. " (elapsed: " .. elapsed .. "s)")
+                sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+                    transactionId = transactionId,
+                    reason = "UPGRADE_ALREADY_PROCESSING"
+                })
+                return
+            end
+            -- Expired lock - will be overwritten below
+        end
+        
+        -- Completion cooldown check
+        local completionTime = upgradeCompletionTimes[lockKey]
+        if completionTime then
+            local timeSinceComplete = now - completionTime
+            if timeSinceComplete < COMPLETION_COOLDOWN then
+                L.debug("Server", "Rejecting upgrade request for " .. lockKey .. " (cooldown: " .. string.format("%.1f", timeSinceComplete) .. "s)")
+                sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+                    transactionId = transactionId,
+                    reason = "UPGRADE_COOLDOWN"
+                })
+                return
+            end
+            -- Cooldown expired - clear stale entry
+            upgradeCompletionTimes[lockKey] = nil
+        end
+        
+        -- Set pending lock
+        pendingUpgrades[lockKey] = now
+    end
+    
     if lockedItemIds and not K.isEmpty(lockedItemIds) then
-        L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: Received lockedItemIds with " .. K.count(lockedItemIds) .. " item types")
+        L.debug("Server", "HandleFeatureUpgradeRequest: Received lockedItemIds with " .. K.count(lockedItemIds) .. " item types")
         for itemType, ids in pairs(lockedItemIds) do
-            L.debug("Server", "[DEBUG]   " .. itemType .. ": " .. #ids .. " items")
+            L.debug("Server", "  " .. itemType .. ": " .. #ids .. " items")
         end
     else
         L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: No lockedItemIds received, will use type-based consumption")
     end
     
     if not upgradeId or not targetLevel then
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Invalid upgrade request"
@@ -675,6 +728,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Unknown upgrade: " .. tostring(upgradeId)
@@ -683,6 +737,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     end
     
     if not MSR.UpgradeData.isUpgradeUnlocked(player, upgradeId) then
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Dependencies not met"
@@ -693,6 +748,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     
     if targetLevel <= currentLevel then
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Already at this level"
@@ -701,6 +757,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     end
     
     if targetLevel > currentLevel + 1 then
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Must upgrade one level at a time"
@@ -709,6 +766,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     end
     
     if targetLevel > upgrade.maxLevel then
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Exceeds max level"
@@ -735,6 +793,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
             
             if available < needed then
                 local itemName = itemType:match("%.(.+)$") or itemType
+                clearPendingLock()
                 sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "Not enough " .. itemName
@@ -763,6 +822,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         
         if not consumed then
             L.debug("Server", "HandleFeatureUpgradeRequest: Failed to consume items for " .. username)
+            clearPendingLock()
             sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
                 reason = "Failed to consume required items"
@@ -785,6 +845,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     
     if not success then
         L.debug("Server", upgradeId .. ": FAILED - " .. tostring(errorMsg))
+        clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = errorMsg or "Upgrade failed"
@@ -813,6 +874,11 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         end
     end
     
+    -- Record completion time for cooldown
+    if lockKey then
+        upgradeCompletionTimes[lockKey] = now
+    end
+    clearPendingLock()
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, response)
 end
 
@@ -826,9 +892,11 @@ local function OnClientCommand(module, command, player, args)
     if module ~= MSR.Config.COMMAND_NAMESPACE then return end
     
     -- Some commands are exempt from rate limiting
+    -- Feature upgrades use transaction IDs and level validation for protection
     local isExemptFromRateLimit = (
         command == MSR.Config.COMMANDS.CHUNKS_READY or
-        command == MSR.Config.COMMANDS.REQUEST_MODDATA
+        command == MSR.Config.COMMANDS.REQUEST_MODDATA or
+        command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE
     )
     
     if not isExemptFromRateLimit and not canProcessRequest(player) then
