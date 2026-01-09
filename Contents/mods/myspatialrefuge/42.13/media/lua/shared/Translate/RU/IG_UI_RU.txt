@@ -12,7 +12,6 @@ IGUI_RU = {
     IGUI_RelicDirection_Down = "Вниз", -- 1.6/16.01.2026
     IGUI_RelicDirection_Center = "Центр", -- 1.6/16.01.2026
     IGUI_UpgradeRefuge = "Улучшить убежище", -- 1.6/16.01.2026
-    IGUI_UpgradeRefuge_Tooltip = "Расширьте убежище и откройте новые возможности", -- 1.6/16.01.2026
 
     -- Player Messages - Teleportation
     IGUI_EnteredRefuge = "Вы вошли в Пространственное Убежище", -- 1.6/16.01.2026
