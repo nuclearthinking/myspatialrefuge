@@ -12,4 +12,4 @@ description=<RGB:1,0.9,0.5>Kill zombies, collect Zombie Cores, and build your ul
 require=\MySpatialCore,
 versionMin=42.0
 pack=myspatialrefuge
-tiledef=myspatialrefuge 500
+tiledef=myspatialrefuge 13232
