@@ -59,6 +59,11 @@ MSR.Config = {
     
     CORE_ITEM = "Base.MagicalCore",
     
+    -- XP Essence System
+    ESSENCE_ENABLED = true,
+    ESSENCE_RETENTION_PERCENT = 75,  -- % of earned XP recovered when absorbing essence
+    ESSENCE_ITEM = "Base.MSR_ExperienceEssence",
+    
     -- Upgrade IDs (must match upgrades.yaml)
     UPGRADES = {
         EXPAND_REFUGE = "expand_refuge",
@@ -87,7 +92,10 @@ MSR.Config = {
         REQUEST_FEATURE_UPGRADE = "RequestFeatureUpgrade",
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
-        SYNC_CLIENT_DATA = "SyncClientData" -- client→server for roomIds (client can't write ModData in MP)
+        SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
+        
+        -- XP Essence commands
+        XP_ESSENCE_ABSORB = "XPEssenceAbsorb"
     }
 }
 
@@ -115,6 +123,10 @@ end
 
 function MSR.Config.getEncumbrancePenaltyCap()
     return D.negativeValue(MSR.Config.ENCUMBRANCE_PENALTY_CAP)
+end
+
+function MSR.Config.getEssenceRetentionPercent()
+    return math.min(100, D.positiveValue(MSR.Config.ESSENCE_RETENTION_PERCENT))
 end
 
 function MSR.Config.getRelicStorageCapacity(refugeData)

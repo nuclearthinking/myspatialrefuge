@@ -88,8 +88,15 @@ IGUI_CN = {
     IGUI_ProtectedObject_13 = "有些东西最好不要碰。", -- 1.7/02.01.2026
     IGUI_ProtectedObject_14 = "我做不到。", -- 1.7/02.01.2026
     IGUI_ProtectedObject_15 = "这给我提供庇护。为什么要破坏它？", -- 1.7/02.01.2026
+    
+    -- XP Essence System
+    IGUI_MSR_AbsorbEssence = "吸收经验精华", -- 1.17/10.01.2026
+    IGUI_MSR_EssenceAbsorbed = "吸收了前世的经验。", -- 1.17/10.01.2026
+    IGUI_MSR_EssenceNotYours = "这个精华属于别人。", -- 1.17/10.01.2026
+    IGUI_MSR_EssenceEmpty = "这个精华没有经验。", -- 1.17/10.01.2026
 }
 
 Tooltip_CN = {
     Tooltip_SacredRelic = "一件神秘的遗物，可以创造一个口袋空间。<LINE>右键点击进入你的空间避难所。", -- 1.5/31.12.2025
+    Tooltip_MSR_ExperienceEssence = "凝聚了前世经验的结晶精华。<LINE>右键点击吸收并恢复部分失去的经验。", -- 1.17/10.01.2026
 }

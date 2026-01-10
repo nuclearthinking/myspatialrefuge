@@ -88,8 +88,15 @@ IGUI_ES = {
     IGUI_ProtectedObject_13 = "Algunas cosas es mejor no tocarlas.", -- 1.7/02.01.2026
     IGUI_ProtectedObject_14 = "No puedo obligarme a hacerlo.", -- 1.7/02.01.2026
     IGUI_ProtectedObject_15 = "Esto me da refugio. ¿Por qué romperlo?", -- 1.7/02.01.2026
+    
+    -- XP Essence System
+    IGUI_MSR_AbsorbEssence = "Absorber Esencia de Experiencia", -- 1.17/10.01.2026
+    IGUI_MSR_EssenceAbsorbed = "Absorbí experiencia de una vida pasada.", -- 1.17/10.01.2026
+    IGUI_MSR_EssenceNotYours = "Esta esencia pertenece a otra persona.", -- 1.17/10.01.2026
+    IGUI_MSR_EssenceEmpty = "Esta esencia no contiene experiencia.", -- 1.17/10.01.2026
 }
 
 Tooltip_ES = {
     Tooltip_SacredRelic = "Una reliquia misteriosa que puede crear una dimensión de bolsillo. <LINE> Clic derecho para entrar a tu Refugio Espacial.", -- 1.5/31.12.2025
+    Tooltip_MSR_ExperienceEssence = "Una esencia cristalizada que contiene experiencia de una vida pasada. <LINE> Clic derecho para absorber y recuperar parte de tu experiencia perdida.", -- 1.17/10.01.2026
 }
