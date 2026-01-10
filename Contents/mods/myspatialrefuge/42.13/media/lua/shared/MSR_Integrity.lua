@@ -17,43 +17,6 @@ MSR.Integrity._loaded = true
 
 local Integrity = MSR.Integrity
 
-local _cachedRelicSprite = nil
-local _cachedResolvedSprite = nil
-local _cachedOldFallbackSprite = nil
-local _spritesCached = false
-
-local function getCachedRelicSprites()
-    if not _spritesCached then
-        _cachedRelicSprite = MSR.Config.SPRITES.SACRED_RELIC
-        _cachedOldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
-
-        local spriteName = _cachedRelicSprite
-        if getSprite and getSprite(spriteName) then
-            _cachedResolvedSprite = spriteName
-        else
-            local digits = spriteName:match("_(%d+)$")
-            if digits then
-                local padded2 = spriteName:gsub("_(%d+)$", "_0" .. digits)
-                if getSprite and getSprite(padded2) then
-                    _cachedResolvedSprite = padded2
-                else
-                    local padded3 = spriteName:gsub("_(%d+)$", "_00" .. digits)
-                    if getSprite and getSprite(padded3) then
-                        _cachedResolvedSprite = padded3
-                    end
-                end
-            end
-            if not _cachedResolvedSprite then
-                if _cachedOldFallbackSprite and getSprite and getSprite(_cachedOldFallbackSprite) then
-                    _cachedResolvedSprite = _cachedOldFallbackSprite
-                end
-            end
-        end
-        _spritesCached = true
-    end
-    return _cachedRelicSprite, _cachedResolvedSprite, _cachedOldFallbackSprite
-end
-
 local function removeObjectFromSquare(square, obj)
     return MSR.World.removeObject(square, obj, true)
 end
@@ -74,18 +37,20 @@ local function findRelicOnSquareByModData(square, refugeId)
     return nil
 end
 
-local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, oldFallbackSprite)
+local function findRelicOnSquareBySprite(square)
     if not square then return nil end
     local objects = square:getObjects()
     if not K.isIterable(objects) then return nil end
+
+    local relicSprite = MSR.Config.SPRITES.SACRED_RELIC
+    local fallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
 
     for _, obj in K.iter(objects) do
         if obj and obj.getSprite then
             local sprite = obj:getSprite()
             if sprite then
                 local spriteName = sprite:getName()
-                if spriteName == relicSprite or spriteName == resolvedSprite or
-                    (oldFallbackSprite and spriteName == oldFallbackSprite) then
+                if spriteName == relicSprite or spriteName == fallbackSprite then
                     return obj
                 end
             end
@@ -95,11 +60,10 @@ local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, ol
 end
 
 local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
-    local relicSprite, resolvedSprite, oldFallbackSprite = getCachedRelicSprites()
     local searchRadius = (radius or 1) + 1
     local foundRelic, foundBy = nil, nil
 
-    -- Try ModData first
+    -- Try ModData first (preferred)
     MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
         if foundRelic then return end
         local relic = findRelicOnSquareByModData(square, refugeId)
@@ -111,7 +75,7 @@ local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
     -- Fallback: sprite matching for old saves
     MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
         if foundRelic then return end
-        local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite, oldFallbackSprite)
+        local relic = findRelicOnSquareBySprite(square)
         if relic then foundRelic, foundBy = relic, "sprite" end
     end)
 
@@ -119,9 +83,10 @@ local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
 end
 
 local function findAllRelicsInArea(centerX, centerY, z, radius, refugeId)
-    local relicSprite, resolvedSprite, oldFallbackSprite = getCachedRelicSprites()
     local searchRadius = (radius or 1) + 2
     local foundRelics = {}
+    local relicSprite = MSR.Config.SPRITES.SACRED_RELIC
+    local fallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
 
     MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
         MSR.World.iterateObjects(square, function(obj)
@@ -136,8 +101,7 @@ local function findAllRelicsInArea(centerX, centerY, z, radius, refugeId)
                 local sprite = obj:getSprite()
                 if sprite then
                     local spriteName = sprite:getName()
-                    if spriteName == relicSprite or spriteName == resolvedSprite or
-                        (oldFallbackSprite and spriteName == oldFallbackSprite) then
+                    if spriteName == relicSprite or spriteName == fallbackSprite then
                         isRelic = true
                         foundBy = "sprite"
                     end
@@ -207,52 +171,35 @@ local function validateRelicSprite(relic, report)
     if not relic then return false end
 
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
+    local fallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
-    local repaired = false
 
+    -- Check if current sprite is valid
     local spriteValid = false
     if currentSprite and relic.getSprite then
         local sprite = relic:getSprite()
         spriteValid = (sprite ~= nil and sprite:getName() == currentSprite)
     end
 
-    local needsRepair = false
-    local isOldFallback = false
-
-    if not spriteValid then
-        needsRepair = true
-    elseif currentSprite ~= expectedSprite then
-        if oldFallbackSprite and currentSprite == oldFallbackSprite then
-            needsRepair = true
-            isOldFallback = true
-        else
-            needsRepair = true
-        end
-    end
+    -- Determine if repair needed
+    local needsRepair = not spriteValid or 
+        (currentSprite ~= expectedSprite and currentSprite == fallbackSprite)
 
     if needsRepair then
         local newSprite = getSprite(expectedSprite)
         if newSprite then
             relic:setSprite(expectedSprite)
-            local md = relic:getModData()
-            md.relicSprite = expectedSprite
-            repaired = true
+            relic:getModData().relicSprite = expectedSprite
             report.relic.spriteRepaired = true
-
-            if not spriteValid then
-                L.log("Integrity", "Repaired corrupted relic sprite")
-            elseif isOldFallback then
-                L.log("Integrity", "Migrated old fallback sprite to new: " ..
-                    tostring(currentSprite) .. " -> " .. expectedSprite)
-            else
-                L.log("Integrity", "Migrated relic sprite: " ..
-                    tostring(currentSprite) .. " -> " .. expectedSprite)
-            end
+            L.log("Integrity", "Repaired relic sprite: " .. tostring(currentSprite) .. " -> " .. expectedSprite)
+            return true
+        else
+            report.relic.spriteLoadFailed = true
+            L.log("Integrity", "WARNING: Cannot load sprite '" .. expectedSprite .. "' - texture pack may not be loaded")
         end
     end
 
-    return repaired
+    return false
 end
 
 local function validateRelicProperties(relic)
@@ -289,27 +236,19 @@ local function ensureSingleRelic(refugeData, report)
 
     L.log("Integrity", "Found " .. #allRelics .. " relics - removing duplicates")
 
-    local storedX = refugeData.relicX
-    local storedY = refugeData.relicY
-    local storedZ = refugeData.relicZ
-
+    -- Find which relic to keep (prefer stored position, then most items)
     local keepIndex = 1
     local keepRelic = allRelics[1]
-    local foundStoredPosition = false
 
-    if storedX and storedY and storedZ then
+    if refugeData.relicX and refugeData.relicY then
         for i, relicData in ipairs(allRelics) do
-            if relicData.x == storedX and relicData.y == storedY and relicData.z == storedZ then
+            if relicData.x == refugeData.relicX and relicData.y == refugeData.relicY then
                 keepIndex = i
                 keepRelic = relicData
-                foundStoredPosition = true
-                L.log("Integrity", "Keeping relic at stored position")
                 break
             end
         end
-    end
-
-    if not foundStoredPosition then
+    else
         local maxItems = -1
         for i, relicData in ipairs(allRelics) do
             if relicData.itemCount > maxItems then
@@ -318,16 +257,12 @@ local function ensureSingleRelic(refugeData, report)
                 keepRelic = relicData
             end
         end
-
-        if maxItems > 0 then
-            L.log("Integrity", "Keeping relic with " .. maxItems .. " items")
-        end
     end
 
+    -- Remove duplicates
     local removed = 0
     for i, relicData in ipairs(allRelics) do
         if i ~= keepIndex then
-            L.log("Integrity", "Removing duplicate at " .. relicData.x .. "," .. relicData.y)
             removeObjectFromSquare(relicData.square, relicData.obj)
             removed = removed + 1
         end
@@ -335,13 +270,13 @@ local function ensureSingleRelic(refugeData, report)
 
     report.relic.duplicatesRemoved = removed
 
+    -- Update stored position
     if keepRelic and keepRelic.x and keepRelic.y then
         if refugeData.relicX ~= keepRelic.x or refugeData.relicY ~= keepRelic.y then
             refugeData.relicX = keepRelic.x
             refugeData.relicY = keepRelic.y
             refugeData.relicZ = keepRelic.z
-            table.insert(report.modData.fieldsRepaired, "relicX")
-            table.insert(report.modData.fieldsRepaired, "relicY")
+            table.insert(report.modData.fieldsRepaired, "relicPosition")
         end
     end
 
@@ -356,9 +291,8 @@ local function validateWalls(refugeData, report)
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local repaired = 0
-    local scanRadius = radius + 2
 
-    MSR.World.iterateArea(centerX, centerY, centerZ, scanRadius, function(square)
+    MSR.World.iterateArea(centerX, centerY, centerZ, radius + 2, function(square)
         local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
         for _, obj in ipairs(walls) do
             if obj.setIsThumpable then obj:setIsThumpable(false) end
@@ -374,7 +308,7 @@ local function validateWalls(refugeData, report)
     return repaired
 end
 
-local function syncAll(refugeData, relic, context, report)
+local function syncAll(refugeData, relic, report)
     if not MSR.Env.canModifyData() then
         report.modData.synced = false
         return false
@@ -384,21 +318,13 @@ local function syncAll(refugeData, relic, context, report)
         MSR.Data.SaveRefugeData(refugeData)
     end
 
-    if MSR.Env.needsClientSync() then
-        if relic then
-            if relic.transmitModData then
-                relic:transmitModData()
-            end
-            if relic.transmitUpdatedSpriteToClients then
-                relic:transmitUpdatedSpriteToClients()
-            end
+    if MSR.Env.needsClientSync() and relic then
+        if relic.transmitModData then
+            relic:transmitModData()
         end
-
-        local envType = "server"
-        if MSR.Env.isCoopHost() then
-            envType = "coop_host"
+        if relic.transmitUpdatedSpriteToClients then
+            relic:transmitUpdatedSpriteToClients()
         end
-        L.log("Integrity", "Synced ModData (" .. envType .. ")")
     end
 
     report.modData.synced = true
@@ -412,20 +338,13 @@ local function createReport(source)
         timestamp = K.time(),
         relic = {
             found = false,
-            created = false,
             spriteRepaired = false,
             modDataRepaired = false,
             duplicatesRemoved = 0,
-            position = nil
+            spriteLoadFailed = false
         },
-        walls = {
-            repaired = 0,
-            created = 0
-        },
-        modData = {
-            synced = false,
-            fieldsRepaired = {}
-        },
+        walls = { repaired = 0 },
+        modData = { synced = false, fieldsRepaired = {} },
         errors = {}
     }
 end
@@ -441,44 +360,32 @@ function Integrity.ValidateAndRepair(refugeData, context)
         return report
     end
 
-    L.log("Integrity", "ValidateAndRepair triggered by: " .. source)
+    L.debug("Integrity", "ValidateAndRepair triggered by: " .. source)
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
-    local refugeId = refugeData.refugeId
     local canRepair = MSR.Env.canModifyData()
 
+    -- Find or deduplicate relics
     local relic
     if canRepair then
         relic = ensureSingleRelic(refugeData, report)
     end
 
     if not relic then
-        local relicX = refugeData.relicX or centerX
-        local relicY = refugeData.relicY or centerY
-        local relicZ = refugeData.relicZ or centerZ
-        relic = findRelicReadOnly(relicX, relicY, relicZ, radius, refugeId)
+        local relicX = refugeData.relicX or refugeData.centerX
+        local relicY = refugeData.relicY or refugeData.centerY
+        local relicZ = refugeData.relicZ or refugeData.centerZ
+        relic = findRelicReadOnly(relicX, relicY, relicZ, refugeData.radius or 1, refugeData.refugeId)
 
-        if not relic and (relicX ~= centerX or relicY ~= centerY) then
-            relic = findRelicReadOnly(centerX, centerY, centerZ, radius, refugeId)
+        if not relic and (relicX ~= refugeData.centerX or relicY ~= refugeData.centerY) then
+            relic = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ, 
+                refugeData.radius or 1, refugeData.refugeId)
         end
     end
 
     if relic then
         report.relic.found = true
-        local square = relic:getSquare()
-        if square then
-            report.relic.position = {
-                x = square:getX(),
-                y = square:getY(),
-                z = square:getZ()
-            }
-        end
-
         if canRepair then
-            validateRelicModData(relic, refugeId, report)
+            validateRelicModData(relic, refugeData.refugeId, report)
             validateRelicSprite(relic, report)
             validateRelicProperties(relic)
         end
@@ -491,85 +398,49 @@ function Integrity.ValidateAndRepair(refugeData, context)
         validateWalls(refugeData, report)
     end
 
+    -- Sync if anything was repaired
     if canRepair and (report.relic.modDataRepaired or report.relic.spriteRepaired or
             report.relic.duplicatesRemoved > 0 or #report.modData.fieldsRepaired > 0) then
-        syncAll(refugeData, relic, context, report)
+        syncAll(refugeData, relic, report)
     end
 
-    L.log("Integrity", "Complete: relic=" .. tostring(report.relic.found) ..
-        " duplicates=" .. report.relic.duplicatesRemoved ..
-        " walls=" .. report.walls.repaired ..
+    L.debug("Integrity", "Complete: relic=" .. tostring(report.relic.found) ..
+        " sprite=" .. tostring(report.relic.spriteRepaired) ..
         " synced=" .. tostring(report.modData.synced))
 
     return report
 end
 
-function Integrity.CheckNeedSpriteRepair(obj)
-    if not obj then return false end
-
-    local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
-
-    local currentSprite = nil
-    if obj.getSpriteName then
-        currentSprite = obj:getSpriteName()
-    elseif obj.getSprite and obj:getSprite() and obj:getSprite().getName then
-        currentSprite = obj:getSprite():getName()
-    end
-
-    if not currentSprite then
-        return true
-    end
-
-    if oldFallbackSprite and currentSprite == oldFallbackSprite then
-        return true
-    end
-
-    if currentSprite ~= expectedSprite then
-        return true
-    end
-
-    return false
-end
-
-
-
 function Integrity.CheckNeedsRepair(refugeData)
     if not refugeData then return true end
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
-    local refugeId = refugeData.refugeId
+    local relic, foundBy = findRelicReadOnly(
+        refugeData.centerX, refugeData.centerY, refugeData.centerZ,
+        refugeData.radius or 1, refugeData.refugeId)
 
-    local relic, foundBy = findRelicReadOnly(centerX, centerY, centerZ, radius, refugeId)
+    if not relic then return true end
+    if foundBy == "sprite" then return true end  -- Found by sprite = missing ModData
 
-    if not relic then
-        return true
-    end
-
-    if foundBy == "sprite" then
-        return true
-    end
-
+    -- Check sprite is correct
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
+    
     if not currentSprite or currentSprite ~= expectedSprite then
+        -- Allow fallback sprite only if it has valid sprite object
+        if currentSprite == MSR.Config.SPRITES.SACRED_RELIC_FALLBACK then
+            return true  -- Needs migration to new sprite
+        end
         local sprite = relic:getSprite()
         if not sprite or not sprite:getName() then
             return true
         end
-        if oldFallbackSprite and currentSprite == oldFallbackSprite then
-            return true
-        end
     end
 
-    local allRelics = findAllRelicsInArea(centerX, centerY, centerZ, radius, refugeId)
-    if #allRelics > 1 then
-        return true
-    end
+    -- Check for duplicate relics
+    local allRelics = findAllRelicsInArea(
+        refugeData.centerX, refugeData.centerY, refugeData.centerZ,
+        refugeData.radius or 1, refugeData.refugeId)
+    if #allRelics > 1 then return true end
 
     return false
 end
@@ -579,43 +450,22 @@ function Integrity.ClientSpriteRepair(relic)
     if isServer() then return false end
 
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local oldFallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
 
+    -- Check if repair needed
     local spriteValid = false
     if currentSprite and relic.getSprite then
         local sprite = relic:getSprite()
         spriteValid = (sprite ~= nil and sprite:getName() == currentSprite)
     end
 
-    local needsRepair = false
-    local isOldFallback = false
-
-    if not spriteValid then
-        needsRepair = true
-    elseif currentSprite ~= expectedSprite then
-        needsRepair = true
-        if oldFallbackSprite and currentSprite == oldFallbackSprite then
-            isOldFallback = true
-        end
-    end
-
-    if needsRepair then
+    if not spriteValid or currentSprite ~= expectedSprite then
         local newSprite = getSprite(expectedSprite)
         if newSprite then
             relic:setSprite(expectedSprite)
-
-            local md = relic:getModData()
-            if not md.isSacredRelic then
-                md.isSacredRelic = true
-            end
-            md.relicSprite = expectedSprite
-
-            if isOldFallback then
-                L.log("Integrity", "Client sprite repair: migrated old fallback sprite")
-            else
-                L.log("Integrity", "Client sprite repair applied")
-            end
+            relic:getModData().isSacredRelic = true
+            relic:getModData().relicSprite = expectedSprite
+            L.log("Integrity", "Client sprite repair applied")
             return true
         end
     end
@@ -629,13 +479,12 @@ function Integrity.FindRelic(refugeData)
     local relicX = refugeData.relicX or refugeData.centerX
     local relicY = refugeData.relicY or refugeData.centerY
     local relicZ = refugeData.relicZ or refugeData.centerZ
-    local radius = refugeData.radius or 1
-    local refugeId = refugeData.refugeId
 
-    local relic, foundBy = findRelicReadOnly(relicX, relicY, relicZ, radius, refugeId)
+    local relic, foundBy = findRelicReadOnly(relicX, relicY, relicZ, refugeData.radius or 1, refugeData.refugeId)
 
     if not relic then
-        relic, foundBy = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ, radius, refugeId)
+        relic, foundBy = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ, 
+            refugeData.radius or 1, refugeData.refugeId)
     end
 
     return relic, foundBy
