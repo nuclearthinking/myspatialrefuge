@@ -6,6 +6,7 @@ require "shared/00_core/04_Env"
 require "shared/MSR_Migration"
 require "shared/MSR_Shared"
 require "shared/MSR_PlayerMessage"
+require "shared/MSR_XPRetention"
 local PM = MSR.PlayerMessage
 
 if MSR and MSR._mainLoaded then

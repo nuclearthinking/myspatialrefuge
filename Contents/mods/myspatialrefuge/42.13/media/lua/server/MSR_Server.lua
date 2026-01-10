@@ -19,6 +19,7 @@ require "shared/MSR_ReadingSpeed"
 require "shared/MSR_RoomPersistence"
 require "shared/MSR_RefugeExpansion"
 require "shared/MSR_ZombieClear"
+require "shared/MSR_XPRetention"
 
 MSR_Server = MSR_Server or {}
 
@@ -922,6 +923,55 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
 end
 
 -----------------------------------------------------------
+-- XP Essence Absorb Handler
+-----------------------------------------------------------
+
+function MSR_Server.HandleXPEssenceAbsorb(player, args)
+    if not player then return end
+    if not args or not args.itemId then
+        L.debug("Server", "XPEssenceAbsorb: missing itemId")
+        return
+    end
+    
+    local username = player:getUsername()
+    if not username then return end
+    
+    local itemId = args.itemId
+    
+    -- Find the item in player's inventory
+    local inventory = player:getInventory()
+    if not inventory then
+        L.debug("Server", "XPEssenceAbsorb: no inventory for " .. username)
+        return
+    end
+    
+    local item = inventory:getItemById(itemId)
+    if not item then
+        L.debug("Server", "XPEssenceAbsorb: item " .. tostring(itemId) .. " not found for " .. username)
+        return
+    end
+    
+    -- Verify it's an essence item
+    local fullType = item:getFullType()
+    if fullType ~= MSR.Config.ESSENCE_ITEM then
+        L.debug("Server", "XPEssenceAbsorb: item is not an essence: " .. tostring(fullType))
+        return
+    end
+    
+    -- Use the XPRetention module to apply the essence
+    if MSR.XPRetention and MSR.XPRetention.ApplyEssence then
+        local success, result = MSR.XPRetention.ApplyEssence(player, item)
+        if success then
+            L.debug("Server", "XPEssenceAbsorb: applied " .. tostring(result) .. " XP for " .. username)
+        else
+            L.debug("Server", "XPEssenceAbsorb: failed for " .. username .. ": " .. tostring(result))
+        end
+    else
+        L.debug("Server", "XPEssenceAbsorb: MSR.XPRetention.ApplyEssence not available")
+    end
+end
+
+-----------------------------------------------------------
 -- Client Command Handler
 -----------------------------------------------------------
 
@@ -962,6 +1012,8 @@ local function OnClientCommand(module, command, player, args)
         if MSR.RoomPersistence and MSR.RoomPersistence.HandleSyncFromClient then
             MSR.RoomPersistence.HandleSyncFromClient(player, args)
         end
+    elseif command == MSR.Config.COMMANDS.XP_ESSENCE_ABSORB then
+        MSR_Server.HandleXPEssenceAbsorb(player, args)
     else
         L.debug("Server", "Unknown command: " .. tostring(command))
     end
