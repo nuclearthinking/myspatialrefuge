@@ -28,7 +28,6 @@ end
 function UpgradeLogic.syncObjectToClients(object, syncModData)
     if not object then return end
     if not MSR.Env.needsClientSync() then return end
-
     if object.sendObjectChange then
         object:sendObjectChange("containers")
         L.debug("UpgradeLogic", "Synced object container")
@@ -71,7 +70,7 @@ end
 
 function UpgradeLogic.getAvailableItemCount(player, requirement)
     if not requirement then return 0 end
-    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement, true) -- filtered: excludes equipped/favorite/locked
+    local total, _ = MSR.Transaction.GetSubstitutionCount(player, requirement, true)
     return total
 end
 
@@ -103,7 +102,6 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
 
     local levelData = MSR.UpgradeData.getLevelData(upgradeId, targetLevel)
     if not levelData then return false, "Invalid level data" end
-
     local requirements = MSR.UpgradeData.getNextLevelRequirements(playerObj, upgradeId)
     if not UpgradeLogic.hasRequiredItems(playerObj, requirements or {}) then
         return false, "Missing required items"
@@ -123,7 +121,6 @@ function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
         L.debug("Upgrade", "CANNOT purchase - " .. tostring(err))
         return false, err
     end
-
     local requirements = MSR.UpgradeData.getNextLevelRequirements(playerObj, upgradeId) or {}
 
     if MSR.Env.isMultiplayerClient() then
@@ -137,7 +134,6 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
     if not UpgradeLogic.consumeItems(player, requirements) then
         return false, "Failed to consume items"
     end
-
     local handler = UpgradeLogic.getHandler(upgradeId)
     if handler then
         local success, errorMsg, resultData = handler.apply(player, targetLevel)
@@ -171,7 +167,6 @@ function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirem
     end
 
     L.debug("Upgrade", "Transaction " .. transaction.id .. " with " .. K.count(lockedItemIds) .. " item types")
-
     sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE, {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
@@ -186,7 +181,7 @@ end
 function UpgradeLogic.consumeItems(player, requirements)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false end
-
+    
     local resolved = MSR.Transaction.ResolveSubstitutions(playerObj, requirements)
     if not resolved then return false end
 
@@ -235,7 +230,6 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
 
     local refugeData = MSR.Data.GetRefugeData(playerObj)
     if not refugeData then return false, "Refuge data not found" end
-
     local relic = MSR.Integrity and MSR.Integrity.FindRelic and MSR.Integrity.FindRelic(refugeData)
     if not relic then
         L.log("UpgradeLogic", "Relic not found, capacity will apply on next creation")
@@ -246,17 +240,14 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     if not container then return false, "Relic container not found" end
 
     local newCapacity = MSR.Config.getRelicStorageCapacity(refugeData)
-
     local currentItems = container:getItems():size()
     if currentItems > newCapacity then
         return false, "Cannot reduce capacity below current item count (" .. currentItems .. " items)"
     end
 
     container:setCapacity(newCapacity)
-
     local md = relic:getModData()
     md.storageUpgradeLevel = level
-
     UpgradeLogic.syncObjectToClients(relic, true)
 
     L.log("UpgradeLogic", "Updated relic storage capacity to " .. newCapacity)
@@ -264,6 +255,12 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
 end
 
 local function registerBuiltinHandlers() -- deferred: Config not available at file load
+    -- Guard against duplicate registration
+    if UpgradeHandlers[MSR.Config.UPGRADES.CORE_STORAGE] then
+        L.debug("UpgradeLogic", "Handlers already registered, skipping")
+        return
+    end
+
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.CORE_STORAGE, {
         apply = function(player, level)
             return UpgradeLogic.applyStorageUpgrade(player, level)
@@ -297,6 +294,8 @@ local function registerBuiltinHandlers() -- deferred: Config not available at fi
         end,
         invalidatesCache = true
     })
+
+    L.debug("UpgradeLogic", "Built-in handlers registered")
 end
 
 function UpgradeLogic.getPlayerEffect(player, effectName)
@@ -315,7 +314,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
             MSR.Transaction.Commit(playerObj, transactionId) -- SP: consume items
         end
     end
-
+    
     if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
         if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(playerObj) end
     end
@@ -374,6 +373,19 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
     end
 end
 
-Events.OnGameStart.Add(registerBuiltinHandlers)
+local function onGameStartHandler()
+    if MSR.Env.isSingleplayer() then
+        registerBuiltinHandlers()
+    end
+end
+
+local function onServerStartedHandler()
+    if MSR.Env.isServer() then
+        registerBuiltinHandlers()
+    end
+end
+
+Events.OnGameStart.Add(onGameStartHandler)
+Events.OnServerStarted.Add(onServerStartedHandler)
 
 return MSR.UpgradeLogic
