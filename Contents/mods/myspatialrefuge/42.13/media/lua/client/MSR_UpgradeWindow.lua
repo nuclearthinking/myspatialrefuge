@@ -375,8 +375,7 @@ function MSR_UpgradeWindow:prerender()
     
     local iconSize = math.floor(self.headerHeight * 0.7)
     local iconY = (self.headerHeight - iconSize) / 2
-    local headerIcon = getTexture("media/textures/upgrade_spatial_refuge_64x64.png")
-        or getTexture("media/textures/sacred_core.png") or getTexture("Item_ZombieCore")
+    local headerIcon = getTexture("media/ui/UpgradeArrow_32x32.png")
     
     if headerIcon then
         self:drawTextureScaledAspect(headerIcon, self.padding, iconY, iconSize, iconSize, 1, 1, 1, 1)

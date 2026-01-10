@@ -672,27 +672,30 @@ function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, pl
         for dy = -totalRadius, totalRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
             if square then
+                -- Remove IsoDeadBody corpses (from staticMovingObjects list)
                 local deadBodies = square:getDeadBodys()
                 if deadBodies then
                     for i = deadBodies:size() - 1, 0, -1 do
                         local body = deadBodies:get(i)
                         if body then
-                            if isMP and square.transmitRemoveItemFromSquare then
-                                square:transmitRemoveItemFromSquare(body)
-                            else
-                                square:removeCorpse(body, false)
-                            end
+                            -- removeCorpse handles MP sync automatically (sends RemoveCorpseFromMap packet)
+                            -- bRemote=false means we're initiating removal, so sync to others
+                            square:removeCorpse(body, false)
                             cleared = cleared + 1
                         end
                     end
                 end
 
+                -- Also check for dead body objects in the regular objects list
+                -- (may exist as IsoObject with deadBody type in some edge cases)
                 local objects = square:getObjects()
                 if objects then
                     for i = objects:size() - 1, 0, -1 do
                         local obj = objects:get(i)
                         if obj and obj:getType() == IsoObjectType.deadBody then
-                            pcall(function() square:transmitRemoveItemFromSquare(obj) end)
+                            -- For IsoObject dead bodies, use direct removal
+                            obj:removeFromWorld()
+                            obj:removeFromSquare()
                             cleared = cleared + 1
                         end
                     end

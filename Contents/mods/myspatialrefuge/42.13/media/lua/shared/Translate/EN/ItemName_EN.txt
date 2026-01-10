@@ -1,3 +1,4 @@
 ItemName_EN = {
-    -- No inventory items - Sacred Relic is a world tile object
+    -- XP Essence System
+    ItemName_MSR_ExperienceEssence = "Experience Essence",
 }

@@ -157,14 +157,20 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     local moveOption = context:addOption(moveOptionText, playerObj, nil)
     context:addSubMenu(moveOption, moveSubmenu)
     
+    -- Add icon to move option
+    local moveIcon = getTexture("media/ui/MoveRelic_24x24.png")
+    if moveIcon then
+        moveOption.iconTexture = moveIcon
+    end
+    
     -- Define corner positions relative to refuge center (isometric view)
     -- In PZ isometric: decreasing X/Y = up-left, increasing X/Y = down-right
     local corners = {
-        { name = "Up", key = "IGUI_RelicDirection_Up", dx = -1, dy = -1 },      -- Top of isometric diamond
-        { name = "Right", key = "IGUI_RelicDirection_Right", dx = 1, dy = -1 },    -- Right side
-        { name = "Left", key = "IGUI_RelicDirection_Left", dx = -1, dy = 1 },     -- Left side
-        { name = "Down", key = "IGUI_RelicDirection_Down", dx = 1, dy = 1 },      -- Bottom of isometric diamond
-        { name = "Center", key = "IGUI_RelicDirection_Center", dx = 0, dy = 0 },
+        { name = "Up", key = "IGUI_RelicDirection_Up", dx = -1, dy = -1, icon = "DirectionUp" },
+        { name = "Right", key = "IGUI_RelicDirection_Right", dx = 1, dy = -1, icon = "DirectionRight" },
+        { name = "Left", key = "IGUI_RelicDirection_Left", dx = -1, dy = 1, icon = "DirectionLeft" },
+        { name = "Down", key = "IGUI_RelicDirection_Down", dx = 1, dy = 1, icon = "DirectionDown" },
+        { name = "Center", key = "IGUI_RelicDirection_Center", dx = 0, dy = 0, icon = "DirectionCenter" },
     }
     
     for _, corner in ipairs(corners) do
@@ -174,7 +180,13 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
             -- Translation will be applied at display time
             MSR.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
         end
-        moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
+        local cornerOption = moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
+        
+        -- Add direction icon
+        local dirIcon = getTexture("media/ui/" .. corner.icon .. "_32x32.png")
+        if dirIcon then
+            cornerOption.iconTexture = dirIcon
+        end
     end
     
     -- Show Upgrade Refuge option (opens the upgrade window)
@@ -187,16 +199,10 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     local upgradeOption = context:addOption(upgradeOptionText, playerObj, openUpgradeWindow)
     
     -- Add icon to the option
-    local upgradeIcon = getTexture("media/textures/upgrade_spatial_refuge_64x64.png")
+    local upgradeIcon = getTexture("media/ui/UpgradeArrow_24x24.png")
     if upgradeIcon then
         upgradeOption.iconTexture = upgradeIcon
     end
-    
-    -- Add tooltip
-    local upgradeTooltip = ISInventoryPaneContextMenu.addToolTip()
-    upgradeTooltip:setName(getText("IGUI_UpgradeRefuge"))
-    upgradeTooltip:setDescription(getText("IGUI_UpgradeRefuge_Tooltip"))
-    upgradeOption.toolTip = upgradeTooltip
 end
 
 -- Register context menu hook

@@ -106,10 +106,15 @@ end
 
 -----------------------------------------------------------
 -- Item Availability Checks
--- Based on ISInventoryTransferAction.lua patterns
+-- Based on ISInventoryTransferAction.lua patterns and vanilla crafting system
 -----------------------------------------------------------
 
 -- Check if item can be locked for consumption
+-- Uses item:isEquipped() which automatically checks equipped/worn status
+-- by finding the player from the item's container parent (vanilla PZ pattern)
+-- @param item: The item to check
+-- @param container: The container holding the item (optional, for removal checks)
+-- @return: true if available, false with reason if not
 local function isItemAvailableForLock(item, container)
     if not item then return false, "nil item" end
     
@@ -127,10 +132,20 @@ local function isItemAvailableForLock(item, container)
         end
     end
     
+    -- Check if item is equipped/worn using item's own method
+    -- item:isEquipped() checks both hand-equipped AND worn as clothing
+    -- It automatically finds the player from item's container parent (vanilla PZ pattern)
+    if item.isEquipped and item:isEquipped() then
+        return false, "equipped"
+    end
+    
     return true, nil
 end
 
 -- Public API: Used by UI to filter available items
+-- @param item: The item to check
+-- @param container: The container holding the item (optional)
+-- @return: true if available, false with reason if not
 function Transaction.IsItemAvailable(item, container)
     return isItemAvailableForLock(item, container)
 end
@@ -832,7 +847,7 @@ function Transaction.GetMultiSourceCount(player, itemType, filtered)
                         local itemId = item:getID()
                         -- Skip already locked items
                         if not lockedIds[itemId] then
-                            -- Apply availability filter
+                            -- Apply availability filter (equipped/worn checks use item:isEquipped())
                             local available, _ = isItemAvailableForLock(item, container)
                             if available then
                                 totalCount = totalCount + 1
@@ -914,18 +929,19 @@ function Transaction.ResolveSubstitutions(player, requirements)
     
     -- First pass: gather all unique item types and their initial available counts
     -- This ensures we don't double-count items when multiple requirements share types
+    -- Use filtered=true to only count items that pass availability checks (not equipped, etc.)
     local initialCounts = {}
     
     for _, req in ipairs(requirements) do
-        -- Track primary type
+        -- Track primary type (filtered=true to exclude equipped/favorite items)
         if req.type and not initialCounts[req.type] then
-            initialCounts[req.type] = Transaction.GetMultiSourceCount(playerObj, req.type)
+            initialCounts[req.type] = Transaction.GetMultiSourceCount(playerObj, req.type, true)
         end
-        -- Track substitutes
+        -- Track substitutes (filtered=true to exclude equipped/favorite items)
         if req.substitutes then
             for _, subType in ipairs(req.substitutes) do
                 if not initialCounts[subType] then
-                    initialCounts[subType] = Transaction.GetMultiSourceCount(playerObj, subType)
+                    initialCounts[subType] = Transaction.GetMultiSourceCount(playerObj, subType, true)
                 end
             end
         end

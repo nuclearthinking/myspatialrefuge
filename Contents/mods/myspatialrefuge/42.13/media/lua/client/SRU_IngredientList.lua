@@ -164,6 +164,7 @@ function SRU_IngredientList:findAvailableItems(itemTypes)
                         local item = items:get(i)
                         if item and item:getFullType() == itemType then
                             -- Only count items that pass availability checks
+                            -- item:isEquipped() auto-checks equipped/worn status via container parent
                             local available, _ = MSR.Transaction.IsItemAvailable(item, container)
                             if available then
                                 count = count + 1
