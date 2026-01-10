@@ -1,4 +1,4 @@
--- MSR_UpgradeLogic - Upgrade Logic
+-- MSR_UpgradeLogic - Handles upgrade purchases, item consumption, and handler dispatch
 
 require "shared/00_core/00_MSR"
 require "shared/00_core/04_Env"
@@ -41,7 +41,7 @@ function UpgradeLogic.syncObjectToClients(object, syncModData)
     end
 end
 
--- Handler: { apply(player, level) -> success, error, extraData }
+---@type table<string, {apply: function, getResponseData?: function, onSuccess?: function, invalidatesCache?: boolean}>
 local UpgradeHandlers = {}
 
 --- Register upgrade handler
@@ -272,8 +272,13 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     return true, nil
 end
 
--- Deferred to OnGameStart to avoid file-scope Config access
 local function registerBuiltinHandlers()
+    -- Guard against duplicate registration
+    if UpgradeHandlers[MSR.Config.UPGRADES.CORE_STORAGE] then
+        L.debug("UpgradeLogic", "Handlers already registered, skipping")
+        return
+    end
+    
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.CORE_STORAGE, {
         apply = function(player, level)
             return UpgradeLogic.applyStorageUpgrade(player, level)
@@ -307,6 +312,8 @@ local function registerBuiltinHandlers()
         end,
         invalidatesCache = true
     })
+    
+    L.debug("UpgradeLogic", "Built-in handlers registered")
 end
 
 function UpgradeLogic.getPlayerEffect(player, effectName)
@@ -386,7 +393,20 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
     end
 end
 
-Events.OnGameStart.Add(registerBuiltinHandlers)
+local function onGameStartHandler()
+    if MSR.Env.isSingleplayer() then
+        registerBuiltinHandlers()
+    end
+end
+
+local function onServerStartedHandler()
+    if MSR.Env.isServer() then
+        registerBuiltinHandlers()
+    end
+end
+
+Events.OnGameStart.Add(onGameStartHandler)
+Events.OnServerStarted.Add(onServerStartedHandler)
 
 return MSR.UpgradeLogic
 
