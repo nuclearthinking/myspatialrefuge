@@ -767,6 +767,10 @@ local function OnGameStartMP()
     Events.OnTick.Add(requestAfterDelay)
 end
 
+-- Track repair attempts to avoid infinite loops
+local _lastRepairAttempt = 0
+local _repairCooldown = 60 -- seconds between repair attempts
+
 local function onPeriodicIntegrityCheck()
     local player = getPlayer()
     if not player then return end
@@ -775,10 +779,39 @@ local function onPeriodicIntegrityCheck()
     local refugeData = MSR.GetRefugeData(player)
     if not refugeData then return end
     
-    -- Periodic structure integrity check
+    -- Only run repairs on server/host (SP, coop host, dedicated server)
+    -- Pure MP clients should not attempt repairs - server will handle it
+    if MSR.Env.isMultiplayerClient() then
+        -- MP client: only do local visual fixes, no authoritative repairs
+        if MSR.Integrity.CheckNeedsRepair(refugeData) then
+            local relic = MSR.Integrity.FindRelic(refugeData)
+            if relic then
+                MSR.Integrity.ClientSpriteRepair(relic)
+            end
+        end
+        return
+    end
+    
+    -- Server/host: do full repair but with cooldown to avoid spam
+    local now = K.time()
+    if now - _lastRepairAttempt < _repairCooldown then
+        return
+    end
+    
     if MSR.Integrity.CheckNeedsRepair(refugeData) then
+        _lastRepairAttempt = now
         L.debug("Teleport", "Periodic check detected issues, running repair")
-        MSR.Integrity.ValidateAndRepair(refugeData, { source = "periodic", player = player })
+        local report = MSR.Integrity.ValidateAndRepair(refugeData, { source = "periodic", player = player })
+        
+        -- If repair failed (sprite issue), extend cooldown to avoid spam
+        if report and report.relic.found and not report.relic.spriteRepaired 
+           and not report.modData.synced then
+            -- Sprite repair failed - likely sprite not loaded. Extend cooldown.
+            _repairCooldown = 300 -- 5 minutes
+            L.log("Teleport", "Sprite repair failed (sprite may not be loaded), extending cooldown")
+        else
+            _repairCooldown = 60 -- Reset to normal
+        end
     end
     
     -- NOTE: Periodic zombie clearing is handled by MSR.ZombieClear module
