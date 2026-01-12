@@ -95,8 +95,3 @@ IGUI_PTBR = {
     IGUI_MSR_EssenceNotYours = "Esta essência pertence a outra pessoa.", -- 1.17/10.01.2026
     IGUI_MSR_EssenceEmpty = "Esta essência não contém experiência.", -- 1.17/10.01.2026
 }
-
-Tooltip_PTBR = {
-    Tooltip_SacredRelic = "Uma relíquia misteriosa que pode criar uma dimensão de bolso.<br>Clique com o botão direito para entrar no seu Refúgio Espacial.", -- 1.5/31.12.2025
-    Tooltip_MSR_ExperienceEssence = "Uma essência cristalizada contendo experiência de uma vida passada.<br>Clique com o botão direito para absorver e recuperar parte da sua experiência perdida.", -- 1.17/10.01.2026
-}

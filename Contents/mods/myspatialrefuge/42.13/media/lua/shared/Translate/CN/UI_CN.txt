@@ -1,64 +1,64 @@
 UI_CN = {
     -- Upgrade Window
-    UI_RefugeUpgrade_Title = "升级空间避难所", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Title = "升级庇护所", -- 1.17.1/12.01.2026
     UI_RefugeUpgrade_Upgrade = "升级", -- 1.5/31.12.2025
-    UI_RefugeUpgrade_SelectUpgrade = "选择一个升级", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_SelectUpgrade = "选择一个升级项目", -- 1.17.1/12.01.2026
     UI_RefugeUpgrade_RequiredItems = "所需物品", -- 1.5/31.12.2025
     UI_RefugeUpgrade_NoRequirements = "无需物品", -- 1.5/31.12.2025
     UI_RefugeUpgrade_AvailableIngredients = "可用材料", -- 1.5/31.12.2025
     UI_RefugeUpgrade_NoIngredients = "没有可用物品", -- 1.5/31.12.2025
     UI_RefugeUpgrade_Effects = "效果：", -- 1.5/31.12.2025
-    UI_RefugeUpgrade_RequiresUpgrades = "需要：", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_RequiresUpgrades = "需要前置升级：", -- 1.17.1/12.01.2026
     UI_RefugeUpgrade_Locked = "已锁定", -- 1.5/31.12.2025
     
     -- Categories
-    UI_RefugeUpgrade_Category_shelter = "庇护所", -- 1.5/31.12.2025
+    UI_RefugeUpgrade_Category_shelter = "庇护", -- 1.17.1/12.01.2026
     UI_RefugeUpgrade_Category_general = "通用", -- 1.5/31.12.2025
     UI_RefugeUpgrade_Category_comfort = "舒适", -- 1.6/15.01.2026
     
     -- Expand Refuge Area
-    UI_Upgrade_ExpandRefuge = "扩展避难所区域", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L1 = "将避难所扩展至 5x5 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L2 = "将避难所扩展至 7x7 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L3 = "将避难所扩展至 9x9 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L4 = "将避难所扩展至 11x11 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L5 = "将避难所扩展至 13x13 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L6 = "将避难所扩展至 15x15 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L7 = "将避难所扩展至 17x17 格。", -- 1.5/31.12.2025
-    UI_Upgrade_ExpandRefuge_L8 = "将避难所扩展至 19x19 格。", -- 1.5/31.12.2025
+    UI_Upgrade_ExpandRefuge = "扩大庇护所区域", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L1 = "将庇护所扩大至5×5", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L2 = "将庇护所扩大至7×7", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L3 = "将庇护所扩大至9×9", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L4 = "将庇护所扩大至11×11", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L5 = "将庇护所扩大至13×13", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L6 = "将庇护所扩大至15×15", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L7 = "将庇护所扩大至17×17", -- 1.17.1/12.01.2026
+    UI_Upgrade_ExpandRefuge_L8 = "将庇护所扩大至19×19", -- 1.17.1/12.01.2026
     
     -- Faster Reading
     UI_Upgrade_FasterReading = "快速阅读", -- 1.6/15.01.2026
-    UI_Upgrade_FasterReading_L1 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
-    UI_Upgrade_FasterReading_L2 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
-    UI_Upgrade_FasterReading_L3 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
-    UI_Upgrade_FasterReading_L4 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
-    UI_Upgrade_FasterReading_L5 = "作为对你所在世界知识的交换，空间避难所在你身处其中时强化你的理解与记忆，让你能更快地吸收书面知识。", -- 1.6/15.01.2026
+    UI_Upgrade_FasterReading_L1 = "作为交换你世界的知识，庇护所会提升你的感知和记忆力，帮助你在其中时更快地吸收文字知识。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterReading_L2 = "作为交换你世界的知识，庇护所会提升你的感知和记忆力，帮助你在其中时更快地吸收文字知识。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterReading_L3 = "作为交换你世界的知识，庇护所会提升你的感知和记忆力，帮助你在其中时更快地吸收文字知识。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterReading_L4 = "作为交换你世界的知识，庇护所会提升你的感知和记忆力，帮助你在其中时更快地吸收文字知识。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterReading_L5 = "作为交换你世界的知识，庇护所会提升你的感知和记忆力，帮助你在其中时更快地吸收文字知识。", -- 1.17.1/12.01.2026
 
     -- Faster Teleportation Cast
-    UI_Upgrade_FasterRefugeCast = "更快的传送施法", -- 1.8/02.01.2026
-    UI_Upgrade_FasterRefugeCast_L1 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
-    UI_Upgrade_FasterRefugeCast_L2 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
-    UI_Upgrade_FasterRefugeCast_L3 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
-    UI_Upgrade_FasterRefugeCast_L4 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
-    UI_Upgrade_FasterRefugeCast_L5 = "通过与时间流同调，空间避难所让你能够更快地进出。", -- 1.11/06.01.2026
+    UI_Upgrade_FasterRefugeCast = "快速传送", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterRefugeCast_L1 = "通过与时流调谐，庇护所允许你更迅速地进出。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterRefugeCast_L2 = "通过与时流调谐，庇护所允许你更迅速地进出。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterRefugeCast_L3 = "通过与时流调谐，庇护所允许你更迅速地进出。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterRefugeCast_L4 = "通过与时流调谐，庇护所允许你更迅速地进出。", -- 1.17.1/12.01.2026
+    UI_Upgrade_FasterRefugeCast_L5 = "通过与时流调谐，庇护所允许你更迅速地进出。", -- 1.17.1/12.01.2026
     
     -- Refuge Core Storage
-    UI_Upgrade_RefugeCoreStorage = "避难所核心存储", -- 1.14/07.01.2026
-    UI_Upgrade_RefugeCoreStorage_L1 = "用空间精华注入神圣遗物，扩展其内部存储容量。", -- 1.14/07.01.2026
-    UI_Upgrade_RefugeCoreStorage_L2 = "进一步增强遗物的空间维度，提升存储容量。", -- 1.14/07.01.2026
-    UI_Upgrade_RefugeCoreStorage_L3 = "掌握空间压缩的艺术，显著扩展存储空间。", -- 1.14/07.01.2026
-    UI_Upgrade_RefugeCoreStorage_L4 = "通过高级空间操控突破常规极限。", -- 1.14/07.01.2026
-    UI_Upgrade_RefugeCoreStorage_L5 = "通过完美的空间和谐达到理论上的最大容量。", -- 1.14/07.01.2026
+    UI_Upgrade_RefugeCoreStorage = "庇护所核心存储", -- 1.17.1/12.01.2026
+    UI_Upgrade_RefugeCoreStorage_L1 = "将空间精华注入神圣遗物，扩展其内部存储容量", -- 1.17.1/12.01.2026
+    UI_Upgrade_RefugeCoreStorage_L2 = "进一步增强遗物的空间维度，增加存储容量", -- 1.17.1/12.01.2026
+    UI_Upgrade_RefugeCoreStorage_L3 = "掌握空间压缩技艺，显著扩展存储空间", -- 1.17.1/12.01.2026
+    UI_Upgrade_RefugeCoreStorage_L4 = "通过先进的空间操控技术突破正常极限", -- 1.17.1/12.01.2026
+    UI_Upgrade_RefugeCoreStorage_L5 = "通过完美的空间和谐实现理论上的最大容量", -- 1.17.1/12.01.2026
     
     -- Vehicle Teleport
-    UI_Upgrade_VehicleTeleport = "载具传送", -- 1.16/09.01.2026
-    UI_Upgrade_VehicleTeleport_L1 = "在载具周围编织空间丝线，你现在可以在静止的载具中坐着进入避难所。离开时，你将返回到原来的座位。", -- 1.16/09.01.2026
+    UI_Upgrade_VehicleTeleport = "车辆传送", -- 1.17.1/12.01.2026
+    UI_Upgrade_VehicleTeleport_L1 = "在你的车辆周围编织空间丝线，你现在可以在静止的车辆中就座时进入庇护所。退出时，你将回到同一个座位。", -- 1.17.1/12.01.2026
     
-    UI_Effect_refugeSize = "避难所大小", -- 1.5/31.12.2025
+    UI_Effect_refugeSize = "庇护所大小", -- 1.17.1/12.01.2026
     UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026
-    UI_Effect_refugeCastTimeMultiplier = "传送速度", -- 1.8/02.01.2026
+    UI_Effect_refugeCastTimeMultiplier = "传送发动速度", -- 1.17.1/12.01.2026
     UI_Effect_relicStorageCapacity = "遗物存储", -- 1.14/07.01.2026
-    UI_Effect_vehicleTeleportEnabled = "载具传送", -- 1.16/09.01.2026
+    UI_Effect_vehicleTeleportEnabled = "车辆传送", -- 1.17.1/12.01.2026
     UI_Effect_Unlocked = "已解锁", -- 1.16/09.01.2026
 }

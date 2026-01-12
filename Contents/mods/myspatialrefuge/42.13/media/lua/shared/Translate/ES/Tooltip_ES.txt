@@ -1,0 +1,4 @@
+Tooltip_ES = {
+    Tooltip_SacredRelic = "Una reliquia misteriosa que puede crear una dimensión de bolsillo.<br>Clic derecho para entrar a tu Refugio Espacial.",  -- 1.5/31.12.2025
+    Tooltip_MSR_ExperienceEssence = "Una esencia cristalizada que contiene experiencia de una vida pasada.<br>Clic derecho para absorber y recuperar parte de tu experiencia perdida.",  -- 1.17/10.01.2026
+}
