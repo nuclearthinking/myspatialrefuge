@@ -2,7 +2,7 @@ Sandbox_CN = {
     Sandbox_MySpatialRefuge = "My Spatial Refuge", -- 1.8/31.12.2025 # mod name, do not translate
     
     Sandbox_RefugeDifficulty = "难度", -- 1.11/06.01.2026
-    Sandbox_RefugeDifficulty_tooltip = "整体难度等级。简单：更低的消耗、更短的冷却、更强的效果。困难：更高的消耗、更长的冷却、更弱的效果。", -- 1.11/06.01.2026
+    Sandbox_RefugeDifficulty_tooltip = "整体难度级别。简单：成本更低，冷却时间更短，效果更强。困难：成本更高，冷却时间更长，效果更弱。", -- 1.17.1/12.01.2026
     Sandbox_RefugeDifficulty_option1 = "非常简单", -- 1.11/06.01.2026
     Sandbox_RefugeDifficulty_option2 = "简单", -- 1.11/06.01.2026
     Sandbox_RefugeDifficulty_option3 = "普通", -- 1.11/06.01.2026
