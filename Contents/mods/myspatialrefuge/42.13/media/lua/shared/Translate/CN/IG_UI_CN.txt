@@ -97,6 +97,6 @@ IGUI_CN = {
 }
 
 Tooltip_CN = {
-    Tooltip_SacredRelic = "一件神秘的遗物，可以创造一个口袋空间。<LINE>右键点击进入你的空间避难所。", -- 1.5/31.12.2025
-    Tooltip_MSR_ExperienceEssence = "凝聚了前世经验的结晶精华。<LINE>右键点击吸收并恢复部分失去的经验。", -- 1.17/10.01.2026
+    Tooltip_SacredRelic = "一件神秘的遗物，可以创造一个口袋空间。<br>右键点击进入你的空间避难所。", -- 1.5/31.12.2025
+    Tooltip_MSR_ExperienceEssence = "凝聚了前世经验的结晶精华。<br>右键点击吸收并恢复部分失去的经验。", -- 1.17/10.01.2026
 }

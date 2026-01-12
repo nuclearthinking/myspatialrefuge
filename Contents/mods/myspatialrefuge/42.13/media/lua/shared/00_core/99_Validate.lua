@@ -1,4 +1,4 @@
--- 07_Validate - Core Module Validation
+-- 99_Validate - Core Module Validation
 -- Runs after all core modules load to verify initialization
 -- Always prints to log (no debug check) for troubleshooting
 
@@ -9,6 +9,7 @@ require "shared/00_core/03_Difficulty"
 require "shared/00_core/04_Env"
 require "shared/00_core/05_Config"
 require "shared/00_core/06_Data"
+require "shared/00_core/07_Events"
 
 if MSR._coreValidated then
     return
@@ -27,6 +28,7 @@ local validations = {
     { "MSR.Env",            MSR and MSR.Env,    {"isServer", "isClient", "isSingleplayer", "canModifyData"}, true },
     { "MSR.Config",         MSR and MSR.Config, {"getCastTime", "getTeleportCooldown"},         true },
     { "MSR.Data",           MSR and MSR.Data,   {"GetRefugeData", "SaveRefugeData", "GetModData"}, true },
+    { "MSR.Events",         MSR and MSR.Events, {"OnServerReady", "OnClientReady", "OnAnyReady"}, true },
 }
 
 local function validate(name, target, requiredFields, isModule)

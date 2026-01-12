@@ -1,7 +1,7 @@
 require "ISUI/ISPanel"
 require "ui/framework/CUI_Framework"
-require "shared/MSR_UpgradeData"
-require "shared/MSR_PlayerMessage"
+require "shared/01_modules/MSR_UpgradeData"
+require "shared/01_modules/MSR_PlayerMessage"
 require "MSR_InventoryHooks"
 
 ---@class MSR_UpgradeWindow : ISPanel
