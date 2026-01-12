@@ -1,12 +1,12 @@
 require "shared/00_core/00_MSR"
 require "shared/00_core/04_Env"
-require "shared/MSR_UpgradeData"
-require "shared/MSR_Transaction"
+require "shared/01_modules/MSR_UpgradeData"
+require "shared/01_modules/MSR_Transaction"
 require "shared/00_core/05_Config"
-require "shared/MSR_Shared"
+require "shared/01_modules/MSR_Shared"
 require "shared/00_core/06_Data"
-require "shared/MSR_RefugeExpansion"
-require "shared/MSR_PlayerMessage"
+require "shared/01_modules/MSR_RefugeExpansion"
+require "shared/01_modules/MSR_PlayerMessage"
 local PM = MSR.PlayerMessage
 if MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
     return MSR.UpgradeLogic
@@ -42,7 +42,7 @@ local UpgradeHandlers = {} -- { apply(player, level) -> success, error, extraDat
 
 --- Register upgrade handler
 ---@param upgradeId string
----@param handler table { apply, getResponseData?, onSuccess?, invalidatesCache? }
+---@param handler table { apply, validate?, getResponseData?, onSuccess?, invalidatesCache? }
 function UpgradeLogic.registerHandler(upgradeId, handler)
     if not handler or type(handler.apply) ~= "function" then
         L.log("UpgradeLogic", "ERROR: Handler for " .. upgradeId .. " must have apply function")
@@ -50,6 +50,19 @@ function UpgradeLogic.registerHandler(upgradeId, handler)
     end
     UpgradeHandlers[upgradeId] = handler
     L.debug("UpgradeLogic", "Registered handler: " .. upgradeId)
+end
+
+--- Pre-validate upgrade before consuming items (for handlers with validation logic)
+---@param player IsoPlayer|number
+---@param upgradeId string
+---@param targetLevel number
+---@return boolean success, string|nil errorMsg
+function UpgradeLogic.validateUpgrade(player, upgradeId, targetLevel)
+    local handler = UpgradeHandlers[upgradeId]
+    if handler and handler.validate then
+        return handler.validate(player, targetLevel)
+    end
+    return true, nil
 end
 
 ---@param upgradeId string
@@ -219,6 +232,47 @@ function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
     L.debug("Upgrade", "Applied effects for " .. upgradeId .. " level " .. level)
 end
 
+--- Calculate storage capacity for a given level (without modifying saved data)
+---@param level number
+---@return number capacity
+local function getStorageCapacityForLevel(level)
+    local effects = MSR.UpgradeData and MSR.UpgradeData.getLevelEffects and
+                    MSR.UpgradeData.getLevelEffects(MSR.Config.UPGRADES.CORE_STORAGE, level)
+    if effects and effects.relicStorageCapacity then
+        return effects.relicStorageCapacity
+    end
+    return MSR.Config.RELIC_STORAGE_CAPACITY
+end
+
+--- Validate storage upgrade can be applied (called BEFORE consuming items in MP)
+---@param player IsoPlayer|number
+---@param level number
+---@return boolean, string|nil
+function UpgradeLogic.validateStorageUpgrade(player, level)
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return false, "Invalid player" end
+
+    local refugeData = MSR.Data.GetRefugeData(playerObj)
+    if not refugeData then return false, "Refuge data not found" end
+
+    local relic = MSR.Integrity and MSR.Integrity.FindRelic and MSR.Integrity.FindRelic(refugeData)
+    if not relic then
+        -- No relic exists - validation passes, capacity will apply on creation
+        return true, nil
+    end
+
+    local container = relic:getContainer()
+    if not container then return false, "Relic container not found" end
+
+    local newCapacity = getStorageCapacityForLevel(level)
+    local currentWeight = container:getCapacityWeight()
+    if currentWeight > newCapacity then
+        return false, "Cannot reduce capacity below current weight (" .. round(currentWeight, 1) .. " units)"
+    end
+
+    return true, nil
+end
+
 ---@param player IsoPlayer|number
 ---@param level number
 ---@return boolean, string|nil
@@ -226,12 +280,13 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player" end
 
-    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level) -- must set before capacity calc
-
     local refugeData = MSR.Data.GetRefugeData(playerObj)
     if not refugeData then return false, "Refuge data not found" end
+
     local relic = MSR.Integrity and MSR.Integrity.FindRelic and MSR.Integrity.FindRelic(refugeData)
     if not relic then
+        -- No relic exists - safe to set level, capacity will apply on next creation
+        MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
         L.log("UpgradeLogic", "Relic not found, capacity will apply on next creation")
         return true, nil
     end
@@ -239,11 +294,14 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     local container = relic:getContainer()
     if not container then return false, "Relic container not found" end
 
-    local newCapacity = MSR.Config.getRelicStorageCapacity(refugeData)
-    local currentItems = container:getItems():size()
-    if currentItems > newCapacity then
-        return false, "Cannot reduce capacity below current item count (" .. currentItems .. " items)"
+    local newCapacity = getStorageCapacityForLevel(level)
+    local currentWeight = container:getCapacityWeight()
+    if currentWeight > newCapacity then
+        return false, "Cannot reduce capacity below current weight (" .. round(currentWeight, 1) .. " units)"
     end
+
+    -- Validation passed - now commit the upgrade
+    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
 
     container:setCapacity(newCapacity)
     local md = relic:getModData()
@@ -262,6 +320,9 @@ local function registerBuiltinHandlers() -- deferred: Config not available at fi
     end
 
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.CORE_STORAGE, {
+        validate = function(player, level)
+            return UpgradeLogic.validateStorageUpgrade(player, level)
+        end,
         apply = function(player, level)
             return UpgradeLogic.applyStorageUpgrade(player, level)
         end,
@@ -373,19 +434,9 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
     end
 end
 
-local function onGameStartHandler()
-    if MSR.Env.isSingleplayer() then
-        registerBuiltinHandlers()
-    end
-end
-
-local function onServerStartedHandler()
-    if MSR.Env.isServer() then
-        registerBuiltinHandlers()
-    end
-end
-
-Events.OnGameStart.Add(onGameStartHandler)
-Events.OnServerStarted.Add(onServerStartedHandler)
+-- Register handlers on server authority (SP, Coop host, Dedicated server)
+-- Uses MSR.Events wrapper to handle environment differences automatically
+require "shared/00_core/07_Events"
+MSR.Events.OnServerReady.Add(registerBuiltinHandlers)
 
 return MSR.UpgradeLogic

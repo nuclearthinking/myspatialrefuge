@@ -2,7 +2,7 @@
 -- Provides standardized, localized player.Say() wrapper with format argument support
 --
 -- Usage:
---   require "shared/MSR_PlayerMessage"
+--   require "shared/01_common/MSR_PlayerMessage"
 --   local PM = MSR.PlayerMessage
 --   PM.Say(player, PM.ENTERED_REFUGE)
 --   PM.Say(player, PM.COOLDOWN_REMAINING, 30)  -- with args

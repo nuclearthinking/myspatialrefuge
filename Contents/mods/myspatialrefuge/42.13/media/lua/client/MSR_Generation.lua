@@ -1,9 +1,8 @@
--- Spatial Refuge Generation Module (Client)
+-- Refuge generation (client-side wrappers for MSR.Shared)
 
-require "shared/MSR_Shared"
+require "shared/01_modules/MSR_Shared"
 require "shared/00_core/05_Config"
-require "shared/MSR_PlayerMessage"
--- Uses global L for logging (loaded early by MSR.lua)
+require "shared/01_modules/MSR_PlayerMessage"
 
 function MSR.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
     return MSR.Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
@@ -31,8 +30,7 @@ function MSR.GenerateNewRefuge(player)
     local refugeData = MSR.GetOrCreateRefugeData(player)
     if not refugeData then return nil end
     
-    -- Only show initializing message for truly new refuges
-    -- Inheritance message is handled by MSR_Main.lua on character creation
+    -- Inheritance message handled by MSR_Main.lua
     if not refugeData.inheritedFrom then
         MSR.PlayerMessage.Say(player, MSR.PlayerMessage.REFUGE_INITIALIZING)
     end
@@ -49,11 +47,7 @@ function MSR.ExpandRefuge(refugeData, newTier)
     return success
 end
 
--- Delete refuge data only (physical structures persist in world save)
--- Physical removal is disabled because:
--- 1. Chunks may not be loaded when player dies
--- 2. In SP, we want the refuge to persist for inheritance
--- 3. Structures don't harm anything if they persist
+-- Deletes data only; structures persist for inheritance and to avoid chunk-loading issues
 function MSR.DeleteRefuge(player)
     if isClient() and not isServer() then
         L.debug("Generation", "DeleteRefuge called on MP client - skipping (server handles this)")

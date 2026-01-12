@@ -1,11 +1,12 @@
 require "shared/00_core/05_Config"
-require "shared/MSR_Validation"
-require "shared/MSR_Shared"
+require "shared/01_modules/MSR_Validation"
+require "shared/01_modules/MSR_Shared"
 require "shared/00_core/04_Env"
-require "shared/MSR_Integrity"
-require "shared/MSR_RoomPersistence"
-require "shared/MSR_PlayerMessage"
-require "shared/MSR_ZombieClear"
+require "shared/01_modules/MSR_Integrity"
+require "shared/01_modules/MSR_RoomPersistence"
+require "shared/01_modules/MSR_PlayerMessage"
+require "shared/01_modules/MSR_ZombieClear"
+require "shared/01_modules/MSR_Death"
 require "client/MSR_VehicleTeleport"
 
 local PM = MSR.PlayerMessage

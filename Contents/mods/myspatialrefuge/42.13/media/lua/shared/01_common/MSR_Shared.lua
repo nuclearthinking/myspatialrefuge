@@ -6,7 +6,7 @@ require "shared/00_core/00_MSR"
 require "shared/00_core/05_Config"
 require "shared/00_core/04_Env"
 require "shared/helpers/World"
-require "shared/MSR_Integrity"
+require "shared/03_persistence/MSR_Integrity"
 
 -- Prevent double-loading
 if MSR.Shared and MSR.Shared._loaded then
@@ -630,9 +630,13 @@ end
 -- Zombie Clearing
 -----------------------------------------------------------
 
+local function isInArea(x, y, centerX, centerY, radius)
+    return x >= centerX - radius and x <= centerX + radius and
+           y >= centerY - radius and y <= centerY + radius
+end
+
 function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
     if not forceClean and centerX < 2000 and centerY < 2000 then
-        L.debug("Shared", "Skipping zombie clearing - remote refuge area")
         return 0
     end
 
@@ -641,61 +645,43 @@ function Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, pl
 
     local cleared = 0
     local totalRadius = radius + ZOMBIE_CLEAR_BUFFER
-    local isMP = MSR.Env.isMultiplayer()
-    local isMPServer = isMP and MSR.Env.isServer()
+    local isMPServer = MSR.Env.isMultiplayer() and MSR.Env.isServer()
     local zombieOnlineIDs = {}
 
+    -- Clear zombies (reverse iteration for safe removal)
     local zombieList = cell:getZombieList()
-    if zombieList then
-        for i = zombieList:size() - 1, 0, -1 do
-            local zombie = zombieList:get(i)
-            if zombie then
-                local zx, zy, zz = zombie:getX(), zombie:getY(), zombie:getZ()
-                if zz == z and
-                    zx >= centerX - totalRadius and zx <= centerX + totalRadius and
-                    zy >= centerY - totalRadius and zy <= centerY + totalRadius then
-                    if isMPServer and zombie.getOnlineID then
-                        local onlineID = zombie:getOnlineID()
-                        if onlineID and onlineID >= 0 then
-                            table.insert(zombieOnlineIDs, onlineID)
-                        end
+    for i = K.size(zombieList) - 1, 0, -1 do
+        local zombie = zombieList:get(i)
+        if zombie and zombie:getZ() == z and isInArea(zombie:getX(), zombie:getY(), centerX, centerY, totalRadius) then
+            local md = zombie:getModData()
+            if md.MSR_ProtectedCorpse then
+                L.debug("Shared", "Skipping protected zombie (reanimated from player corpse)")
+            else
+                if isMPServer then
+                    local onlineID = zombie:getOnlineID()
+                    if onlineID >= 0 then
+                        table.insert(zombieOnlineIDs, onlineID)
                     end
-                    zombie:removeFromWorld()
-                    zombie:removeFromSquare()
-                    cleared = cleared + 1
                 end
+                zombie:removeFromWorld()
+                zombie:removeFromSquare()
+                cleared = cleared + 1
             end
         end
     end
 
+    -- Clear corpses (reverse iteration for safe removal)
     for dx = -totalRadius, totalRadius do
         for dy = -totalRadius, totalRadius do
             local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
             if square then
-                -- Remove IsoDeadBody corpses (from staticMovingObjects list)
-                local deadBodies = square:getDeadBodys()
-                if deadBodies then
-                    for i = deadBodies:size() - 1, 0, -1 do
-                        local body = deadBodies:get(i)
-                        if body then
-                            -- removeCorpse handles MP sync automatically (sends RemoveCorpseFromMap packet)
-                            -- bRemote=false means we're initiating removal, so sync to others
+                local bodies = square:getDeadBodys()
+                for i = K.size(bodies) - 1, 0, -1 do
+                    local body = bodies:get(i)
+                    if body and not body:isAnimal() then
+                        local md = body:getModData()
+                        if not md.MSR_ProtectedCorpse then
                             square:removeCorpse(body, false)
-                            cleared = cleared + 1
-                        end
-                    end
-                end
-
-                -- Also check for dead body objects in the regular objects list
-                -- (may exist as IsoObject with deadBody type in some edge cases)
-                local objects = square:getObjects()
-                if objects then
-                    for i = objects:size() - 1, 0, -1 do
-                        local obj = objects:get(i)
-                        if obj and obj:getType() == IsoObjectType.deadBody then
-                            -- For IsoObject dead bodies, use direct removal
-                            obj:removeFromWorld()
-                            obj:removeFromSquare()
                             cleared = cleared + 1
                         end
                     end

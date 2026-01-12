@@ -94,7 +94,11 @@ MSR.Config = {
         SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
 
         -- XP Essence commands
-        XP_ESSENCE_ABSORB = "XPEssenceAbsorb"
+        XP_ESSENCE_ABSORB = "XPEssenceAbsorb",
+        XP_ESSENCE_APPLY = "XPEssenceApply"  -- Server→Client: apply XP locally
+        
+        -- Note: Death handling uses MSR.Events.Server system
+        -- No separate death command needed
     }
 }
 
