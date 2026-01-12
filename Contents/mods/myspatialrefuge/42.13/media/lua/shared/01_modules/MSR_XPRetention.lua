@@ -5,7 +5,7 @@
 require "shared/00_core/00_MSR"
 require "shared/00_core/04_Env"
 require "shared/00_core/05_Config"
-require "shared/MSR_PlayerMessage"
+require "shared/01_modules/MSR_PlayerMessage"
 
 if MSR.XPRetention and MSR.XPRetention._loaded then
     return MSR.XPRetention

@@ -1,8 +1,7 @@
--- Custom event for UI reactivity. Must register before listeners can be added.
+-- Custom event for UI reactivity (must register before listeners added)
 LuaEventManager.AddEvent("MSR_OnInventoryChange")
 
--- Debounce: fires after 100ms of inactivity to handle rapid batch operations
-local DEBOUNCE_MS = 100
+local DEBOUNCE_MS = 100  -- fires after inactivity to batch rapid operations
 local pendingEvent = nil
 local lastEventTime = 0
 local tickListenerActive = false
@@ -33,26 +32,21 @@ local function deferEvent(action, item, state)
     end
 end
 
--- Called when PZ fires OnClothingUpdated (equip/unequip/wear/unwear)
 local function onClothingUpdated(character)
-    -- Only trigger for local player(s)
     if character and character:isLocalPlayer() then
         deferEvent("clothing", nil, nil)
     end
 end
 
 local function initHooks()
-    -- Clean up any orphaned state from previous session/reload
+    -- Clean up orphaned state from previous session/reload
     Events.OnTick.Remove(checkDebounce)
     tickListenerActive = false
     pendingEvent = nil
     
-    -- Listen to built-in OnClothingUpdated event
-    -- This fires when items are equipped/unequipped/worn/unworn
-    -- (ISEquipWeaponAction, ISUnequipAction, ISWearClothing, etc.)
     Events.OnClothingUpdated.Add(onClothingUpdated)
     
-    -- Favorites: instant (state changes immediately)
+    -- Favorites: instant
     if ISInventoryPaneContextMenu then
         local originalOnFavorite = ISInventoryPaneContextMenu.onFavorite
         ISInventoryPaneContextMenu.onFavorite = function(items, item2, fav)
@@ -61,7 +55,7 @@ local function initHooks()
         end
     end
     
-    -- Transfers/pickups: deferred (inventory updates asynchronously)
+    -- Transfers/pickups: deferred
     if ISInventoryTransferAction then
         local originalTransferPerform = ISInventoryTransferAction.perform
         ISInventoryTransferAction.perform = function(self)

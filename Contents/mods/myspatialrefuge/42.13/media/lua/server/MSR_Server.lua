@@ -7,19 +7,21 @@ require "shared/00_core/03_Difficulty"
 require "shared/00_core/04_Env"
 
 require "shared/00_core/05_Config"
-require "shared/MSR_Shared"
+require "shared/01_modules/MSR_Shared"
 require "shared/00_core/06_Data"
-require "shared/MSR_Validation"
-require "shared/MSR_Migration"
-require "shared/MSR_UpgradeData"
-require "shared/MSR_Transaction"
-require "shared/MSR_Integrity"
-require "shared/MSR_UpgradeLogic"
-require "shared/MSR_ReadingSpeed"
-require "shared/MSR_RoomPersistence"
-require "shared/MSR_RefugeExpansion"
-require "shared/MSR_ZombieClear"
-require "shared/MSR_XPRetention"
+require "shared/01_modules/MSR_Validation"
+require "shared/01_modules/MSR_Migration"
+require "shared/01_modules/MSR_UpgradeData"
+require "shared/01_modules/MSR_Transaction"
+require "shared/01_modules/MSR_Integrity"
+require "shared/01_modules/MSR_UpgradeLogic"
+require "shared/01_modules/MSR_ReadingSpeed"
+require "shared/01_modules/MSR_RoomPersistence"
+require "shared/01_modules/MSR_RefugeExpansion"
+require "shared/00_core/07_Events"
+require "shared/01_modules/MSR_ZombieClear"
+require "shared/01_modules/MSR_Death"
+require "shared/01_modules/MSR_XPRetention"
 
 MSR_Server = MSR_Server or {}
 
@@ -276,6 +278,17 @@ function MSR_Server.HandleModDataRequest(player, args)
     if not username then return end
     
     L.debug("Server", "ModData request from " .. username)
+    
+    -- Enable XP tracking for this player (MP: dedicated server or coop)
+    -- This catches existing characters connecting who don't trigger OnCreatePlayer
+    if MSR.Env.hasServerAuthority() and not MSR.Env.isSingleplayer() then
+        local pmd = player:getModData()
+        if pmd and not pmd.MSR_XPTrackingReady then
+            pmd.MSR_XPTrackingReady = true
+            pmd.MSR_XPEarnedXp = pmd.MSR_XPEarnedXp or {}
+            L.debug("Server", "Enabled XP tracking for " .. username)
+        end
+    end
     
     if MSR.Migration.NeedsMigration(player) then
         MSR.Migration.MigratePlayer(player)
@@ -843,6 +856,19 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         end
     end
     
+    -- Pre-validate handler constraints BEFORE consuming items
+    -- This prevents losing items if the upgrade would fail (e.g., capacity check)
+    local preValidateOk, preValidateErr = MSR.UpgradeLogic.validateUpgrade(player, upgradeId, targetLevel)
+    if not preValidateOk then
+        L.debug("Server", "HandleFeatureUpgradeRequest: Pre-validation failed - " .. tostring(preValidateErr))
+        clearPendingLock()
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = preValidateErr or "Upgrade validation failed"
+        })
+        return
+    end
+
     if #requirements > 0 then
         local consumed = false
         
@@ -938,7 +964,7 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
     
     local itemId = args.itemId
     
-    -- Find the item in player's inventory
+    -- Only search player's main inventory (client ensures item is there)
     local inventory = player:getInventory()
     if not inventory then
         L.debug("Server", "XPEssenceAbsorb: no inventory for " .. username)
@@ -947,7 +973,7 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
     
     local item = inventory:getItemById(itemId)
     if not item then
-        L.debug("Server", "XPEssenceAbsorb: item " .. tostring(itemId) .. " not found for " .. username)
+        L.debug("Server", "XPEssenceAbsorb: item " .. tostring(itemId) .. " not in inventory for " .. username)
         return
     end
     
@@ -958,17 +984,59 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
         return
     end
     
-    -- Use the XPRetention module to apply the essence
-    if MSR.XPRetention and MSR.XPRetention.ApplyEssence then
-        local success, result = MSR.XPRetention.ApplyEssence(player, item)
-        if success then
-            L.debug("Server", "XPEssenceAbsorb: applied " .. tostring(result) .. " XP for " .. username)
-        else
-            L.debug("Server", "XPEssenceAbsorb: failed for " .. username .. ": " .. tostring(result))
-        end
-    else
-        L.debug("Server", "XPEssenceAbsorb: MSR.XPRetention.ApplyEssence not available")
+    -- Get essence data and validate
+    local itemMd = item:getModData()
+    if not itemMd or not itemMd.msrXpEssence then
+        L.debug("Server", "XPEssenceAbsorb: not a valid essence for " .. username)
+        return
     end
+    
+    -- Check ownership
+    local ownerUsername = itemMd.ownerUsername
+    if ownerUsername and ownerUsername ~= username then
+        L.debug("Server", "XPEssenceAbsorb: essence belongs to " .. tostring(ownerUsername) .. ", not " .. username)
+        return
+    end
+    
+    local xpMap = itemMd.xp
+    if not xpMap or K.isEmpty(xpMap) then
+        L.debug("Server", "XPEssenceAbsorb: empty essence for " .. username)
+        return
+    end
+    
+    -- Calculate XP with retention
+    local retentionPercent = MSR.Config.getEssenceRetentionPercent()
+    local retentionFactor = retentionPercent / 100
+    local xpToApply = {}
+    local totalXp = 0
+    
+    for perkName, amount in pairs(xpMap) do
+        if type(amount) == "number" and amount > 0 then
+            local retainedAmount = amount * retentionFactor
+            xpToApply[perkName] = retainedAmount
+            totalXp = totalXp + retainedAmount
+        end
+    end
+    
+    if totalXp <= 0 then
+        L.debug("Server", "XPEssenceAbsorb: no XP to apply for " .. username)
+        return
+    end
+    
+    -- Remove the essence item (server-side)
+    if MSR.XPRetention and MSR.XPRetention.RemoveEssenceItem then
+        MSR.XPRetention.RemoveEssenceItem(item)
+    else
+        inventory:Remove(item)
+    end
+    
+    -- Send XP data to client to apply locally (triggers Events.AddXP)
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.XP_ESSENCE_APPLY, {
+        xpMap = xpToApply,
+        totalXp = totalXp
+    })
+    
+    L.debug("Server", string.format("XPEssenceAbsorb: sent %.0f XP to client for %s", totalXp, username))
 end
 
 -----------------------------------------------------------
@@ -1014,6 +1082,9 @@ local function OnClientCommand(module, command, player, args)
         end
     elseif command == MSR.Config.COMMANDS.XP_ESSENCE_ABSORB then
         MSR_Server.HandleXPEssenceAbsorb(player, args)
+    elseif command == "MSR_ServerEvent" or command == "MSR_ServerEventReply" then
+        -- Handled by MSR.Events system in 07_Events.lua, ignore here
+        return
     else
         L.debug("Server", "Unknown command: " .. tostring(command))
     end
@@ -1126,39 +1197,21 @@ end
 -- NOTE: Periodic zombie clearing is handled by MSR.ZombieClear module
 -- It self-registers on EveryOneMinute for both client and server
 
-local function OnPlayerDeathServer(player)
-    if not player then return end
-    
-    local username = player:getUsername()
+-- NOTE: Death handling (corpse protection, data cleanup) is handled by MSR_Death module
+-- via the event system. Server only needs to clean up server-specific state (cooldowns).
+
+--- Clean up server-specific state on player death
+--- Called via MSR_PlayerDeath event subscription
+--- @param args table { username, x, y, z, diedInRefuge, player }
+local function onPlayerDeathCleanup(args)
+    local username = args.username
     if not username then return end
     
-    if not MSR.Data.IsPlayerInRefugeCoords(player) then
-        return
-    end
-    
-    L.debug("Server", "Player " .. username .. " died in refuge")
-    
-    local refugeData = MSR.Data.GetRefugeDataByUsername(username)
-    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
-    
-    if returnPos then
-        local corpse = player:getCorpse()
-        if corpse then
-            corpse:setX(returnPos.x)
-            corpse:setY(returnPos.y)
-            corpse:setZ(returnPos.z)
-            
-            L.debug("Server", "Moved corpse to " .. returnPos.x .. "," .. returnPos.y)
-        end
-    end
-    
-    MSR.Data.DeleteRefugeData(player)
-    MSR.Data.ClearReturnPositionByUsername(username)
-    
+    -- Clean up server-specific cooldowns
     serverCooldowns.teleport[username] = nil
     serverCooldowns.relicMove[username] = nil
     
-    L.debug("Server", "Cleaned up refuge data for " .. username)
+    L.debug("Server", "Cleaned up server cooldowns for " .. username)
 end
 
 local function OnServerStart()
@@ -1228,7 +1281,11 @@ end
 
 Events.OnServerStarted.Add(OnServerStart)
 Events.OnClientCommand.Add(OnClientCommand)
-Events.OnPlayerDeath.Add(OnPlayerDeathServer)
+
+-- Subscribe to death event for server-specific cleanup (cooldowns)
+-- Death handling and data cleanup is managed by MSR_Death module
+MSR.Events.Custom.Add("MSR_PlayerDeath", onPlayerDeathCleanup)
+
 -- NOTE: EveryOneMinute zombie clearing is handled by MSR.ZombieClear module
 
 if Events.OnPlayerConnect then

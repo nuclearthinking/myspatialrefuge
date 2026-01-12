@@ -2,6 +2,14 @@
 
 Escape the apocalypse to your own personal, upgradeable spatial refuge! Build your ultimate survival space using Zombie Cores.
 
+[h2]📢 Development Update[/h2]
+Winter holidays are over and I'm back to work, so updates will be less frequent. Bug fixes will still be prioritized — if something breaks, I'll try to fix it ASAP.
+
+[h2]Update 1.17 — Experience Essence (Souls-like XP)[/h2]
+[b]Your experience doesn't have to die with you![/b] When your character dies, an Experience Essence is created containing the XP you earned during that life. Your next character can find this essence and absorb it to recover a portion of that XP.
+
+[i]Note: Version 1.17 is a complex update. While I've tested all core features in both singleplayer and multiplayer, there may still be issues. Bug reports are welcome in the [url=https://steamcommunity.com/workshop/filedetails/discussion/3632195933/691997051773307715/]Bug Reports[/url] discussion![/i]
+
 [h2]Update 1.11 — Difficulty System[/h2]
 [b]New unified difficulty setting![/b] Choose from Very Easy, Easy, Normal, Hard, or Very Hard in sandbox options. Difficulty affects core costs, cooldowns, and upgrade effect power — making the mod easier or more challenging based on your preference.
 
