@@ -4,6 +4,7 @@ require "shared/00_core/00_MSR"
 require "shared/CUI_YamlParser"
 require "shared/00_core/05_Config"
 require "shared/00_core/06_Data"
+require "shared/00_core/07_Events"
 
 if MSR.UpgradeData and MSR.UpgradeData._loaded then
     return MSR.UpgradeData
@@ -419,11 +420,8 @@ function UpgradeData.getPlayerActiveEffects(player)
     return effects
 end
 
-local function onGameStart()
-    UpgradeData.initialize()
-end
 
-Events.OnGameStart.Add(onGameStart)
+MSR.Events.OnAnyReady.Add(UpgradeData.initialize)
 
 print("[UpgradeData] Upgrade data module loaded")
 

@@ -4,8 +4,8 @@
 
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
-require "shared/MSR_UpgradeData"
-require "shared/MSR_UpgradeLogic"
+require "shared/01_modules/MSR_UpgradeData"
+require "shared/01_modules/MSR_UpgradeLogic"
 
 SRU_UpgradeDetails = ISPanel:derive("SRU_UpgradeDetails")
 

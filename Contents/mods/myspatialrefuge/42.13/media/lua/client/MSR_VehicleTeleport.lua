@@ -5,7 +5,7 @@
 require "shared/00_core/00_MSR"
 require "shared/00_core/04_Env"
 require "shared/00_core/05_Config"
-require "shared/MSR_PlayerMessage"
+require "shared/01_modules/MSR_PlayerMessage"
 
 if MSR.VehicleTeleport and MSR.VehicleTeleport._loaded then
     return MSR.VehicleTeleport
@@ -93,15 +93,11 @@ function VT.TryReenterVehicle(player, vehicleId, vehicleSeat, vehicleX, vehicleY
     if not player then return end
     if not vehicleId then return end
     
-    local searchX = vehicleX or player:getX()
-    local searchY = vehicleY or player:getY()
-    local searchZ = vehicleZ or player:getZ()
-    
     L.debug("VehicleTeleport", string.format("Attempting to re-enter vehicle ID=%s seat=%s at %.1f,%.1f,%.1f", 
-        tostring(vehicleId), tostring(vehicleSeat), searchX, searchY, searchZ))
+        tostring(vehicleId), tostring(vehicleSeat), vehicleX or 0, vehicleY or 0, vehicleZ or 0))
     
     local attempts = 0
-    local maxAttempts = 180  -- 3 seconds at 60fps
+    local maxAttempts = 300  -- 5 seconds at 60fps (increased for coop latency)
     local vehicleFound = false
     
     local function doReenter()
@@ -120,12 +116,22 @@ function VT.TryReenterVehicle(player, vehicleId, vehicleSeat, vehicleX, vehicleY
         -- Wait for position to stabilize after teleport
         if attempts < 10 then return end
         
+        -- Wait until player's square is loaded (like RV Interior does)
+        local playerSquare = player:getCurrentSquare()
+        if not playerSquare then return end
+        
         local cell = getCell()
         if not cell then return end
         
-        -- Search 3x3 grid around saved vehicle position
-        for dx = -1, 1 do
-            for dy = -1, 1 do
+        -- Search around player's current position (not saved position)
+        -- Player was teleported to vehicle location, so search around where they are now
+        local searchX = player:getX()
+        local searchY = player:getY()
+        local searchZ = player:getZ()
+        
+        -- Search 5x5 grid around player position
+        for dx = -2, 2 do
+            for dy = -2, 2 do
                 local sq = cell:getGridSquare(searchX + dx, searchY + dy, searchZ)
                 if sq then
                     local vehicle = sq:getVehicleContainer()

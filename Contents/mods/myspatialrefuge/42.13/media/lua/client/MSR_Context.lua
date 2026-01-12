@@ -1,8 +1,8 @@
--- Spatial Refuge Context Menu
+-- Context menu for Sacred Relic and refuge protection hooks
 
-require "shared/MSR_Transaction"
-require "shared/MSR_Integrity"
-require "shared/MSR_PlayerMessage"
+require "shared/01_modules/MSR_Transaction"
+require "shared/01_modules/MSR_Integrity"
+require "shared/01_modules/MSR_PlayerMessage"
 require "shared/00_core/04_Env"
 
 local PM = MSR.PlayerMessage
@@ -41,9 +41,6 @@ function MSR.UpdateRelicMoveTime(player)
     local pmd = player:getModData()
     pmd.spatialRefuge_lastRelicMove = K.time()
 end
-
--- Use MSR.Env for environment detection (no local cache needed)
--- MSR.Env already caches internally for performance
 
 function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, cornerName)
     if not player or not refugeData then return false end
@@ -125,7 +122,6 @@ local function isSacredRelicObject(obj)
     return false
 end
 
--- Add context menu for Sacred Relic
 local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     if not context then return end
 
@@ -135,7 +131,6 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     end
     if not playerObj then return end
     
-    -- Check if any of the world objects is a Sacred Relic
     local sacredRelic = nil
     for i = 1, #worldObjects do
         local obj = worldObjects[i]
@@ -147,24 +142,20 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     
     if not sacredRelic then return end
     
-    -- Get player's refuge data
     local refugeData = MSR.GetRefugeData and MSR.GetRefugeData(playerObj)
     if not refugeData then return end
     
-    -- Add "Move Sacred Relic" submenu
     local moveSubmenu = context:getNew(context)
     local moveOptionText = getText("IGUI_MoveSacredRelic")
     local moveOption = context:addOption(moveOptionText, playerObj, nil)
     context:addSubMenu(moveOption, moveSubmenu)
     
-    -- Add icon to move option
     local moveIcon = getTexture("media/ui/MoveRelic_24x24.png")
     if moveIcon then
         moveOption.iconTexture = moveIcon
     end
     
-    -- Define corner positions relative to refuge center (isometric view)
-    -- In PZ isometric: decreasing X/Y = up-left, increasing X/Y = down-right
+    -- PZ isometric: -X/-Y = up-left, +X/+Y = down-right
     local corners = {
         { name = "Up", key = "IGUI_RelicDirection_Up", dx = -1, dy = -1, icon = "DirectionUp" },
         { name = "Right", key = "IGUI_RelicDirection_Right", dx = 1, dy = -1, icon = "DirectionRight" },
@@ -176,20 +167,15 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     for _, corner in ipairs(corners) do
         local cornerText = getText(corner.key)
         local function moveToCorner()
-            -- Pass canonical name (corner.name) for server communication and storage
-            -- Translation will be applied at display time
             MSR.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
         end
         local cornerOption = moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
-        
-        -- Add direction icon
         local dirIcon = getTexture("media/ui/" .. corner.icon .. "_32x32.png")
         if dirIcon then
             cornerOption.iconTexture = dirIcon
         end
     end
     
-    -- Show Upgrade Refuge option (opens the upgrade window)
     local function openUpgradeWindow()
         local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         MSR_UpgradeWindow.Open(playerObj, sacredRelic)
@@ -197,19 +183,15 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
     
     local upgradeOptionText = getText("IGUI_UpgradeRefuge")
     local upgradeOption = context:addOption(upgradeOptionText, playerObj, openUpgradeWindow)
-    
-    -- Add icon to the option
     local upgradeIcon = getTexture("media/ui/UpgradeArrow_24x24.png")
     if upgradeIcon then
         upgradeOption.iconTexture = upgradeIcon
     end
 end
 
--- Register context menu hook
 Events.OnFillWorldObjectContextMenu.Add(OnFillWorldObjectContextMenu)
 
-
--- Check if an object is protected (Sacred Relic or boundary wall)
+-- Protected objects: Sacred Relic and boundary walls
 local function isProtectedObject(obj)
     if not obj then return false end
     if obj.getModData then
@@ -221,9 +203,8 @@ local function isProtectedObject(obj)
     return false
 end
 
--- Hook the actual disassemble function to block it for protected objects
+-- Block disassembly/destruction/pickup of protected refuge objects
 local function BlockDisassembleAction()
-    -- Hook ISWorldObjectContextMenu.onDisassemble if it exists
     if ISWorldObjectContextMenu and ISWorldObjectContextMenu.onDisassemble then
         local originalOnDisassemble = ISWorldObjectContextMenu.onDisassemble
         ISWorldObjectContextMenu.onDisassemble = function(worldobjects, object, player)
@@ -239,7 +220,7 @@ local function BlockDisassembleAction()
         end
     end
     
-    -- Hook ISMoveableSpriteProps if it exists (handles furniture disassembly)
+    -- Furniture disassembly
     if ISMoveableSpriteProps and ISMoveableSpriteProps.canBeDisassembled then
         local originalCanBeDisassembled = ISMoveableSpriteProps.canBeDisassembled
         ISMoveableSpriteProps.canBeDisassembled = function(self, obj, player)
@@ -252,7 +233,7 @@ local function BlockDisassembleAction()
         end
     end
     
-    -- Hook ISMoveableSpriteProps.isMoveable to block pickup
+    -- Furniture pickup
     if ISMoveableSpriteProps and ISMoveableSpriteProps.isMoveable then
         local originalIsMoveable = ISMoveableSpriteProps.isMoveable
         ISMoveableSpriteProps.isMoveable = function(self, obj, player)
@@ -263,9 +244,8 @@ local function BlockDisassembleAction()
         end
     end
     
-    -- Hook ISMoveableDefinitions functions
+    -- Thumpable pickup/disassembly
     if ISMoveableDefinitions then
-        -- Block pickup for thumpables
         if ISMoveableDefinitions.onPickupThumpable then
             local originalPickupThumpable = ISMoveableDefinitions.onPickupThumpable
             ISMoveableDefinitions.onPickupThumpable = function(playerObj, thump)
@@ -277,7 +257,6 @@ local function BlockDisassembleAction()
             end
         end
         
-        -- Block disassemble for thumpables
         if ISMoveableDefinitions.onDisassembleThumpable then
             local originalDisassembleThumpable = ISMoveableDefinitions.onDisassembleThumpable
             ISMoveableDefinitions.onDisassembleThumpable = function(playerObj, thump)
@@ -290,11 +269,10 @@ local function BlockDisassembleAction()
         end
     end
     
-    -- Hook ISMoveablesAction.isValid
+    -- General moveable actions
     if ISMoveablesAction and ISMoveablesAction.isValid then
         local originalMoveablesIsValid = ISMoveablesAction.isValid
         ISMoveablesAction.isValid = function(self)
-            -- Helper to show message once and return false
             local function blockWithMessage()
                 if not self._refugeMessageShown and self.character then
                     PM.SayRandom(self.character, PM.PROTECTED_OBJECT)
@@ -307,7 +285,6 @@ local function BlockDisassembleAction()
                 return blockWithMessage()
             end
             if self.origSprite then
-                -- Try to find the object by sprite
                 local square = self.square or (self.character and self.character:getCurrentSquare())
                 if square then
                     local objects = square:getObjects()
@@ -325,12 +302,10 @@ local function BlockDisassembleAction()
         end
     end
     
-    
-    -- Hook ISDestroyStuffAction to block sledgehammer destruction
+    -- Sledgehammer destruction
     if ISDestroyStuffAction and ISDestroyStuffAction.isValid then
         local originalIsValid = ISDestroyStuffAction.isValid
         ISDestroyStuffAction.isValid = function(self)
-            -- Helper to show message once and return false
             local function blockWithMessage()
                 if not self._refugeMessageShown and self.character then
                     PM.SayRandom(self.character, PM.PROTECTED_OBJECT)
@@ -339,14 +314,12 @@ local function BlockDisassembleAction()
                 return false
             end
             
-            -- Check if target object is protected
             if self.item and isProtectedObject(self.item) then
                 return blockWithMessage()
             end
             if self.object and isProtectedObject(self.object) then
                 return blockWithMessage()
             end
-            -- Check all objects on the target square
             if self.square then
                 local objects = self.square:getObjects()
                 if objects then
@@ -362,7 +335,7 @@ local function BlockDisassembleAction()
         end
     end
     
-    -- Hook ISWorldObjectContextMenu.onDestroyWall/onDestroyCurtain for sledgehammer menu options
+    -- Wall destruction menu option
     if ISWorldObjectContextMenu and ISWorldObjectContextMenu.onDestroyWall then
         local originalOnDestroyWall = ISWorldObjectContextMenu.onDestroyWall
         ISWorldObjectContextMenu.onDestroyWall = function(worldobjects, wall, player)
@@ -376,19 +349,16 @@ local function BlockDisassembleAction()
         end
     end
     
-    -- Hook thump damage to make protected objects truly indestructible
+    -- Zombie thump damage
     if IsoThumpable and IsoThumpable.Thump then
         local originalThump = IsoThumpable.Thump
         IsoThumpable.Thump = function(self, source)
-            if isProtectedObject(self) then
-                return -- Block all thump damage
-            end
+            if isProtectedObject(self) then return end
             return originalThump(self, source)
         end
     end
 end
 
--- Register action blocking hooks on game start
 Events.OnGameStart.Add(BlockDisassembleAction)
 
 return MSR

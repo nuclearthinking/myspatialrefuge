@@ -3,10 +3,10 @@
 require "shared/00_core/00_MSR"
 require "shared/00_core/04_Env"
 require "shared/00_core/05_Config"
-require "shared/MSR_Shared"
+require "shared/01_modules/MSR_Shared"
 require "shared/00_core/06_Data"
-require "shared/MSR_Validation"
-require "shared/MSR_Integrity"
+require "shared/01_modules/MSR_Validation"
+require "shared/01_modules/MSR_Integrity"
 
 if MSR.RefugeExpansion and MSR.RefugeExpansion._loaded then
     return MSR.RefugeExpansion

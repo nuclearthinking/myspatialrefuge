@@ -1,16 +1,10 @@
--- Spatial Refuge Boundary Enforcement
--- Monitors player position and prevents them from leaving refuge boundaries
+-- Boundary enforcement: prevents players from leaving refuge area
 
-require "shared/MSR_PlayerMessage"
+require "shared/01_modules/MSR_PlayerMessage"
 
--- Weak table for last warning time per player
-local lastBoundaryWarning = setmetatable({}, {__mode = "k"})
-
--- Weak table to suppress boundary check during approach teleport
-local boundaryCheckSuppressed = setmetatable({}, {__mode = "k"})
-
--- Cached bounds per player
-local cachedBounds = setmetatable({}, {__mode = "k"})
+local lastBoundaryWarning = setmetatable({}, {__mode = "k"})  -- weak: last warning time per player
+local boundaryCheckSuppressed = setmetatable({}, {__mode = "k"})  -- weak: suppressed during approach teleport
+local cachedBounds = setmetatable({}, {__mode = "k"})  -- weak: bounds cache per player
 
 -- Suppress boundary check during teleport (approach phase is outside refuge)
 function MSR.SuppressBoundaryCheck(player, suppress)
@@ -65,10 +59,9 @@ function MSR.CheckBoundaryViolation(player)
         return false
     end
     
-    -- Use cached bounds for performance
     local bounds = cachedBounds[player]
     if not bounds then
-        -- Check if ModData is available (may not be on MP client before server sync)
+        -- ModData may not be available on MP client before server sync
         if not MSR.Data or not MSR.Data.HasRefugeData or not MSR.Data.HasRefugeData() then
             return false
         end

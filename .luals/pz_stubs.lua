@@ -56,6 +56,7 @@ function instanceof(obj, className) end
 ---@field getModData fun(self: IsoPlayer): table
 ---@field isLocalPlayer fun(self: IsoPlayer): boolean
 ---@field DistToProper fun(self: IsoPlayer, other: IsoObject|IsoPlayer): number
+---@field getInventory fun(self: IsoPlayer): ItemContainer Get player's inventory container
 IsoPlayer = {}
 
 ---@param playerNum? integer
@@ -115,6 +116,27 @@ function getScriptManager() end
 ---@param fullType string
 ---@return InventoryItem|nil
 function instanceItem(fullType) end
+
+-- Inventory Item class
+---@class InventoryItem
+---@field getID fun(self: InventoryItem): integer Get unique item ID
+---@field getFullType fun(self: InventoryItem): string Get full item type (e.g., "Base.Axe")
+---@field getType fun(self: InventoryItem): string Get item type name
+---@field getName fun(self: InventoryItem): string Get display name
+---@field getContainer fun(self: InventoryItem): ItemContainer|nil Get container this item is in
+---@field getModData fun(self: InventoryItem): table Get mod data table
+---@field setName fun(self: InventoryItem, name: string)
+InventoryItem = {}
+
+-- Item Container class
+---@class ItemContainer
+---@field getItems fun(self: ItemContainer): ArrayList Get all items in container
+---@field contains fun(self: ItemContainer, item: InventoryItem): boolean Check if container has item
+---@field containsID fun(self: ItemContainer, id: integer): boolean Check if container has item by ID
+---@field AddItem fun(self: ItemContainer, item: InventoryItem|string): InventoryItem|nil Add item to container
+---@field Remove fun(self: ItemContainer, item: InventoryItem) Remove item from container
+---@field getItemCount fun(self: ItemContainer): integer Get total item count
+ItemContainer = {}
 
 -- Mod functions
 ---@return ArrayList
@@ -409,6 +431,7 @@ function triggerEvent(event, ...) end
 ---@field maxTime integer
 ---@field stopOnWalk boolean
 ---@field stopOnRun boolean
+---@field stopOnAim boolean
 ISBaseTimedAction = {}
 
 ---@param player IsoPlayer
