@@ -1,9 +1,9 @@
 -- MSR_02_Difficulty.lua - Unified Difficulty System
 -- Global D table for difficulty scaling. Load order: after MSR_01_Logging, before MSR_Env
 
-require "shared/00_core/00_MSR"
+require "00_core/00_MSR"
 
-if MSR.Difficulty and MSR.Difficulty._loaded then
+if MSR and MSR.Difficulty and MSR.Difficulty._loaded then
     return MSR.Difficulty
 end
 

@@ -1,10 +1,10 @@
 -- 04_Env - Cached environment detection (server/client/singleplayer)
 -- Use Env.isServer() etc. instead of raw isServer() for performance
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/02_Logging"
+require "00_core/00_MSR"
+require "00_core/02_Logging"
 
-if MSR.Env and MSR.Env._loaded then
+if MSR and MSR.Env and MSR.Env._loaded then
     return MSR.Env
 end
 

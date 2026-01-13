@@ -14,13 +14,13 @@
 -- - Transaction IDs prevent duplicate processing
 -- - Works for any item type (cores, materials, etc.)
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
-require "shared/helpers/Inventory"
-require "shared/00_core/05_Config"
-require "shared/01_modules/MSR_PlayerMessage"
+require "00_core/00_MSR"
+require "00_core/04_Env"
+require "helpers/Inventory"
+require "00_core/05_Config"
+require "MSR_PlayerMessage"
 
-if MSR.Transaction and MSR.Transaction._loaded then
+if MSR and MSR.Transaction and MSR.Transaction._loaded then
     return MSR.Transaction
 end
 

@@ -1,9 +1,9 @@
 -- Context menu for Sacred Relic and refuge protection hooks
 
-require "shared/01_modules/MSR_Transaction"
-require "shared/01_modules/MSR_Integrity"
-require "shared/01_modules/MSR_PlayerMessage"
-require "shared/00_core/04_Env"
+require "MSR_Transaction"
+require "MSR_Integrity"
+require "MSR_PlayerMessage"
+require "00_core/04_Env"
 
 local PM = MSR.PlayerMessage
 

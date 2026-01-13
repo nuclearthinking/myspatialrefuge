@@ -10,10 +10,10 @@
 --   MSR.World.addObject(square, obj)   - Add object with network sync
 --   MSR.World.removeObject(square, obj)- Remove object with network sync
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
+require "00_core/00_MSR"
+require "00_core/04_Env"
 
-if MSR.World and MSR.World._loaded then
+if MSR and MSR.World and MSR.World._loaded then
     return MSR.World
 end
 

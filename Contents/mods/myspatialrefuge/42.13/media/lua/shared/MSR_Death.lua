@@ -8,11 +8,11 @@
 --
 -- All handlers subscribe to these events - no direct module coupling
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
-require "shared/00_core/07_Events"
+require "00_core/00_MSR"
+require "00_core/04_Env"
+require "00_core/07_Events"
 
-if MSR.Death and MSR.Death._loaded then return MSR.Death end
+if MSR and MSR.Death and MSR.Death._loaded then return MSR.Death end
 
 MSR.Death = {}
 MSR.Death._loaded = true

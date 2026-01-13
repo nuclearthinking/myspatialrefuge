@@ -30,9 +30,9 @@
 --
 -- The wrapper ensures handlers run exactly ONCE in the appropriate environment.
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/02_Logging"
-require "shared/00_core/04_Env"
+require "00_core/00_MSR"
+require "00_core/02_Logging"
+require "00_core/04_Env"
 
 if MSR.Events and MSR.Events._loaded then
     return MSR.Events

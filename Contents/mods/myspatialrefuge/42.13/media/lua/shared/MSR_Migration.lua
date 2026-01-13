@@ -6,13 +6,13 @@
 -- Version 4: Added upgrades table for feature upgrades (faster_reading, etc.)
 -- Version 5: Added roomIds table for room persistence (no breaking changes)
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/05_Config"
-require "shared/00_core/06_Data"
-require "shared/00_core/04_Env"
+require "00_core/00_MSR"
+require "00_core/05_Config"
+require "00_core/06_Data"
+require "00_core/04_Env"
 
 -- Prevent double-loading
-if MSR.Migration and MSR.Migration._loaded then
+if MSR and MSR.Migration and MSR.Migration._loaded then
     return MSR.Migration
 end
 

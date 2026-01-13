@@ -4,8 +4,8 @@ require "ISUI/ISEmoteRadialMenu"
 require "Vehicles/ISUI/ISVehicleMenu"
 require "MSR_Teleport"
 require "MSR_Cast"
-require "shared/01_modules/MSR_PlayerMessage"
-require "shared/01_modules/MSR_Validation"
+require "MSR_PlayerMessage"
+require "MSR_Validation"
 local PM = MSR.PlayerMessage
 
 local ENTER_ICON = getTexture("media/ui/emotes/enter_refuge_51x96.png") or getTexture("media/ui/emotes/gears.png")

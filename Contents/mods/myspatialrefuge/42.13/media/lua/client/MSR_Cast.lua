@@ -1,6 +1,6 @@
-require "shared/00_core/05_Config"
-require "shared/01_modules/MSR_PlayerMessage"
-require "shared/01_modules/MSR_UpgradeData"
+require "00_core/05_Config"
+require "MSR_PlayerMessage"
+require "MSR_UpgradeData"
 
 local Config = MSR.Config
 local PM = MSR.PlayerMessage

@@ -1,7 +1,7 @@
 -- 05_Config - Static configuration and difficulty-scaled getters
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/03_Difficulty"
+require "00_core/00_MSR"
+require "00_core/03_Difficulty"
 
 if MSR.Config and MSR.Config._loaded then
     return MSR.Config
