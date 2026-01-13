@@ -2,12 +2,12 @@
 -- Tracks naturally earned XP and creates an "Experience Essence" on death
 -- that can be absorbed by the next character to recover a portion of the XP.
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
-require "shared/00_core/05_Config"
-require "shared/MSR_PlayerMessage"
+require "00_core/00_MSR"
+require "00_core/04_Env"
+require "00_core/05_Config"
+require "MSR_PlayerMessage"
 
-if MSR.XPRetention and MSR.XPRetention._loaded then
+if MSR and MSR.XPRetention and MSR.XPRetention._loaded then
     return MSR.XPRetention
 end
 
@@ -424,7 +424,7 @@ end
 -- Event Registration
 -----------------------------------------------------------
 
-require "shared/00_core/07_Events"
+require "00_core/07_Events"
 
 MSR.Events.OnClientReady.Add(function()
     if Events.AddXP then

@@ -2,10 +2,10 @@
 -- Dedicated module for vehicle teleport upgrade functionality
 -- Keeps MSR_Teleport.lua clean by isolating vehicle-specific logic
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
-require "shared/00_core/05_Config"
-require "shared/01_modules/MSR_PlayerMessage"
+require "00_core/00_MSR"
+require "00_core/04_Env"
+require "00_core/05_Config"
+require "MSR_PlayerMessage"
 
 if MSR.VehicleTeleport and MSR.VehicleTeleport._loaded then
     return MSR.VehicleTeleport

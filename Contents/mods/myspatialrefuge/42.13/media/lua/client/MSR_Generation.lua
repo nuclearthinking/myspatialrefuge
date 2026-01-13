@@ -1,8 +1,8 @@
 -- Refuge generation (client-side wrappers for MSR.Shared)
 
-require "shared/01_modules/MSR_Shared"
-require "shared/00_core/05_Config"
-require "shared/01_modules/MSR_PlayerMessage"
+require "MSR_Shared"
+require "00_core/05_Config"
+require "MSR_PlayerMessage"
 
 function MSR.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
     return MSR.Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)

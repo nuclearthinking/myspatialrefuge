@@ -1,14 +1,14 @@
 -- Spatial Refuge Main Module (Client)
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
-require "shared/00_core/05_Config"
-require "shared/00_core/06_Data"
-require "shared/01_modules/MSR_Migration"
-require "shared/01_modules/MSR_Shared"
-require "shared/01_modules/MSR_PlayerMessage"
-require "shared/01_modules/MSR_XPRetention"
-require "shared/01_modules/MSR_Death"
+require "00_core/00_MSR"
+require "00_core/04_Env"
+require "00_core/05_Config"
+require "00_core/06_Data"
+require "MSR_Migration"
+require "MSR_Shared"
+require "MSR_PlayerMessage"
+require "MSR_XPRetention"
+require "MSR_Death"
 
 local PM = MSR.PlayerMessage
 

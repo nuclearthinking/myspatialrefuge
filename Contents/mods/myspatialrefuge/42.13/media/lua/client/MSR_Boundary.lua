@@ -1,6 +1,6 @@
 -- Boundary enforcement: prevents players from leaving refuge area
 
-require "shared/01_modules/MSR_PlayerMessage"
+require "MSR_PlayerMessage"
 
 local lastBoundaryWarning = setmetatable({}, {__mode = "k"})  -- weak: last warning time per player
 local boundaryCheckSuppressed = setmetatable({}, {__mode = "k"})  -- weak: suppressed during approach teleport

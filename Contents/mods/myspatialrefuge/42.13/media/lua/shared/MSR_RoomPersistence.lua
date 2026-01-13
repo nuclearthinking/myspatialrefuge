@@ -1,13 +1,13 @@
 -- MSR_RoomPersistence - Room Persistence Module
 -- Storage: roomBounds = { [roomIdStr] = { x, y, w, h, z }, ... }
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/05_Config"
-require "shared/00_core/06_Data"
-require "shared/00_core/04_Env"
-require "shared/helpers/World"
+require "00_core/00_MSR"
+require "00_core/05_Config"
+require "00_core/06_Data"
+require "00_core/04_Env"
+require "helpers/World"
 
-if MSR.RoomPersistence and MSR.RoomPersistence._loaded then
+if MSR and MSR.RoomPersistence and MSR.RoomPersistence._loaded then
     return MSR.RoomPersistence
 end
 

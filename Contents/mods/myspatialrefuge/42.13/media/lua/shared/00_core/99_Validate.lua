@@ -2,14 +2,14 @@
 -- Runs after all core modules load to verify initialization
 -- Always prints to log (no debug check) for troubleshooting
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/01_KahluaCompat"
-require "shared/00_core/02_Logging"
-require "shared/00_core/03_Difficulty"
-require "shared/00_core/04_Env"
-require "shared/00_core/05_Config"
-require "shared/00_core/06_Data"
-require "shared/00_core/07_Events"
+require "00_core/00_MSR"
+require "00_core/01_KahluaCompat"
+require "00_core/02_Logging"
+require "00_core/03_Difficulty"
+require "00_core/04_Env"
+require "00_core/05_Config"
+require "00_core/06_Data"
+require "00_core/07_Events"
 
 if MSR._coreValidated then
     return

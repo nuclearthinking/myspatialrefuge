@@ -5,9 +5,9 @@
 --   MSR.Inventory.collectNestedContainers(inv)  - Get all nested containers
 --   MSR.Inventory.getPlayerContainers(player)   - Get player's containers
 
-require "shared/00_core/00_MSR"
+require "00_core/00_MSR"
 
-if MSR.Inventory and MSR.Inventory._loaded then
+if MSR and MSR.Inventory and MSR.Inventory._loaded then
     return MSR.Inventory
 end
 

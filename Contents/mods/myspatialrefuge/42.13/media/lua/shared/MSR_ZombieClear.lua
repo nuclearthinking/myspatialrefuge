@@ -6,12 +6,12 @@
 -- Uses MSR.Data for refuge data lookups (core infrastructure)
 -- Uses MSR.Shared.ClearZombiesFromArea for actual clearing
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/05_Config"
-require "shared/00_core/04_Env"
-require "shared/00_core/07_Events"
+require "00_core/00_MSR"
+require "00_core/05_Config"
+require "00_core/04_Env"
+require "00_core/07_Events"
 
-if MSR.ZombieClear and MSR.ZombieClear._loaded then return MSR.ZombieClear end
+if MSR and MSR.ZombieClear and MSR.ZombieClear._loaded then return MSR.ZombieClear end
 
 MSR.ZombieClear = {}
 MSR.ZombieClear._loaded = true

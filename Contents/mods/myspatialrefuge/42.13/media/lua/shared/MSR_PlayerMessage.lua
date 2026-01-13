@@ -2,17 +2,17 @@
 -- Provides standardized, localized player.Say() wrapper with format argument support
 --
 -- Usage:
---   require "shared/01_modules/MSR_PlayerMessage"
+--   require "MSR_PlayerMessage"
 --   local PM = MSR.PlayerMessage
 --   PM.Say(player, PM.ENTERED_REFUGE)
 --   PM.Say(player, PM.COOLDOWN_REMAINING, 30)  -- with args
 --   PM.SayRaw(player, "Already translated text")          -- bypass translation
 --   PM.SayRandom(player, PM.PROTECTED_OBJECT)  -- random from pool
 
-require "shared/00_core/00_MSR"
+require "00_core/00_MSR"
 
 -- Prevent double-loading
-if MSR.PlayerMessage and MSR.PlayerMessage._loaded then
+if MSR and MSR.PlayerMessage and MSR.PlayerMessage._loaded then
     return MSR.PlayerMessage
 end
 

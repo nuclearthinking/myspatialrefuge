@@ -1,10 +1,10 @@
-require "shared/00_core/00_MSR"
-require "shared/00_core/04_Env"
-require "shared/00_core/06_Data"
-require "shared/00_core/07_Events"
-require "shared/01_modules/MSR_UpgradeData"
+require "00_core/00_MSR"
+require "00_core/04_Env"
+require "00_core/06_Data"
+require "00_core/07_Events"
+require "MSR_UpgradeData"
 
-if MSR.ReadingSpeed and MSR.ReadingSpeed._loaded then
+if MSR and MSR.ReadingSpeed and MSR.ReadingSpeed._loaded then
     return MSR.ReadingSpeed
 end
 

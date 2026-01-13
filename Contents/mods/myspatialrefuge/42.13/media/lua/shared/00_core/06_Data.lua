@@ -2,11 +2,11 @@
 -- ModData management functions accessible by both client and server
 -- This ensures consistent data access in multiplayer
 
-require "shared/00_core/00_MSR"
-require "shared/00_core/05_Config"
-require "shared/00_core/04_Env"
+require "00_core/00_MSR"
+require "00_core/05_Config"
+require "00_core/04_Env"
 
-if MSR.Data and MSR.Data._loaded then
+if MSR and MSR.Data and MSR.Data._loaded then
     return MSR.Data
 end
 
@@ -19,7 +19,7 @@ local Config = MSR.Config
 -- Recovery if Config failed to load (should not happen with proper load order)
 if not Config then
     print("[MSR.Data] CRITICAL: MSR.Config is nil - attempting recovery...")
-    pcall(function() require "shared/00_core/05_Config" end)
+    pcall(function() require "00_core/05_Config" end)
     Config = MSR.Config
     if not Config then
         print("[MSR.Data] FATAL: Config recovery failed. Check load order.")

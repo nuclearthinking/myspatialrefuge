@@ -3,7 +3,7 @@
 -- Uses virtual scrolling for efficient rendering
 
 require "ISUI/ISPanel"
-require "shared/01_modules/MSR_UpgradeData"
+require "MSR_UpgradeData"
 
 SRU_UpgradeGrid = ISPanel:derive("SRU_UpgradeGrid")
 
