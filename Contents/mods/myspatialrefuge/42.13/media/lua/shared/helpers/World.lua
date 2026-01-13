@@ -11,7 +11,7 @@
 --   MSR.World.removeObject(square, obj)- Remove object with network sync
 
 require "00_core/00_MSR"
-require "00_core/04_Env"
+require "00_core/Env"
 
 if MSR and MSR.World and MSR.World._loaded then
     return MSR.World

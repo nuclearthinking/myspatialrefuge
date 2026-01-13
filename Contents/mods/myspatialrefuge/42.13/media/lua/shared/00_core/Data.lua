@@ -1,12 +1,7 @@
--- MSR_Data - Data Module (Shared)
--- ModData management functions accessible by both client and server
--- This ensures consistent data access in multiplayer
+-- 06_Data - ModData management (Shared)
+-- Assumes: MSR, MSR.Config, MSR.Env, L exist (loaded by 00_MSR.lua)
 
-require "00_core/00_MSR"
-require "00_core/05_Config"
-require "00_core/04_Env"
-
-if MSR and MSR.Data and MSR.Data._loaded then
+if MSR.Data and MSR.Data._loaded then
     return MSR.Data
 end
 
@@ -15,16 +10,7 @@ MSR.Data._loaded = true
 
 local Data = MSR.Data
 local Config = MSR.Config
-
--- Recovery if Config failed to load (should not happen with proper load order)
-if not Config then
-    print("[MSR.Data] CRITICAL: MSR.Config is nil - attempting recovery...")
-    pcall(function() require "00_core/05_Config" end)
-    Config = MSR.Config
-    if not Config then
-        print("[MSR.Data] FATAL: Config recovery failed. Check load order.")
-    end
-end
+local LOG = L.logger("Data")
 
 -----------------------------------------------------------
 -- Debug Helpers
@@ -124,7 +110,7 @@ end
 function Data.SetModDataReady(ready)
     _modDataReady = ready
     if ready then
-        L.debug("Data", "ModData marked as ready")
+        LOG.debug("ModData marked as ready")
     end
 end
 
@@ -222,15 +208,14 @@ function Data.GetOrCreateRefugeData(player)
         local canCreate = canModifyData()
         
         if not canCreate then
-            L.debug("Data", "MP client cannot create refuge data - must request from server")
+            LOG.debug("MP client cannot create refuge data - must request from server")
             return nil
         end
         
         -- SAFETY: Don't create new refuges if ModData hasn't been confirmed loaded
         -- This prevents data loss when server starts but ModData isn't ready yet
         if not _modDataReady then
-            L.debug("Data", "BLOCKED: Refusing to create refuge for " .. username .. 
-                   " - ModData not yet confirmed ready (may still be loading)")
+            LOG.debug("BLOCKED: Refusing to create refuge for %s - ModData not yet confirmed ready (may still be loading)", username)
             return nil
         end
         
@@ -252,8 +237,8 @@ function Data.GetOrCreateRefugeData(player)
                     
                     Data.TransmitModData()
                     
-                    L.debug("Data", "Inherited refuge: " .. oldUsername .. " -> " .. username ..
-                            " (tier=" .. orphanData.tier .. ", radius=" .. orphanData.radius .. ")")
+                    LOG.debug("Inherited refuge: %s -> %s (tier=%d, radius=%d)",
+                        oldUsername, username, orphanData.tier, orphanData.radius)
                     return orphanData
                 end
             end
@@ -281,7 +266,7 @@ function Data.GetOrCreateRefugeData(player)
         
         Data.SaveRefugeData(refugeData)
         
-        L.debug("Data", "Created new refuge for " .. username .. " at " .. centerX .. "," .. centerY)
+        LOG.debug("Created new refuge for %s at %d,%d", username, centerX, centerY)
     end
     
     return refugeData
@@ -290,12 +275,12 @@ end
 -- Only server/singleplayer can save refuge data
 function Data.SaveRefugeData(refugeData)
     if not refugeData or not refugeData.username then 
-        print("[MSR.Data] SaveRefugeData: FAILED - no refugeData or username")
+        LOG.error("SaveRefugeData: FAILED - no refugeData or username")
         return false 
     end
     
     if not canModifyData() then
-        print("[MSR.Data] SaveRefugeData: FAILED - MP client cannot save")
+        LOG.error("SaveRefugeData: FAILED - MP client cannot save")
         return false
     end
     
@@ -306,23 +291,21 @@ function Data.SaveRefugeData(refugeData)
     end
     
     if not registry then 
-        print("[MSR.Data] SaveRefugeData: FAILED - no registry")
+        LOG.error("SaveRefugeData: FAILED - no registry")
         return false 
     end
     
-    L.debug("Data", "SaveRefugeData: Saving for " .. refugeData.username .. 
-          " with upgrades=" .. formatUpgradesTable(refugeData.upgrades))
+    LOG.debug("SaveRefugeData: Saving for %s with upgrades=%s",
+        refugeData.username, formatUpgradesTable(refugeData.upgrades))
     
     registry[refugeData.username] = refugeData
     Data.TransmitModData()
     
-    if L.isDebug() then
-        local verify = registry[refugeData.username]
-        if verify and verify.upgrades then
-            L.debug("Data", "SaveRefugeData: Verified upgrades=" .. formatUpgradesTable(verify.upgrades))
-        else
-            L.debug("Data", "SaveRefugeData: WARNING - verify.upgrades is nil after save!")
-        end
+    local verify = registry[refugeData.username]
+    if verify and verify.upgrades then
+        LOG.debug("SaveRefugeData: Verified upgrades=%s", formatUpgradesTable(verify.upgrades))
+    else
+        LOG.debug("SaveRefugeData: WARNING - verify.upgrades is nil after save!")
     end
     
     return true
@@ -333,7 +316,7 @@ function Data.DeleteRefugeData(player)
     if not player then return false end
     
     if not canModifyData() then
-        L.debug("Data", "MP client cannot delete refuge data")
+        LOG.debug("MP client cannot delete refuge data")
         return false
     end
     
@@ -367,8 +350,8 @@ function Data.MarkRefugeOrphaned(username)
     
     Data.TransmitModData()
     
-    L.debug("Data", "Marked refuge as orphaned: " .. username .. 
-            " (tier=" .. refugeData.tier .. ", radius=" .. refugeData.radius .. ")")
+    LOG.debug("Marked refuge as orphaned: %s (tier=%d, radius=%d)",
+        username, refugeData.tier, refugeData.radius)
     return true
 end
 
@@ -378,8 +361,8 @@ function Data.FindOrphanRefuge()
     
     for username, refugeData in pairs(registry) do
         if refugeData.isOrphaned then
-            L.debug("Data", "Found orphan refuge from " .. (refugeData.originalOwner or username) ..
-                    " (tier=" .. refugeData.tier .. ", radius=" .. refugeData.radius .. ")")
+            LOG.debug("Found orphan refuge from %s (tier=%d, radius=%d)",
+                refugeData.originalOwner or username, refugeData.tier, refugeData.radius)
             return refugeData, username
         end
     end
@@ -414,8 +397,8 @@ function Data.ClaimOrphanRefuge(player)
     
     Data.TransmitModData()
     
-    L.debug("Data", "Claimed orphan refuge: " .. oldUsername .. " -> " .. newUsername ..
-            " (tier=" .. orphanData.tier .. ", radius=" .. orphanData.radius .. ")")
+    LOG.debug("Claimed orphan refuge: %s -> %s (tier=%d, radius=%d)",
+        oldUsername, newUsername, orphanData.tier, orphanData.radius)
     return true
 end
 
@@ -528,13 +511,13 @@ function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicl
     if not username then return false end
     
     if not canModifyData() then
-        L.debug("Data", "MP client cannot save return position")
+        LOG.debug("MP client cannot save return position (vehicle)")
         return false
     end
     
     -- Never save refuge coordinates as return position
     if Data.IsInRefugeCoordinates(x, y) then
-        L.debug("Data", "WARNING: Attempted to save refuge coordinates as return position - blocked!")
+        LOG.warning("Attempted to save refuge coordinates as return position (vehicle) - blocked!")
         return false
     end
     
@@ -558,8 +541,8 @@ function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicl
     }
     Data.TransmitModData()
     
-    L.debug("Data", string.format("Saved return position with vehicle: %s at %.1f,%.1f,%.1f vehicleId=%s seat=%s",
-        username, x, y, z, tostring(vehicleId), tostring(vehicleSeat)))
+    LOG.debug("Saved return position with vehicle: %s at %.1f,%.1f,%.1f vehicleId=%s seat=%s",
+        username, x, y, z, tostring(vehicleId), tostring(vehicleSeat))
     
     return true
 end
@@ -578,7 +561,7 @@ function Data.ClearReturnPositionByUsername(username)
     if not username then return false end
     
     if not canModifyData() then
-        L.debug("Data", "MP client cannot clear return position")
+        LOG.debug("MP client cannot clear return position")
         return false
     end
     

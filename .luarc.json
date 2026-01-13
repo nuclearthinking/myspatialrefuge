@@ -5,7 +5,14 @@
     ],
     "diagnostics.globals": [
         "MSR",
-        "require"
+        "require",
+        "DebugLog",
+        "LogSeverity",
+        "isClient",
+        "isServer",
+        "getDebug",
+        "getTimestamp",
+        "writeLog"
     ],
     "runtime.version": "Lua 5.1",
     "runtime.builtin": {

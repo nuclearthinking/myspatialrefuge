@@ -1,30 +1,104 @@
--- MSR_ZombieClear - Periodic zombie clearing for refuge areas
---
--- Subscribes to events:
---   MSR_PlayerDiedInRefuge - Pauses clearing to protect player corpse
---
--- Uses MSR.Data for refuge data lookups (core infrastructure)
--- Uses MSR.Shared.ClearZombiesFromArea for actual clearing
-
 require "00_core/00_MSR"
-require "00_core/05_Config"
-require "00_core/04_Env"
-require "00_core/07_Events"
 
-if MSR and MSR.ZombieClear and MSR.ZombieClear._loaded then return MSR.ZombieClear end
+-- Register module (returns nil if already loaded - skip initialization)
+local ZombieClear = MSR.register("ZombieClear")
+if not ZombieClear then return MSR.ZombieClear end
+local LOG = L.logger("ZombieClear")
 
-MSR.ZombieClear = {}
-MSR.ZombieClear._loaded = true
-
-local ZombieClear = MSR.ZombieClear
-
--- Pause state - when player dies in refuge, pause clearing temporarily
 local clearingPausedUntil = 0
 local PAUSE_DURATION = 10 -- seconds
+local ZOMBIE_CLEAR_BUFFER = 3
 
 -----------------------------------------------------------
--- Pause Management
+-- Helper Functions
 -----------------------------------------------------------
+
+local function isInArea(x, y, centerX, centerY, radius)
+    return x >= centerX - radius and x <= centerX + radius and
+        y >= centerY - radius and y <= centerY + radius
+end
+
+-----------------------------------------------------------
+-- Core Clearing Function
+-----------------------------------------------------------
+
+--- Clear zombies and corpses from an area
+--- @param centerX number Center X coordinate
+--- @param centerY number Center Y coordinate
+--- @param z number Z level
+--- @param radius number Radius to clear
+--- @param forceClean boolean Force cleaning even in tutorial area
+--- @param player IsoPlayer Player for MP sync
+--- @return number Number of entities cleared
+function ZombieClear.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
+    if not forceClean and centerX < 2000 and centerY < 2000 then
+        return 0
+    end
+
+    local cell = getCell()
+    if not cell then return 0 end
+
+    local cleared = 0
+    local totalRadius = radius + ZOMBIE_CLEAR_BUFFER
+    local isMPServer = MSR.Env.isMultiplayer() and MSR.Env.isServer()
+    local zombieOnlineIDs = {}
+
+    -- Clear zombies (reverse iteration for safe removal)
+    local zombieList = cell:getZombieList()
+    for i = K.size(zombieList) - 1, 0, -1 do
+        local zombie = zombieList:get(i)
+        if zombie and zombie:getZ() == z and isInArea(zombie:getX(), zombie:getY(), centerX, centerY, totalRadius) then
+            local md = zombie:getModData()
+            if md.MSR_ProtectedCorpse then
+                LOG.debug("Skipping protected zombie (reanimated from player corpse)")
+            else
+                if isMPServer then
+                    local onlineID = zombie:getOnlineID()
+                    if onlineID >= 0 then
+                        table.insert(zombieOnlineIDs, onlineID)
+                    end
+                end
+                zombie:removeFromWorld()
+                zombie:removeFromSquare()
+                cleared = cleared + 1
+            end
+        end
+    end
+
+    -- Clear corpses (reverse iteration for safe removal)
+    for dx = -totalRadius, totalRadius do
+        for dy = -totalRadius, totalRadius do
+            local square = cell:getGridSquare(centerX + dx, centerY + dy, z)
+            if square then
+                local bodies = square:getDeadBodys()
+                for i = K.size(bodies) - 1, 0, -1 do
+                    local body = bodies:get(i)
+                    if body and not body:isAnimal() then
+                        local md = body:getModData()
+                        if not md.MSR_ProtectedCorpse then
+                            square:removeCorpse(body, false)
+                            cleared = cleared + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if isMPServer and player and #zombieOnlineIDs > 0 then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE,
+            MSR.Config.COMMANDS.CLEAR_ZOMBIES, {
+                zombieIDs = zombieOnlineIDs
+            })
+        LOG.debug("Sent %d zombie IDs to client for removal", #zombieOnlineIDs)
+    end
+
+    if cleared > 0 then
+        LOG.debug("Cleared %d zombies/corpses from refuge area", cleared)
+    end
+
+    return cleared
+end
 
 function ZombieClear.IsPaused()
     return K.time() < clearingPausedUntil
@@ -35,24 +109,13 @@ function ZombieClear.Pause(reason)
     L.debug("ZombieClear", "Pausing clearing for " .. PAUSE_DURATION .. "s (" .. tostring(reason) .. ")")
 end
 
------------------------------------------------------------
--- Clearing Functions
------------------------------------------------------------
-
---- Clear zombies/corpses from a refuge area
 --- @param refugeData table Refuge data with centerX, centerY, centerZ, radius
 --- @param player IsoPlayer Player for MP sync
 --- @return number Number of entities cleared
 function ZombieClear.ClearRefuge(refugeData, player)
     if not refugeData then return 0 end
     
-    -- Lazy load MSR.Shared to avoid circular dependency at load time
-    if not MSR.Shared or not MSR.Shared.ClearZombiesFromArea then
-        L.debug("ZombieClear", "MSR.Shared not available")
-        return 0
-    end
-    
-    return MSR.Shared.ClearZombiesFromArea(
+    return ZombieClear.ClearZombiesFromArea(
         refugeData.centerX, refugeData.centerY, refugeData.centerZ,
         refugeData.radius or 1, true, player
     )

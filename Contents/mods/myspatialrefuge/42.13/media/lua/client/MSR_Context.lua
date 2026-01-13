@@ -3,7 +3,7 @@
 require "MSR_Transaction"
 require "MSR_Integrity"
 require "MSR_PlayerMessage"
-require "00_core/04_Env"
+require "00_core/Env"
 
 local PM = MSR.PlayerMessage
 
@@ -76,7 +76,8 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
             local translatedCornerName = MSR.TranslateCornerName(cornerName)
             PM.Say(player, PM.RELIC_MOVED_TO, translatedCornerName)
         else
-            PM.SayMoveRelicError(player, errorCode)
+            -- MoveRelicError values ARE message keys, use PM.Say directly
+            PM.Say(player, errorCode)
         end
         
         return success

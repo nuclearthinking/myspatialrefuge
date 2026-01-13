@@ -21,10 +21,10 @@
 -- Note: These are Lua functions. Access via debug console (press ~ with debug mode).
 
 require "00_core/00_MSR"
-require "00_core/01_KahluaCompat"
-require "00_core/02_Logging"
-require "00_core/05_Config"
-require "00_core/06_Data"
+require "00_core/KahluaCompat"
+require "00_core/Logging"
+require "00_core/Config"
+require "00_core/Data"
 
 local Config = MSR.Config
 local Data = MSR.Data

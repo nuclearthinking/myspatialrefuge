@@ -1,4 +1,4 @@
-require "00_core/05_Config"
+require "00_core/Config"
 require "MSR_PlayerMessage"
 require "MSR_UpgradeData"
 

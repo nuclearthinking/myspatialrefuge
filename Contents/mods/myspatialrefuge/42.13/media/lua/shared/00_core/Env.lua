@@ -1,10 +1,7 @@
 -- 04_Env - Cached environment detection (server/client/singleplayer)
--- Use Env.isServer() etc. instead of raw isServer() for performance
+-- Assumes: MSR, L globals exist (loaded by 00_MSR.lua)
 
-require "00_core/00_MSR"
-require "00_core/02_Logging"
-
-if MSR and MSR.Env and MSR.Env._loaded then
+if MSR.Env and MSR.Env._loaded then
     return MSR.Env
 end
 
@@ -12,6 +9,7 @@ MSR.Env = {}
 MSR.Env._loaded = true
 
 local Env = MSR.Env
+local LOG = L.logger("Env")
 
 local _cachedIsServer = nil
 local _cachedIsClient = nil
@@ -47,23 +45,17 @@ function Env.isServer()
         _cachedCanModify = (not _cachedIsServer and not _cachedIsClient) or _cachedIsServer
         _cacheValid = true
         
-        if L.isDebug() then
-            local envType
-            if not _cachedIsServer and not _cachedIsClient then
-                envType = "singleplayer"
-            elseif _cachedIsServer then
-                -- Server process (dedicated or coop host's server)
-                envType = "server"
-            else
-                -- Client process (MP client or coop host's client)
-                envType = "client"
-            end
-            
-            L.debug("Env", "Environment: " .. envType .. 
-                  " (isServer=" .. tostring(_cachedIsServer) .. 
-                  ", isClient=" .. tostring(_cachedIsClient) .. 
-                  ", canModify=" .. tostring(_cachedCanModify) .. ")")
+        local envType
+        if not _cachedIsServer and not _cachedIsClient then
+            envType = "singleplayer"
+        elseif _cachedIsServer then
+            envType = "server"
+        else
+            envType = "client"
         end
+        
+        LOG.debug("Environment: %s (isServer=%s, isClient=%s, canModify=%s)",
+            envType, tostring(_cachedIsServer), tostring(_cachedIsClient), tostring(_cachedCanModify))
     end
     
     if _cacheValid then

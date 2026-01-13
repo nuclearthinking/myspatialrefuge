@@ -1,12 +1,11 @@
 -- MSR_RefugeExpansion - Unified expansion logic for SP and MP
 
 require "00_core/00_MSR"
-require "00_core/04_Env"
-require "00_core/05_Config"
 require "MSR_Shared"
-require "00_core/06_Data"
 require "MSR_Validation"
 require "MSR_Integrity"
+
+local LOG = L.logger("RefugeExpansion")
 
 if MSR and MSR.RefugeExpansion and MSR.RefugeExpansion._loaded then
     return MSR.RefugeExpansion
@@ -81,13 +80,13 @@ function Expansion.RepositionRelic(refugeData, oldRadius)
     )
     
     if not relic then
-        L.debug("Expansion", "Could not find relic to reposition")
+        LOG.debug("Could not find relic to reposition")
         return false, "Relic not found"
     end
     
     local md = relic:getModData()
     if not md or not md.assignedCorner then
-        L.debug("Expansion", "Relic has no assigned corner, not moving")
+        LOG.debug("Relic has no assigned corner, not moving")
         return true, nil
     end
     
@@ -106,12 +105,10 @@ function Expansion.RepositionRelic(refugeData, oldRadius)
         refugeData.relicY = newRelicY
         refugeData.relicZ = refugeData.centerZ
         
-        L.debug("Expansion", "Repositioned relic to " .. cornerName .. 
-              " at " .. newRelicX .. "," .. newRelicY)
+        LOG.debug("Repositioned relic to %s at %s,%s", cornerName, newRelicX, newRelicY)
         return true, nil
     else
-        -- Don't update ModData to prevent position desync
-        L.debug("Expansion", "Failed to reposition relic: " .. tostring(moveMessage))
+        LOG.debug("Failed to reposition relic: %s", tostring(moveMessage))
         return false, moveMessage
     end
 end
@@ -139,8 +136,7 @@ function Expansion.Execute(player, refugeData, options)
     local oldRadius = refugeData.radius or 1
     local newRadius = tierConfig.radius
     
-    L.debug("Expansion", string.format("Execute: tier %d -> %d, radius %d -> %d",
-        currentTier, newTier, oldRadius, newRadius))
+    LOG.debug("Execute: tier %d -> %d, radius %d -> %d", currentTier, newTier, oldRadius, newRadius)
     
     if not options.skipChunkValidation then
         local chunksOk, chunksErr = Expansion.ValidateChunksLoaded(refugeData, newRadius)
@@ -157,7 +153,7 @@ function Expansion.Execute(player, refugeData, options)
     local relicOk, relicErr = Expansion.RepositionRelic(refugeData, oldRadius)
     if not relicOk then
         -- Non-fatal: expansion succeeded, relic just didn't move
-        L.debug("Expansion", "Warning: relic repositioning issue: " .. tostring(relicErr))
+        LOG.debug("Warning: relic repositioning issue: %s", tostring(relicErr))
     end
     
     MSR.Integrity.ValidateAndRepair(refugeData, {

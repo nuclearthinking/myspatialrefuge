@@ -29,10 +29,7 @@
 --   MSR.Events.Server.Fire("MyServerEvent", { data = 123 })  -- Routes to server
 --
 -- The wrapper ensures handlers run exactly ONCE in the appropriate environment.
-
-require "00_core/00_MSR"
-require "00_core/02_Logging"
-require "00_core/04_Env"
+-- Assumes: MSR, L, MSR.Env exist (loaded by 00_MSR.lua)
 
 if MSR.Events and MSR.Events._loaded then
     return MSR.Events
@@ -42,6 +39,7 @@ MSR.Events = MSR.Events or {}
 MSR.Events._loaded = true
 
 local E = MSR.Events
+local LOG = L.logger("Events")
 
 local serverReadyHandlers = {}
 local clientReadyHandlers = {}
@@ -60,7 +58,7 @@ E.OnServerReady = {} -- SP, Coop host, Dedicated
 --- @param fn function
 function E.OnServerReady.Add(fn)
     if type(fn) ~= "function" then
-        L.error("Events", "OnServerReady.Add: expected function")
+        LOG.error("OnServerReady.Add: expected function")
         return
     end
     
@@ -68,7 +66,7 @@ function E.OnServerReady.Add(fn)
     if serverReadyFired and MSR.Env.hasServerAuthority() then
         local ok, err = pcall(fn)
         if not ok then
-            L.error("Events", "OnServerReady handler error: " .. tostring(err))
+            LOG.error("OnServerReady handler error: %s", tostring(err))
         end
         return
     end
@@ -92,14 +90,14 @@ E.OnClientReady = {} -- SP, Coop host, MP client (NOT dedicated)
 --- @param fn function
 function E.OnClientReady.Add(fn)
     if type(fn) ~= "function" then
-        L.error("Events", "OnClientReady.Add: expected function")
+        LOG.error("OnClientReady.Add: expected function")
         return
     end
     
     if clientReadyFired and not MSR.Env.isDedicatedServer() then
         local ok, err = pcall(fn)
         if not ok then
-            L.error("Events", "OnClientReady handler error: " .. tostring(err))
+            LOG.error("OnClientReady handler error: %s", tostring(err))
         end
         return
     end
@@ -123,14 +121,14 @@ E.OnAnyReady = {} -- All environments
 --- @param fn function
 function E.OnAnyReady.Add(fn)
     if type(fn) ~= "function" then
-        L.error("Events", "OnAnyReady.Add: expected function")
+        LOG.error("OnAnyReady.Add: expected function")
         return
     end
     
     if anyReadyFired then
         local ok, err = pcall(fn)
         if not ok then
-            L.error("Events", "OnAnyReady handler error: " .. tostring(err))
+            LOG.error("OnAnyReady handler error: %s", tostring(err))
         end
         return
     end
@@ -153,7 +151,7 @@ local function runHandlers(handlers, name)
     for i, fn in ipairs(handlers) do
         local ok, err = pcall(fn)
         if not ok then
-            L.error("Events", name .. " handler #" .. i .. " error: " .. tostring(err))
+            LOG.error("%s handler #%d error: %s", name, i, tostring(err))
         end
     end
 end
@@ -161,7 +159,7 @@ end
 local function runAnyReadyOnce(source)
     if anyReadyFired then return end
     anyReadyFired = true
-    L.debug("Events", "OnAnyReady firing (" .. source .. ")")
+    LOG.debug("OnAnyReady firing (%s)", source)
     runHandlers(anyReadyHandlers, "OnAnyReady")
 end
 
@@ -170,13 +168,13 @@ local function onGameStart()
     -- SP only (Coop gets server authority from OnServerStarted)
     if MSR.Env.isSingleplayer() and not serverReadyFired then
         serverReadyFired = true
-        L.debug("Events", "OnServerReady firing (Singleplayer)")
+        LOG.debug("OnServerReady firing (Singleplayer)")
         runHandlers(serverReadyHandlers, "OnServerReady")
     end
     
     if not MSR.Env.isDedicatedServer() and not clientReadyFired then
         clientReadyFired = true
-        L.debug("Events", "OnClientReady firing")
+        LOG.debug("OnClientReady firing")
         runHandlers(clientReadyHandlers, "OnClientReady")
     end
     
@@ -190,7 +188,7 @@ end
 local function onServerStarted()
     if not serverReadyFired then
         serverReadyFired = true
-        L.debug("Events", "OnServerReady firing (Server/Coop)")
+        LOG.debug("OnServerReady firing (Server/Coop)")
         runHandlers(serverReadyHandlers, "OnServerReady")
     end
     
@@ -227,14 +225,14 @@ local customEventHandlers = {}
 --- @param eventName string
 function E.Custom.Register(eventName)
     customEventHandlers[eventName] = customEventHandlers[eventName] or {}
-    L.debug("Events", "Registered custom event: " .. eventName)
+    LOG.debug("Registered custom event: %s", eventName)
 end
 
 --- @param eventName string
 --- @param fn function
 function E.Custom.Add(eventName, fn)
     if type(fn) ~= "function" then
-        L.error("Events", "Custom.Add: expected function for " .. tostring(eventName))
+        LOG.error("Custom.Add: expected function for %s", tostring(eventName))
         return
     end
     customEventHandlers[eventName] = customEventHandlers[eventName] or {}
@@ -262,11 +260,11 @@ end
 function E.Custom.Fire(eventName, ...)
     local handlers = customEventHandlers[eventName]
     if not handlers then return end
-    L.debug("Events", "Firing custom event: " .. eventName)
+    LOG.debug("Firing custom event: %s", eventName)
     for i, fn in ipairs(handlers) do
         local ok, err = pcall(fn, ...)
         if not ok then
-            L.error("Events", eventName .. " handler #" .. i .. " error: " .. tostring(err))
+            LOG.error("%s handler #%d error: %s", eventName, i, tostring(err))
         end
     end
 end
@@ -277,7 +275,7 @@ end
 --- @param ... any
 function E.Custom.FireServer(eventName, ...)
     if not MSR.Env.hasServerAuthority() then
-        L.debug("Events", "Skipping " .. eventName .. " (no server authority)")
+        LOG.debug("Skipping %s (no server authority)", eventName)
         return
     end
     E.Custom.Fire(eventName, ...)
@@ -348,11 +346,11 @@ end
 
 function ServerEventBuilder:register()
     if not self.eventName then
-        L.error("Events", "Server.On: no event name")
+        LOG.error("Server.On: no event name")
         return
     end
     if not self._serverHandler then
-        L.error("Events", "Server.On(" .. self.eventName .. "): no server handler")
+        LOG.error("Server.On(%s): no server handler", self.eventName)
         return
     end
     
@@ -365,7 +363,7 @@ function ServerEventBuilder:register()
     
     local pzEvent = Events[self.eventName]
     if not pzEvent then
-        L.warn("Events", "Server.On: PZ event not found: " .. self.eventName)
+        LOG.warning("Server.On: PZ event not found: %s", self.eventName)
         return
     end
     
@@ -373,7 +371,7 @@ function ServerEventBuilder:register()
         E.Server._handleGameEvent(self.eventName, ...)
     end)
     
-    L.debug("Events", "Registered server-authoritative handler for " .. self.eventName)
+    LOG.debug("Registered server-authoritative handler for %s", self.eventName)
     return self
 end
 
@@ -392,7 +390,7 @@ function E.Server.Register(eventName, handler)
         clientCallback = nil,
         filter = nil
     }
-    L.debug("Events", "Registered custom server event: " .. eventName)
+    LOG.debug("Registered custom server event: %s", eventName)
 end
 
 --- @param eventName string
@@ -403,7 +401,7 @@ function E.Server.Fire(eventName, args, player)
     local config = serverEventHandlers[eventName]
     
     if not config or not config.serverHandler then
-        L.warn("Events", "Server.Fire: no handler for " .. tostring(eventName))
+        LOG.warning("Server.Fire: no handler for %s", tostring(eventName))
         return
     end
     
@@ -428,7 +426,7 @@ end
 function E.Server._dispatchToServer(eventName, player, eventArgs, config)
     -- Has server authority: run directly
     if MSR.Env.hasServerAuthority() then
-        L.debug("Events", "Server." .. eventName .. " - running locally")
+        LOG.debug("Server.%s - running locally", eventName)
         
         local reply = function(response)
             if config.clientCallback and player then
@@ -438,14 +436,14 @@ function E.Server._dispatchToServer(eventName, player, eventArgs, config)
         
         local ok, err = pcall(config.serverHandler, player, eventArgs, reply)
         if not ok then
-            L.error("Events", "Server." .. eventName .. " handler error: " .. tostring(err))
+            LOG.error("Server.%s handler error: %s", eventName, tostring(err))
         end
         return
     end
     
     -- MP Client: forward to server
     if MSR.Env.isMultiplayerClient() then
-        L.debug("Events", "Server." .. eventName .. " - forwarding to server")
+        LOG.debug("Server.%s - forwarding to server", eventName)
         
         local transactionId = nil
         if config.clientCallback then
@@ -457,7 +455,7 @@ function E.Server._dispatchToServer(eventName, player, eventArgs, config)
         if eventArgs.earnedXp then
             local count = 0
             for _ in pairs(eventArgs.earnedXp) do count = count + 1 end
-            L.debug("Events", "Sending earnedXp with " .. count .. " perks")
+            LOG.debug("Sending earnedXp with %d perks", count)
         end
         
         sendClientCommand(MSR.Config.COMMAND_NAMESPACE, SERVER_EVENT_CMD, {
@@ -479,23 +477,23 @@ local function onServerEventCommand(module, command, player, cmdArgs)
         -- Debug: check if args came through
         local argsCount = 0
         for k in pairs(args) do argsCount = argsCount + 1 end
-        L.debug("Events", "cmdArgs.args has " .. argsCount .. " keys")
+        LOG.debug("cmdArgs.args has %d keys", argsCount)
         
         local config = serverEventHandlers[eventName]
         if not config or not config.serverHandler then
-            L.warn("Events", "Server: no handler for " .. tostring(eventName))
+            LOG.warning("Server: no handler for %s", tostring(eventName))
             return
         end
         
-        L.debug("Events", "Server handling: " .. eventName .. " from " .. tostring(player:getUsername()))
+        LOG.debug("Server handling: %s from %s", eventName, tostring(player:getUsername()))
         
         -- Debug: log what we received
         if args.earnedXp then
             local count = 0
             for _ in pairs(args.earnedXp) do count = count + 1 end
-            L.debug("Events", "Received earnedXp with " .. count .. " perks")
+            LOG.debug("Received earnedXp with %d perks", count)
         else
-            L.debug("Events", "Received args, no earnedXp field")
+            LOG.debug("Received args, no earnedXp field")
         end
         
         local reply = function(response)
@@ -509,7 +507,7 @@ local function onServerEventCommand(module, command, player, cmdArgs)
         
         local ok, err = pcall(config.serverHandler, player, args, reply)
         if not ok then
-            L.error("Events", "Server." .. eventName .. " handler error: " .. tostring(err))
+            LOG.error("Server.%s handler error: %s", eventName, tostring(err))
         end
     end
 end
@@ -527,7 +525,7 @@ local function onServerEventReply(module, command, args)
             local player = getPlayer()
             local ok, err = pcall(callback, player, response)
             if not ok then
-                L.error("Events", "Server reply callback error: " .. tostring(err))
+                LOG.error("Server reply callback error: %s", tostring(err))
             end
         end
     end
@@ -566,6 +564,6 @@ function E.GetStatus()
     }
 end
 
-L.debug("Events", "Event wrapper system loaded")
+LOG.debug("Event wrapper system loaded")
 
 return MSR.Events

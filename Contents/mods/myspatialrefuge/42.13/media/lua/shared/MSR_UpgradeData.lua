@@ -2,9 +2,9 @@
 
 require "00_core/00_MSR"
 require "CUI_YamlParser"
-require "00_core/05_Config"
-require "00_core/06_Data"
-require "00_core/07_Events"
+require "00_core/Config"
+require "00_core/Data"
+require "00_core/Events"
 
 if MSR and MSR.UpgradeData and MSR.UpgradeData._loaded then
     return MSR.UpgradeData

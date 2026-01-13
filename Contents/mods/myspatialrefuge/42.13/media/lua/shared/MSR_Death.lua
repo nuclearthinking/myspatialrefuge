@@ -9,24 +9,14 @@
 -- All handlers subscribe to these events - no direct module coupling
 
 require "00_core/00_MSR"
-require "00_core/04_Env"
-require "00_core/07_Events"
 
-if MSR and MSR.Death and MSR.Death._loaded then return MSR.Death end
+local Death = MSR.register("Death")
+if not Death then return MSR.Death end
 
-MSR.Death = {}
-MSR.Death._loaded = true
+local LOG = L.logger("Death")
 
-local Death = MSR.Death
-
--- ModData key for protected corpses (checked by MSR_Shared.ClearZombiesFromArea)
 Death.PROTECTED_KEY = "MSR_ProtectedCorpse"
 
------------------------------------------------------------
--- Protection Check (public API for ClearZombiesFromArea)
------------------------------------------------------------
-
---- Check if a dead body or zombie is protected from cleanup
 --- @param body IsoDeadBody|IsoZombie
 --- @return boolean
 function Death.IsProtected(body)
@@ -34,12 +24,7 @@ function Death.IsProtected(body)
     return md and md[Death.PROTECTED_KEY] == true
 end
 
------------------------------------------------------------
--- Internal: Corpse Protection Logic
------------------------------------------------------------
 
---- Find player corpse near death location
---- Uses onlineID in MP, MSR_CorpseOwner marker in SP
 local function findPlayerCorpse(x, y, z, username, playerOnlineId)
     local cell = getCell()
     if not cell then return nil end
@@ -67,14 +52,12 @@ local function findPlayerCorpse(x, y, z, username, playerOnlineId)
     return nil
 end
 
---- Mark corpse as protected and fire event
---- ModData copies to zombie on reanimate automatically
 local function protectCorpse(body, username)
     local md = body:getModData()
     md[Death.PROTECTED_KEY] = true
     md.MSR_CorpseOwner = nil
     
-    L.debug("Death", "Protected corpse of " .. username)
+    LOG.debug("Protected corpse of %s", username)
     
     -- Fire event for any handlers interested in corpse protection
     MSR.Events.Custom.Fire("MSR_CorpseProtected", {
@@ -104,7 +87,7 @@ local function startCorpseSearch(deathX, deathY, deathZ, username, playerOnlineI
         -- Timeout
         if tickCount > maxTicks then
             Events.OnTick.Remove(findCorpse)
-            L.debug("Death", "Timeout finding corpse of " .. username)
+            LOG.debug("Timeout finding corpse of %s", username)
             return
         end
 
@@ -162,7 +145,7 @@ local function handleRefugeDataCleanup(args)
     -- Load Data module lazily to avoid circular dependency
     local Data = MSR.Data
     if not Data then
-        L.debug("Death", "MSR.Data not available for cleanup")
+        LOG.debug("MSR.Data not available for cleanup")
         return
     end
     
@@ -170,7 +153,7 @@ local function handleRefugeDataCleanup(args)
     local refugeData = Data.GetRefugeDataByUsername(username)
     if refugeData then
         Data.MarkRefugeOrphaned(username)
-        L.debug("Death", "Orphaned refuge for " .. username)
+        LOG.debug("Orphaned refuge for %s", username)
     end
     
     -- Clear return position
@@ -198,8 +181,8 @@ local function handlePlayerDeath(player, args, reply)
     local diedInRefuge = args.diedInRefuge
     local playerOnlineId = args.onlineId
     
-    L.debug("Death", string.format("Processing death for %s at %d,%d,%d (inRefuge=%s)",
-        username, deathX, deathY, deathZ, tostring(diedInRefuge)))
+    LOG.debug("Processing death for %s at %d,%d,%d (inRefuge=%s)",
+        username, deathX, deathY, deathZ, tostring(diedInRefuge))
     
     -- Fire main death event (for data cleanup, logging, etc.)
     -- Note: XP essence is created via MSR_CorpseFound after corpse spawns
@@ -269,7 +252,7 @@ MSR.Events.Server.On("OnPlayerDeath")
                 xpCount = xpCount + 1
                 totalXp = totalXp + (amount or 0)
             end
-            L.debug("Death", string.format("CLIENT sending XP data: xpPerks=%d, totalXp=%.1f", xpCount, totalXp))
+            LOG.debug("CLIENT sending XP data: xpPerks=%d, totalXp=%.1f", xpCount, totalXp)
         end
         
         return {
@@ -289,6 +272,6 @@ MSR.Events.Server.On("OnPlayerDeath")
 -- This runs after the main death handler fires the event
 MSR.Events.Custom.Add("MSR_PlayerDeath", handleRefugeDataCleanup)
 
-L.debug("Death", "Death event orchestrator loaded")
+LOG.debug("Death event orchestrator loaded")
 
 return MSR.Death

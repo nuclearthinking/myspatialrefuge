@@ -73,6 +73,13 @@ function getNumActivePlayers() end
 ---@return IsoWorld
 function getWorld() end
 
+---@class IsoWorld
+---@field getFrameNo fun(self: IsoWorld): integer Get current frame number
+---@field getCell fun(self: IsoWorld): IsoCell Get the world cell
+---@field isHydroPowerOn fun(self: IsoWorld): boolean Check if hydro power is on
+---@field setHydroPowerOn fun(self: IsoWorld, on: boolean)
+IsoWorld = {}
+
 ---@class IsoGridSquare
 ---@field getChunk fun(self: IsoGridSquare): IsoChunk|nil
 ---@field getX fun(self: IsoGridSquare): integer
@@ -397,6 +404,68 @@ function getTextOrNull(key, ...) end
 -- Logging
 ---@param ... any
 function print(...) end
+
+---Log message to specific debug channel (calls debugln internally)
+---@param debugType DebugType Debug channel to log to
+---@param message string Message to log
+function log(debugType, message) end
+
+---Write to a named log file in Lua cache directory
+---@param loggerName string Name of the log file (e.g., "MySpatialRefuge")
+---@param text string Text to write
+function writeLog(loggerName, text) end
+
+-- Debug Type enum (debug channels)
+---@class DebugType
+---@field Mod DebugType Mod logging channel
+---@field General DebugType General logging channel
+---@field Lua DebugType Lua logging channel
+---@field Script DebugType Script logging channel
+---@field Network DebugType Network logging channel
+---@field Multiplayer DebugType Multiplayer logging channel
+---@field Vehicle DebugType Vehicle logging channel
+---@field Zombie DebugType Zombie logging channel
+---@field Sound DebugType Sound logging channel
+---@field Animation DebugType Animation logging channel
+---@field Combat DebugType Combat logging channel
+---@field Foraging DebugType Foraging logging channel
+---@field Recipe DebugType Recipe logging channel
+---@field Radio DebugType Radio logging channel
+---@field MapLoading DebugType Map loading channel
+---@field Objects DebugType Objects logging channel
+---@field Clothing DebugType Clothing logging channel
+---@field Fireplace DebugType Fireplace logging channel
+---@field Input DebugType Input logging channel
+---@field FileIO DebugType File I/O logging channel
+---@field Death DebugType Death logging channel
+---@field Damage DebugType Damage logging channel
+---@field ActionSystem DebugType Action system logging channel
+---@field IsoRegion DebugType IsoRegion logging channel
+---@field Asset DebugType Asset logging channel
+---@field Shader DebugType Shader logging channel
+---@field Sprite DebugType Sprite logging channel
+---@field Statistic DebugType Statistic logging channel
+---@field Voice DebugType Voice logging channel
+---@field Animal DebugType Animal logging channel
+---@field Entity DebugType Entity logging channel
+---@field Saving DebugType Saving logging channel
+---@field Zone DebugType Zone logging channel
+---@field WorldGen DebugType World generation channel
+---@field Fluid DebugType Fluid logging channel
+---@field Energy DebugType Energy logging channel
+---@field Physics DebugType Physics logging channel
+DebugType = {}
+
+-- Log Severity enum
+---@class LogSeverity
+---@field Trace LogSeverity Most verbose
+---@field Noise LogSeverity Very verbose  
+---@field Debug LogSeverity Debug info
+---@field General LogSeverity Normal logging
+---@field Warning LogSeverity Warnings
+---@field Error LogSeverity Errors
+---@field Off LogSeverity Disabled
+LogSeverity = {}
 
 -- ModData (persistent data storage)
 ---@class ModData
