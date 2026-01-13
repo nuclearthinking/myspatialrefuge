@@ -1,21 +1,11 @@
--- MSR_Integrity - Integrity Module
--- Unified validation and repair system for refuge structures
--- Consolidates all repair logic into a single, idempotent mechanism
-
 require "00_core/00_MSR"
-require "00_core/05_Config"
-require "00_core/04_Env"
 require "helpers/World"
-require "00_core/06_Data"
 
-if MSR and MSR.Integrity and MSR.Integrity._loaded then
-    return MSR.Integrity
-end
 
-MSR.Integrity = MSR.Integrity or {}
-MSR.Integrity._loaded = true
+local Integrity = MSR.register("Integrity")
+if not Integrity then return MSR.Integrity end
 
-local Integrity = MSR.Integrity
+local LOG = L.logger("Integrity")
 
 local function removeObjectFromSquare(square, obj)
     return MSR.World.removeObject(square, obj, true)
@@ -69,7 +59,7 @@ local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
         local relic = findRelicOnSquareByModData(square, refugeId)
         if relic then foundRelic, foundBy = relic, "moddata" end
     end)
-    
+
     if foundRelic then return foundRelic, foundBy end
 
     -- Fallback: sprite matching for old saves
@@ -144,14 +134,14 @@ local function validateRelicModData(relic, refugeId, report)
         md.isSacredRelic = true
         repaired = true
         report.relic.modDataRepaired = true
-        L.log("Integrity", "Added isSacredRelic flag")
+        LOG.info("Added isSacredRelic flag")
     end
 
     if not md.refugeId or md.refugeId ~= refugeId then
         md.refugeId = refugeId
         repaired = true
         report.relic.modDataRepaired = true
-        L.log("Integrity", "Fixed refugeId: " .. tostring(refugeId))
+        LOG.info("Fixed refugeId: %s", tostring(refugeId))
     end
 
     if not md.isProtectedRefugeObject then
@@ -182,7 +172,7 @@ local function validateRelicSprite(relic, report)
     end
 
     -- Determine if repair needed
-    local needsRepair = not spriteValid or 
+    local needsRepair = not spriteValid or
         (currentSprite ~= expectedSprite and currentSprite == fallbackSprite)
 
     if needsRepair then
@@ -191,11 +181,11 @@ local function validateRelicSprite(relic, report)
             relic:setSprite(expectedSprite)
             relic:getModData().relicSprite = expectedSprite
             report.relic.spriteRepaired = true
-            L.log("Integrity", "Repaired relic sprite: " .. tostring(currentSprite) .. " -> " .. expectedSprite)
+            LOG.info("Repaired relic sprite: %s -> %s", tostring(currentSprite), expectedSprite)
             return true
         else
             report.relic.spriteLoadFailed = true
-            L.log("Integrity", "WARNING: Cannot load sprite '" .. expectedSprite .. "' - texture pack may not be loaded")
+            LOG.warning("Cannot load sprite '%s' - texture pack may not be loaded", expectedSprite)
         end
     end
 
@@ -234,7 +224,7 @@ local function ensureSingleRelic(refugeData, report)
         return allRelics[1].obj
     end
 
-    L.log("Integrity", "Found " .. #allRelics .. " relics - removing duplicates")
+    LOG.info("Found %d relics - removing duplicates", #allRelics)
 
     -- Find which relic to keep (prefer stored position, then most items)
     local keepIndex = 1
@@ -360,7 +350,7 @@ function Integrity.ValidateAndRepair(refugeData, context)
         return report
     end
 
-    L.debug("Integrity", "ValidateAndRepair triggered by: " .. source)
+    LOG.debug("ValidateAndRepair triggered by: %s", source)
 
     local canRepair = MSR.Env.canModifyData()
 
@@ -377,7 +367,7 @@ function Integrity.ValidateAndRepair(refugeData, context)
         relic = findRelicReadOnly(relicX, relicY, relicZ, refugeData.radius or 1, refugeData.refugeId)
 
         if not relic and (relicX ~= refugeData.centerX or relicY ~= refugeData.centerY) then
-            relic = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ, 
+            relic = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ,
                 refugeData.radius or 1, refugeData.refugeId)
         end
     end
@@ -391,7 +381,7 @@ function Integrity.ValidateAndRepair(refugeData, context)
         end
     else
         report.relic.found = false
-        L.log("Integrity", "WARNING: No relic found in refuge")
+        LOG.warning("No relic found in refuge")
     end
 
     if canRepair then
@@ -404,9 +394,8 @@ function Integrity.ValidateAndRepair(refugeData, context)
         syncAll(refugeData, relic, report)
     end
 
-    L.debug("Integrity", "Complete: relic=" .. tostring(report.relic.found) ..
-        " sprite=" .. tostring(report.relic.spriteRepaired) ..
-        " synced=" .. tostring(report.modData.synced))
+    LOG.debug("Complete: relic=%s sprite=%s synced=%s",
+        tostring(report.relic.found), tostring(report.relic.spriteRepaired), tostring(report.modData.synced))
 
     return report
 end
@@ -419,16 +408,16 @@ function Integrity.CheckNeedsRepair(refugeData)
         refugeData.radius or 1, refugeData.refugeId)
 
     if not relic then return true end
-    if foundBy == "sprite" then return true end  -- Found by sprite = missing ModData
+    if foundBy == "sprite" then return true end -- Found by sprite = missing ModData
 
     -- Check sprite is correct
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
     local currentSprite = relic:getSpriteName()
-    
+
     if not currentSprite or currentSprite ~= expectedSprite then
         -- Allow fallback sprite only if it has valid sprite object
         if currentSprite == MSR.Config.SPRITES.SACRED_RELIC_FALLBACK then
-            return true  -- Needs migration to new sprite
+            return true -- Needs migration to new sprite
         end
         local sprite = relic:getSprite()
         if not sprite or not sprite:getName() then
@@ -465,7 +454,7 @@ function Integrity.ClientSpriteRepair(relic)
             relic:setSprite(expectedSprite)
             relic:getModData().isSacredRelic = true
             relic:getModData().relicSprite = expectedSprite
-            L.log("Integrity", "Client sprite repair applied")
+            LOG.info("Client sprite repair applied")
             return true
         end
     end
@@ -483,7 +472,7 @@ function Integrity.FindRelic(refugeData)
     local relic, foundBy = findRelicReadOnly(relicX, relicY, relicZ, refugeData.radius or 1, refugeData.refugeId)
 
     if not relic then
-        relic, foundBy = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ, 
+        relic, foundBy = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ,
             refugeData.radius or 1, refugeData.refugeId)
     end
 

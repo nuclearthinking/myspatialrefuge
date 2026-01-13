@@ -1,7 +1,5 @@
 -- 05_Config - Static configuration and difficulty-scaled getters
-
-require "00_core/00_MSR"
-require "00_core/03_Difficulty"
+-- Assumes: MSR, MSR.Difficulty exist (loaded by 00_MSR.lua)
 
 if MSR.Config and MSR.Config._loaded then
     return MSR.Config

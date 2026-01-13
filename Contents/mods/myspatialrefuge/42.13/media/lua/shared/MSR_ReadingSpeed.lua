@@ -1,8 +1,7 @@
 require "00_core/00_MSR"
-require "00_core/04_Env"
-require "00_core/06_Data"
-require "00_core/07_Events"
 require "MSR_UpgradeData"
+
+local LOG = L.logger("ReadingSpeed")
 
 if MSR and MSR.ReadingSpeed and MSR.ReadingSpeed._loaded then
     return MSR.ReadingSpeed
@@ -77,7 +76,7 @@ local function hookReadABook()
     end
     
     local side = MSR.Env.isServer() and "SERVER" or "CLIENT"
-    L.debug("ReadingSpeed", "Successfully hooked ISReadABook.getDuration on " .. side)
+    LOG.debug("Successfully hooked ISReadABook.getDuration on %s", side)
     return true
 end
 
@@ -87,15 +86,15 @@ MSR.Events.OnAnyReady.Add(function()
     end
     
     if not ISReadABook or not ISReadABook.getDuration then
-        L.error("ReadingSpeed", "ISReadABook not available - reading speed upgrade will not work")
+        LOG.error("ISReadABook not available - reading speed upgrade will not work")
         return
     end
     
     if hookReadABook() then
         ReadingSpeed._initialized = true
-        L.debug("ReadingSpeed", "Initialization complete")
+        LOG.debug("Initialization complete")
     else
-        L.error("ReadingSpeed", "Failed to hook ISReadABook.getDuration")
+        LOG.error("Failed to hook ISReadABook.getDuration")
     end
 end)
 

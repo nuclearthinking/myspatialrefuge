@@ -15,9 +15,9 @@
 -- - Works for any item type (cores, materials, etc.)
 
 require "00_core/00_MSR"
-require "00_core/04_Env"
+require "00_core/Env"
 require "helpers/Inventory"
-require "00_core/05_Config"
+require "00_core/Config"
 require "MSR_PlayerMessage"
 
 if MSR and MSR.Transaction and MSR.Transaction._loaded then

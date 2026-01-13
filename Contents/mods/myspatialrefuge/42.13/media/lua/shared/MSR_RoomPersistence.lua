@@ -2,10 +2,9 @@
 -- Storage: roomBounds = { [roomIdStr] = { x, y, w, h, z }, ... }
 
 require "00_core/00_MSR"
-require "00_core/05_Config"
-require "00_core/06_Data"
-require "00_core/04_Env"
 require "helpers/World"
+
+local LOG = L.logger("RoomPersistence")
 
 if MSR and MSR.RoomPersistence and MSR.RoomPersistence._loaded then
     return MSR.RoomPersistence
@@ -63,7 +62,7 @@ local function compressRoomData(scannedCells)
         end
     end
     
-    L.debug("RoomPersistence", string.format("Compressed %d cells -> %d bounds", #scannedCells, K.count(result)))
+    LOG.debug("Compressed %d cells -> %d bounds", #scannedCells, K.count(result))
     return result
 end
 
@@ -94,7 +93,7 @@ function RoomPersistence.Save(refugeData)
     MSR.Data.SaveRefugeData(refugeData)
     
     local count = K.count(bounds)
-    L.debug("RoomPersistence", string.format("Saved %d room bounds", count))
+    LOG.debug("Saved %d room bounds", count)
     return count
 end
 
@@ -142,7 +141,7 @@ function RoomPersistence.Restore(refugeData)
     end
     
     if restored > 0 then
-        L.debug("RoomPersistence", string.format("Restored %d room IDs", restored))
+        LOG.debug("Restored %d room IDs", restored)
         RoomPersistence.RefreshRoomContents(roomSquares, roomCache)
     end
     
@@ -216,7 +215,7 @@ function RoomPersistence.ForceCutaway(refugeData, playerIndex)
         end
     end
     
-    L.debug("RoomPersistence", string.format("Applied cutaway to %d squares", count))
+    LOG.debug("Applied cutaway to %d squares", count)
     return count
 end
 

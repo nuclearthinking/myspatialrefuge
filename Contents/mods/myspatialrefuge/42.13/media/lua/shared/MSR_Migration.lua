@@ -7,23 +7,15 @@
 -- Version 5: Added roomIds table for room persistence (no breaking changes)
 
 require "00_core/00_MSR"
-require "00_core/05_Config"
-require "00_core/06_Data"
-require "00_core/04_Env"
 
--- Prevent double-loading
-if MSR and MSR.Migration and MSR.Migration._loaded then
-    return MSR.Migration
-end
+local Migration = MSR.register("Migration")
+if not Migration then return MSR.Migration end
 
-MSR.Migration = MSR.Migration or {}
-MSR.Migration._loaded = true
 
--- Local aliases
-local Migration = MSR.Migration
 local Config = MSR.Config
 local Data = MSR.Data
 local Env = MSR.Env
+local LOG = L.logger("Migration")
 
 -- Use version from config to keep it in sync
 Migration.CURRENT_VERSION = Config.CURRENT_DATA_VERSION
@@ -185,9 +177,9 @@ local function migrate_2_to_3(player)
                             obj:transmitUpdatedSpriteToClients()
                         end
                         
-                        print("[Migration] Updated relic sprite for " .. username .. ": " .. tostring(currentSprite) .. " -> " .. newSpriteName)
+                        LOG.info("Updated relic sprite for %s: %s -> %s", username, tostring(currentSprite), newSpriteName)
                     else
-                        print("[Migration] Warning: New sprite '" .. newSpriteName .. "' not found - keeping old sprite")
+                        LOG.warning("New sprite '%s' not found - keeping old sprite", newSpriteName)
                     end
                 end
                 
@@ -226,7 +218,7 @@ local function migrate_3_to_4(player)
     -- Add upgrades table if missing
     if not refugeData.upgrades then
         refugeData.upgrades = {}
-        print("[Migration] Added upgrades table for " .. username)
+        LOG.info("Added upgrades table for %s", username)
     end
     
     -- Update data version (hardcoded - each migration sets its target version)
@@ -335,7 +327,7 @@ function Migration.MigratePlayer(player)
         version = version + 1
     end
     
-    print("[Migration] " .. username .. ": v" .. startVersion .. " -> v" .. version)
+    LOG.info("%s: v%d -> v%d", username, startVersion, version)
     return true, "Migrated v" .. startVersion .. " -> v" .. version
 end
 
@@ -373,7 +365,7 @@ function Migration.CheckPendingSpriteMigration(username, square)
                     refugeData.pendingSpriteMigration = nil
                     Data.SaveRefugeData(refugeData)
                     
-                    print("[Migration] Deferred sprite update completed for " .. username)
+                    LOG.info("Deferred sprite update completed for %s", username)
                     return true
                 end
             end
@@ -385,7 +377,7 @@ end
 
 function Migration.DebugPrintState(player)
     if not player then 
-        print("[Migration] Debug: No player")
+        LOG.debug("Debug: No player")
         return 
     end
     
@@ -393,20 +385,20 @@ function Migration.DebugPrintState(player)
     local pmd = player:getModData()
     local version = Migration.DetectVersion(player)
     
-    print("[Migration] === " .. username .. " ===")
-    print("  CURRENT_VERSION: " .. Migration.CURRENT_VERSION)
-    print("  Detected version: " .. tostring(version))
-    print("  Needs migration: " .. tostring(Migration.NeedsMigration(player)))
+    LOG.debug("=== %s ===", username)
+    LOG.debug("  CURRENT_VERSION: %d", Migration.CURRENT_VERSION)
+    LOG.debug("  Detected version: %s", tostring(version))
+    LOG.debug("  Needs migration: %s", tostring(Migration.NeedsMigration(player)))
     
     if pmd then
-        print("  Legacy v1: centerX=" .. tostring(pmd.spatialRefuge_centerX) .. ", tier=" .. tostring(pmd.spatialRefuge_tier))
+        LOG.debug("  Legacy v1: centerX=%s, tier=%s", tostring(pmd.spatialRefuge_centerX), tostring(pmd.spatialRefuge_tier))
     end
     
     local data = Data.GetRefugeDataByUsername(username)
     if data then
-        print("  Global v2: centerX=" .. tostring(data.centerX) .. ", tier=" .. tostring(data.tier) .. ", dataVersion=" .. tostring(data.dataVersion))
+        LOG.debug("  Global v2: centerX=%s, tier=%s, dataVersion=%s", tostring(data.centerX), tostring(data.tier), tostring(data.dataVersion))
     else
-        print("  Global: (none)")
+        LOG.debug("  Global: (none)")
     end
 end
 

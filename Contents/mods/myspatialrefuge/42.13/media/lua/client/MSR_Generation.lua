@@ -1,11 +1,12 @@
 -- Refuge generation (client-side wrappers for MSR.Shared)
 
 require "MSR_Shared"
-require "00_core/05_Config"
+require "00_core/Config"
 require "MSR_PlayerMessage"
 
 function MSR.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
-    return MSR.Shared.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
+    require "MSR_ZombieClear"
+    return MSR.ZombieClear.ClearZombiesFromArea(centerX, centerY, z, radius, forceClean, player)
 end
 
 function MSR.CreateSacredRelic(x, y, z, refugeId, searchRadius)

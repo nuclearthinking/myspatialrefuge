@@ -11,13 +11,8 @@
 
 require "00_core/00_MSR"
 
--- Prevent double-loading
-if MSR and MSR.PlayerMessage and MSR.PlayerMessage._loaded then
-    return MSR.PlayerMessage
-end
-
-MSR.PlayerMessage = MSR.PlayerMessage or {}
-MSR.PlayerMessage._loaded = true
+local PlayerMessage = MSR.register("PlayerMessage")
+if not PlayerMessage then return MSR.PlayerMessage end
 
 -- Short alias for internal use
 local PM = MSR.PlayerMessage
@@ -61,7 +56,7 @@ PM.CANNOT_MOVE_RELIC_YET = "CANNOT_MOVE_RELIC_YET"
 PM.MOVING_RELIC = "MOVING_RELIC"
 PM.CANNOT_MOVE_RELIC = "CANNOT_MOVE_RELIC"
 
--- Relic movement errors (mapped from MoveRelicError)
+-- Relic movement errors (also usable as message keys directly)
 PM.MOVE_NO_REFUGE_DATA = "MOVE_NO_REFUGE_DATA"
 PM.MOVE_RELIC_NOT_FOUND = "MOVE_RELIC_NOT_FOUND"
 PM.MOVE_ALREADY_AT_POSITION = "MOVE_ALREADY_AT_POSITION"
@@ -75,6 +70,25 @@ PM.MOVE_BLOCKED_BY_FURNITURE = "MOVE_BLOCKED_BY_FURNITURE"
 PM.MOVE_BLOCKED_BY_CONTAINER = "MOVE_BLOCKED_BY_CONTAINER"
 PM.MOVE_BLOCKED_BY_ENTITY = "MOVE_BLOCKED_BY_ENTITY"
 PM.MOVE_DESTINATION_BLOCKED = "MOVE_DESTINATION_BLOCKED"
+
+-- MoveRelicError enum - values ARE message keys (no separate mapping needed)
+-- Use: local err = PM.MoveRelicError; return false, err.BLOCKED_BY_WALL
+PM.MoveRelicError = {
+    SUCCESS = PM.RELIC_MOVED_TO,
+    NO_REFUGE_DATA = PM.MOVE_NO_REFUGE_DATA,
+    RELIC_NOT_FOUND = PM.MOVE_RELIC_NOT_FOUND,
+    ALREADY_AT_POSITION = PM.MOVE_ALREADY_AT_POSITION,
+    WORLD_NOT_READY = PM.MOVE_WORLD_NOT_READY,
+    DESTINATION_NOT_LOADED = PM.MOVE_DESTINATION_NOT_LOADED,
+    CURRENT_LOCATION_NOT_LOADED = PM.MOVE_CURRENT_NOT_LOADED,
+    BLOCKED_BY_TREE = PM.MOVE_BLOCKED_BY_TREE,
+    BLOCKED_BY_WALL = PM.MOVE_BLOCKED_BY_WALL,
+    BLOCKED_BY_STAIRS = PM.MOVE_BLOCKED_BY_STAIRS,
+    BLOCKED_BY_FURNITURE = PM.MOVE_BLOCKED_BY_FURNITURE,
+    BLOCKED_BY_CONTAINER = PM.MOVE_BLOCKED_BY_CONTAINER,
+    BLOCKED_BY_ENTITY = PM.MOVE_BLOCKED_BY_ENTITY,
+    DESTINATION_BLOCKED = PM.MOVE_DESTINATION_BLOCKED,
+}
 
 -- Upgrade messages
 PM.REFUGE_UPGRADED_TO = "REFUGE_UPGRADED_TO"
@@ -190,42 +204,6 @@ local DirectionToTranslationKey = {
     Center = "IGUI_RelicDirection_Center",
 }
 
------------------------------------------------------------
--- Internal: MoveRelicError to PlayerMessage Key Mapping
------------------------------------------------------------
-
-local MoveRelicErrorToMessageKey = nil  -- Lazy-initialized
-
-local function getMoveRelicErrorMapping()
-    if MoveRelicErrorToMessageKey then
-        return MoveRelicErrorToMessageKey
-    end
-    
-    -- Build mapping from MSR.Shared.MoveRelicError if available
-    if MSR.Shared and MSR.Shared.MoveRelicError then
-        local E = MSR.Shared.MoveRelicError
-        MoveRelicErrorToMessageKey = {
-            [E.SUCCESS] = PM.RELIC_MOVED_TO,
-            [E.NO_REFUGE_DATA] = PM.MOVE_NO_REFUGE_DATA,
-            [E.RELIC_NOT_FOUND] = PM.MOVE_RELIC_NOT_FOUND,
-            [E.ALREADY_AT_POSITION] = PM.MOVE_ALREADY_AT_POSITION,
-            [E.WORLD_NOT_READY] = PM.MOVE_WORLD_NOT_READY,
-            [E.DESTINATION_NOT_LOADED] = PM.MOVE_DESTINATION_NOT_LOADED,
-            [E.CURRENT_LOCATION_NOT_LOADED] = PM.MOVE_CURRENT_NOT_LOADED,
-            [E.BLOCKED_BY_TREE] = PM.MOVE_BLOCKED_BY_TREE,
-            [E.BLOCKED_BY_WALL] = PM.MOVE_BLOCKED_BY_WALL,
-            [E.BLOCKED_BY_STAIRS] = PM.MOVE_BLOCKED_BY_STAIRS,
-            [E.BLOCKED_BY_FURNITURE] = PM.MOVE_BLOCKED_BY_FURNITURE,
-            [E.BLOCKED_BY_CONTAINER] = PM.MOVE_BLOCKED_BY_CONTAINER,
-            [E.BLOCKED_BY_ENTITY] = PM.MOVE_BLOCKED_BY_ENTITY,
-            [E.DESTINATION_BLOCKED] = PM.MOVE_DESTINATION_BLOCKED,
-        }
-    else
-        MoveRelicErrorToMessageKey = {}
-    end
-    
-    return MoveRelicErrorToMessageKey
-end
 
 -----------------------------------------------------------
 -- Public API
@@ -296,14 +274,6 @@ function PM.TranslateDirection(canonicalName)
     return canonicalName
 end
 
---- Convert MoveRelicError code to PM key
--- @param errorCode string - one of MSR.Shared.MoveRelicError constants
--- @return string - PM key constant
-function PM.FromMoveRelicError(errorCode)
-    local mapping = getMoveRelicErrorMapping()
-    return mapping[errorCode] or PM.CANNOT_MOVE_RELIC
-end
-
 --- Make player say a localized message
 -- @param player IsoPlayer - the player object
 -- @param messageKey string - one of PM.* constants
@@ -354,17 +324,6 @@ function PM.SayRandom(player, poolKey)
     
     player:Say(text)
     return true
-end
-
---- Make player say a move relic error message
--- Convenience function that converts error code and says the message
--- @param player IsoPlayer - the player object
--- @param errorCode string - one of MSR.Shared.MoveRelicError constants
--- @param ... - optional format arguments (e.g., corner name for SUCCESS)
--- @return boolean - true if message was said
-function PM.SayMoveRelicError(player, errorCode, ...)
-    local messageKey = PM.FromMoveRelicError(errorCode)
-    return PM.Say(player, messageKey, ...)
 end
 
 -----------------------------------------------------------

@@ -16,7 +16,7 @@ end
 K = K or {}
 K._loaded = true
 
-if MSR then MSR.KahluaCompat = K end
+MSR.KahluaCompat = K
 
 -----------------------------------------------------------
 -- Table Utilities

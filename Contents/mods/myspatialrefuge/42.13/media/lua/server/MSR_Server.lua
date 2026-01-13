@@ -2,14 +2,8 @@
 -- On dedicated servers, automatic directory scanning may not complete before server code runs
 
 require "00_core/00_MSR"
-require "00_core/01_KahluaCompat"
-require "00_core/02_Logging"
-require "00_core/03_Difficulty"
-require "00_core/04_Env"
 
-require "00_core/05_Config"
 require "MSR_Shared"
-require "00_core/06_Data"
 require "MSR_Validation"
 require "MSR_Migration"
 require "MSR_UpgradeData"
@@ -19,7 +13,6 @@ require "MSR_UpgradeLogic"
 require "MSR_ReadingSpeed"
 require "MSR_RoomPersistence"
 require "MSR_RefugeExpansion"
-require "00_core/07_Events"
 require "MSR_ZombieClear"
 require "MSR_Death"
 require "MSR_XPRetention"
@@ -325,7 +318,7 @@ function MSR_Server.HandleEnterRequest(player, args)
     local canTeleport, remaining = checkTeleportCooldown(username)
     if not canTeleport then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            messageKey = "IGUI_PortalCharging",
+            messageKey = "PORTAL_CHARGING",
             messageArgs = { remaining }
         })
         return
@@ -491,7 +484,7 @@ function MSR_Server.HandleChunksReady(player, args)
                 -- Relic exists - refuge is already generated, skip integrity check on normal entry
                 -- Only clear zombies that may have spawned
                 L.debug("Server", "Refuge already generated - skipping integrity check")
-                MSR.Shared.ClearZombiesFromArea(
+                MSR.ZombieClear.ClearZombiesFromArea(
                     refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
                     refugeDataRef.radius or 1, true, playerRef
                 )
@@ -636,7 +629,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
     local canMove, remaining = checkRelicMoveCooldown(username)
     if not canMove then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            messageKey = "IGUI_CannotMoveRelicYet",
+            messageKey = "CANNOT_MOVE_RELIC_YET",
             messageArgs = { remaining }
         })
         return
@@ -645,7 +638,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
     local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            messageKey = "IGUI_MoveRelic_NoRefugeData"
+            messageKey = "MOVE_NO_REFUGE_DATA"
         })
         return
     end
@@ -657,7 +650,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
     local isValid, sanitizedDx, sanitizedDy = MSR.Validation.ValidateCornerOffset(cornerDx, cornerDy)
     if not isValid then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            messageKey = "IGUI_MoveRelic_DestinationBlocked"
+            messageKey = "MOVE_DESTINATION_BLOCKED"
         })
         return
     end
@@ -695,9 +688,9 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
         
         L.debug("Server", "Moved relic for " .. username .. " to " .. cornerName)
     else
-        local translationKey = MSR.Shared.GetMoveRelicTranslationKey(errorCode)
+        -- errorCode from MoveRelic IS already a PM message key
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            messageKey = translationKey
+            messageKey = errorCode
         })
     end
 end

@@ -1,10 +1,10 @@
 require "00_core/00_MSR"
-require "00_core/04_Env"
+require "00_core/Env"
 require "MSR_UpgradeData"
 require "MSR_Transaction"
-require "00_core/05_Config"
+require "00_core/Config"
 require "MSR_Shared"
-require "00_core/06_Data"
+require "00_core/Data"
 require "MSR_RefugeExpansion"
 require "MSR_PlayerMessage"
 local PM = MSR.PlayerMessage
@@ -438,7 +438,7 @@ end
 
 -- Register handlers on server authority (SP, Coop host, Dedicated server)
 -- Uses MSR.Events wrapper to handle environment differences automatically
-require "00_core/07_Events"
+require "00_core/Events"
 MSR.Events.OnServerReady.Add(registerBuiltinHandlers)
 
 return MSR.UpgradeLogic

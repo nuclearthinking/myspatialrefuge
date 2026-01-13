@@ -1,7 +1,7 @@
-require "00_core/05_Config"
+require "00_core/00_MSR"
+
 require "MSR_Validation"
 require "MSR_Shared"
-require "00_core/04_Env"
 require "MSR_Integrity"
 require "MSR_RoomPersistence"
 require "MSR_PlayerMessage"
@@ -699,22 +699,19 @@ local function OnServerCommand(module, command, args)
         end
         
     elseif command == MSR.Config.COMMANDS.ERROR then
-        local message
         if args and args.messageKey then
-            local translatedText = getText(args.messageKey)
             if args.messageArgs and #args.messageArgs > 0 then
-                message = string.format(translatedText, unpack(args.messageArgs))
+                PM.Say(player, args.messageKey, unpack(args.messageArgs))
             else
-                message = translatedText
+                PM.Say(player, args.messageKey)
             end
-            PM.SayRaw(player, message)
         elseif args and args.message then
             PM.SayRaw(player, args.message)
         else
             PM.Say(player, PM.REFUGE_ERROR)
         end
         
-        L.debug("Teleport", "Error from server: " .. (message or "unknown"))
+        L.debug("Teleport", "Error from server: " .. (args and (args.messageKey or args.message) or "unknown"))
     end
 end
 

@@ -1,9 +1,9 @@
 -- Spatial Refuge Main Module (Client)
 
 require "00_core/00_MSR"
-require "00_core/04_Env"
-require "00_core/05_Config"
-require "00_core/06_Data"
+require "00_core/Env"
+require "00_core/Config"
+require "00_core/Data"
 require "MSR_Migration"
 require "MSR_Shared"
 require "MSR_PlayerMessage"

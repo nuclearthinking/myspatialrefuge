@@ -3,8 +3,8 @@
 -- that can be absorbed by the next character to recover a portion of the XP.
 
 require "00_core/00_MSR"
-require "00_core/04_Env"
-require "00_core/05_Config"
+require "00_core/Env"
+require "00_core/Config"
 require "MSR_PlayerMessage"
 
 if MSR and MSR.XPRetention and MSR.XPRetention._loaded then
@@ -424,7 +424,7 @@ end
 -- Event Registration
 -----------------------------------------------------------
 
-require "00_core/07_Events"
+require "00_core/Events"
 
 MSR.Events.OnClientReady.Add(function()
     if Events.AddXP then

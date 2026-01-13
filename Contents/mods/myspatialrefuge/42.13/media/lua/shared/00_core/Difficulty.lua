@@ -1,9 +1,7 @@
--- MSR_02_Difficulty.lua - Unified Difficulty System
--- Global D table for difficulty scaling. Load order: after MSR_01_Logging, before MSR_Env
+-- 03_Difficulty - Unified Difficulty System
+-- Assumes: MSR namespace exists (loaded by 00_MSR.lua)
 
-require "00_core/00_MSR"
-
-if MSR and MSR.Difficulty and MSR.Difficulty._loaded then
+if MSR.Difficulty and MSR.Difficulty._loaded then
     return MSR.Difficulty
 end
 
