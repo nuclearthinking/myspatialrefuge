@@ -51,14 +51,59 @@ UI_PTBR = {
     UI_Upgrade_RefugeCoreStorage_L4 = "Ultrapasse os limites normais com manipulacao espacial avancada.", -- 1.14/07.01.2026
     UI_Upgrade_RefugeCoreStorage_L5 = "Alcance a capacidade teorica maxima atraves da harmonia espacial perfeita.", -- 1.14/07.01.2026
     
+    -- Refuge Basement
+    UI_Upgrade_RefugeBasement = "Porao do refugio", -- 1.20/18.01.2026
+    UI_Upgrade_RefugeBasement_L1 = "Escave um porao sob o refugio e adicione um piso inferior com acesso por escada.", -- 1.20/18.01.2026
+    IGUI_BasementStairsBlocked = " <CENTRE> <SIZE:large> <RGB:1,0.85,0.4> Basement Access Blocked <LINE> <LINE> " ..
+        "<SIZE:medium> <RGB:1,1,1> Clear the surface of your refuge for at least one stairwell. <LINE> <LINE> " ..
+        "<SIZE:small> <LEFT> Remove solid objects from the stairwell area, then try the upgrade again. <LINE> " ..
+        "At least one stairwell must be clear to excavate a basement. ", -- 1.20/18.01.2026
+    
     -- Vehicle Teleport
     UI_Upgrade_VehicleTeleport = "Teletransporte Veicular", -- 1.16/09.01.2026
     UI_Upgrade_VehicleTeleport_L1 = "Tecendo fios de espaco ao redor do seu veiculo, voce agora pode entrar no refugio enquanto esta sentado em um veiculo parado. Ao sair, voce retornara ao mesmo assento.", -- 1.16/09.01.2026
-    
+
+    -- Sanctuary Healing
+    UI_Upgrade_SanctuaryHealing = "Cura do refugio", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L1 = "O refugio cura ferimentos mais rapidamente enquanto voce descansa dentro de seus limites.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L2 = "O refugio cura ferimentos mais rapidamente enquanto voce descansa dentro de seus limites.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L3 = "O refugio cura ferimentos mais rapidamente enquanto voce descansa dentro de seus limites.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L4 = "O refugio cura ferimentos mais rapidamente enquanto voce descansa dentro de seus limites.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L5 = "O refugio cura ferimentos mais rapidamente enquanto voce descansa dentro de seus limites.", -- 1.18/16.01.2026
+
+    -- Restful Slumber
+    UI_Upgrade_RestfulSlumber = "Sono reparador", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L1 = "Dormir aqui e mais facil, reduzindo a fadiga mais rapidamente enquanto voce dorme.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L2 = "Dormir aqui e mais facil, reduzindo a fadiga mais rapidamente enquanto voce dorme.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L3 = "Dormir aqui e mais facil, reduzindo a fadiga mais rapidamente enquanto voce dorme.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L4 = "Dormir aqui e mais facil, reduzindo a fadiga mais rapidamente enquanto voce dorme.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L5 = "Dormir aqui e mais facil, reduzindo a fadiga mais rapidamente enquanto voce dorme.", -- 1.18/16.01.2026
+
+    -- Inner Peace
+    UI_Upgrade_InnerPeace = "Paz interior", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L1 = "O refugio acalma a mente, aliviando panico e estresse mais rapidamente.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L2 = "O refugio acalma a mente, aliviando panico e estresse mais rapidamente.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L3 = "O refugio acalma a mente, aliviando panico e estresse mais rapidamente.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L4 = "O refugio acalma a mente, aliviando panico e estresse mais rapidamente.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L5 = "O refugio acalma a mente, aliviando panico e estresse mais rapidamente.", -- 1.18/16.01.2026
+
+    -- Muscle Recovery
+    UI_Upgrade_MuscleRecovery = "Recuperacao muscular", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L1 = "A rigidez muscular desaparece mais rapidamente enquanto voce permanece dentro do refugio.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L2 = "A rigidez muscular desaparece mais rapidamente enquanto voce permanece dentro do refugio.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L3 = "A rigidez muscular desaparece mais rapidamente enquanto voce permanece dentro do refugio.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L4 = "A rigidez muscular desaparece mais rapidamente enquanto voce permanece dentro do refugio.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L5 = "A rigidez muscular desaparece mais rapidamente enquanto voce permanece dentro do refugio.", -- 1.18/16.01.2026
+
     UI_Effect_refugeSize = "Tamanho do refúgio", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Velocidade de leitura", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "Velocidade de teleporte", -- 1.8/02.01.2026
     UI_Effect_relicStorageCapacity = "Armazenamento da reliquia", -- 1.14/07.01.2026
     UI_Effect_vehicleTeleportEnabled = "Teletransporte Veicular", -- 1.16/09.01.2026
     UI_Effect_Unlocked = "Desbloqueado", -- 1.16/09.01.2026
+    UI_Effect_LevelFormat = "nivel %d", -- 1.18/16.01.2026
+    UI_Effect_refugeWoundRecoveryMultiplier = "Recuperacao de ferimentos", -- 1.19/16.01.2026
+    UI_Effect_refugeSleepFatigueMultiplier = "Qualidade do sono", -- 1.18/16.01.2026
+    UI_Effect_refugeMentalRecoveryMultiplier = "Recuperacao mental", -- 1.18/16.01.2026
+    UI_Effect_refugeStiffnessRecoveryMultiplier = "Recuperacao muscular", -- 1.18/16.01.2026
 }

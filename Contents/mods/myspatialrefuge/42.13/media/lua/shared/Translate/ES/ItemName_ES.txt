@@ -1,4 +1,4 @@
 ItemName_ES = {
     -- XP Essence System
-    ItemName_MSR_ExperienceEssence = "Esencia de Experiencia",
+    ItemName_Base.MSR_ExperienceEssence = "Esencia de Experiencia",
 }

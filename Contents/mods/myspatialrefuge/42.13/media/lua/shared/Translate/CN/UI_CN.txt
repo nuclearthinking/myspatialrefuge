@@ -51,14 +51,59 @@ UI_CN = {
     UI_Upgrade_RefugeCoreStorage_L4 = "通过先进的空间操控技术突破正常极限", -- 1.17.1/12.01.2026
     UI_Upgrade_RefugeCoreStorage_L5 = "通过完美的空间和谐实现理论上的最大容量", -- 1.17.1/12.01.2026
     
+    -- Refuge Basement
+    UI_Upgrade_RefugeBasement = "庇护所地下室", -- 1.20/18.01.2026
+    UI_Upgrade_RefugeBasement_L1 = "在庇护所下方开凿地下室，增加一层并提供楼梯通行。", -- 1.20/18.01.2026
+    IGUI_BasementStairsBlocked = " <CENTRE> <SIZE:large> <RGB:1,0.85,0.4> 地下室入口被阻挡 <LINE> <LINE> " ..
+        "<SIZE:medium> <RGB:1,1,1> 请清理庇护所地面，至少留出一个楼梯井位置。 <LINE> <LINE> " ..
+        "<SIZE:small> <LEFT> 移除楼梯井区域的坚固物体，然后再尝试升级。 <LINE> " ..
+        "至少需要清理出一个楼梯井才能开凿地下室。 ", -- 1.20/18.01.2026
+    
     -- Vehicle Teleport
     UI_Upgrade_VehicleTeleport = "车辆传送", -- 1.17.1/12.01.2026
     UI_Upgrade_VehicleTeleport_L1 = "在你的车辆周围编织空间丝线，你现在可以在静止的车辆中就座时进入庇护所。退出时，你将回到同一个座位。", -- 1.17.1/12.01.2026
-    
+
+    -- Sanctuary Healing
+    UI_Upgrade_SanctuaryHealing = "庇护所疗愈", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L1 = "你在庇护所内休息时，伤口会更快愈合。", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L2 = "你在庇护所内休息时，伤口会更快愈合。", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L3 = "你在庇护所内休息时，伤口会更快愈合。", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L4 = "你在庇护所内休息时，伤口会更快愈合。", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L5 = "你在庇护所内休息时，伤口会更快愈合。", -- 1.18/16.01.2026
+
+    -- Restful Slumber
+    UI_Upgrade_RestfulSlumber = "安稳睡眠", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L1 = "在这里更容易入睡，睡眠时疲劳恢复得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L2 = "在这里更容易入睡，睡眠时疲劳恢复得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L3 = "在这里更容易入睡，睡眠时疲劳恢复得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L4 = "在这里更容易入睡，睡眠时疲劳恢复得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L5 = "在这里更容易入睡，睡眠时疲劳恢复得更快。", -- 1.18/16.01.2026
+
+    -- Inner Peace
+    UI_Upgrade_InnerPeace = "内心平静", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L1 = "庇护所安抚心神，更快缓解恐慌与压力。", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L2 = "庇护所安抚心神，更快缓解恐慌与压力。", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L3 = "庇护所安抚心神，更快缓解恐慌与压力。", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L4 = "庇护所安抚心神，更快缓解恐慌与压力。", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L5 = "庇护所安抚心神，更快缓解恐慌与压力。", -- 1.18/16.01.2026
+
+    -- Muscle Recovery
+    UI_Upgrade_MuscleRecovery = "肌肉恢复", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L1 = "当你待在庇护所内时，肌肉僵硬消退得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L2 = "当你待在庇护所内时，肌肉僵硬消退得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L3 = "当你待在庇护所内时，肌肉僵硬消退得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L4 = "当你待在庇护所内时，肌肉僵硬消退得更快。", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L5 = "当你待在庇护所内时，肌肉僵硬消退得更快。", -- 1.18/16.01.2026
+
     UI_Effect_refugeSize = "庇护所大小", -- 1.17.1/12.01.2026
     UI_Effect_readingSpeedMultiplier = "阅读速度", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "传送发动速度", -- 1.17.1/12.01.2026
     UI_Effect_relicStorageCapacity = "遗物存储", -- 1.14/07.01.2026
     UI_Effect_vehicleTeleportEnabled = "车辆传送", -- 1.17.1/12.01.2026
     UI_Effect_Unlocked = "已解锁", -- 1.16/09.01.2026
+    UI_Effect_LevelFormat = "等级 %d", -- 1.18/16.01.2026
+    UI_Effect_refugeWoundRecoveryMultiplier = "伤口恢复", -- 1.19/16.01.2026
+    UI_Effect_refugeSleepFatigueMultiplier = "睡眠质量", -- 1.18/16.01.2026
+    UI_Effect_refugeMentalRecoveryMultiplier = "精神恢复", -- 1.18/16.01.2026
+    UI_Effect_refugeStiffnessRecoveryMultiplier = "肌肉恢复", -- 1.18/16.01.2026
 }

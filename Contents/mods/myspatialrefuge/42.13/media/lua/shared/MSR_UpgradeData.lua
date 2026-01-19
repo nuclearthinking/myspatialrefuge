@@ -18,6 +18,7 @@ MSR.UpgradeData = {
 }
 
 local UpgradeData = MSR.UpgradeData
+local LOG = L.logger("UpgradeData")
 
 -- Upgrade Definitions (Lua primary, YAML extends)
 
@@ -84,6 +85,23 @@ local UPGRADE_DEFINITIONS = {
                 effects = { refugeSize = 19 },
                 requirements = {
                     { type = "Base.MagicalCore", count = 150 }
+                }
+            }
+        }
+    },
+    debug_fail_upgrade = {
+        id = "debug_fail_upgrade",
+        name = "UI_Upgrade_DebugFail",
+        icon = "media/textures/Item_Map.png",
+        category = "debug",
+        maxLevel = 1,
+        dependencies = {},
+        debugOnly = true,
+        levels = {
+            [1] = {
+                description = "UI_Upgrade_DebugFail_L1",
+                requirements = {
+                    { type = "Base.MagicalCore", count = 1 }
                 }
             }
         }
@@ -243,7 +261,11 @@ end
 function UpgradeData.getAllUpgradeIds()
     UpgradeData.initialize()
     local ids = {}
-    for id, _ in pairs(UpgradeData._upgrades) do table.insert(ids, id) end
+    for id, upgrade in pairs(UpgradeData._upgrades) do
+        if not upgrade or not upgrade.debugOnly or (MSR.Env and MSR.Env.isDebugEnabled and MSR.Env.isDebugEnabled()) then
+            table.insert(ids, id)
+        end
+    end
     table.sort(ids)
     return ids
 end
@@ -305,7 +327,7 @@ function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     
     upgradeData[upgradeId] = level
     
-    L.debug("UpgradeData", "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level))
+    LOG.debug( "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level))
     if MSR.Data and MSR.Data.SaveRefugeData then MSR.Data.SaveRefugeData(refugeData) end
     
     return true
@@ -387,6 +409,10 @@ function UpgradeData.getPlayerActiveEffects(player)
         readingSpeedMultiplier = "min",
         refugeCastTimeMultiplier = "min",
         relicStorageCapacity = "max",
+        refugeWoundRecoveryMultiplier = "max",
+        refugeSleepFatigueMultiplier = "max",
+        refugeMentalRecoveryMultiplier = "max",
+        refugeStiffnessRecoveryMultiplier = "max",
     }
     
     local function applyEffect(effects, effectName, effectValue)

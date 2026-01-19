@@ -6,6 +6,7 @@ require "MSR_PlayerMessage"
 require "00_core/Env"
 
 local PM = MSR.PlayerMessage
+local LOG = L.logger("Context")
 
 
 
@@ -63,7 +64,7 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
         })
         PM.Say(player, PM.MOVING_RELIC)
         
-        L.debug("Context", "Sent RequestMoveRelic to server: " .. cornerName)
+        LOG.debug( "Sent RequestMoveRelic to server: " .. cornerName)
         
         return true
     else

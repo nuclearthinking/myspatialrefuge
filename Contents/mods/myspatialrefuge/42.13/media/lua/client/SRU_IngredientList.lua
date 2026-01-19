@@ -4,6 +4,7 @@
 -- Uses manual rendering instead of ISScrollingListBox for reliability
 
 require "ISUI/ISPanel"
+require "MSR_UpgradeItemCache"
 
 SRU_IngredientList = ISPanel:derive("SRU_IngredientList")
 
@@ -37,6 +38,8 @@ function SRU_IngredientList:new(x, y, width, height, parentWindow)
     o.requirement = nil
     o.allRequirements = {}
     o.availableItems = {}
+    o._itemTypesCacheByKey = {}
+    o._requirementsKey = nil
     
     -- Scrolling
     o.scrollOffset = 0
@@ -73,10 +76,21 @@ function SRU_IngredientList:setRequirement(requirement)
     self:refreshAvailableItems()
 end
 
-function SRU_IngredientList:setRequirements(requirements)
+function SRU_IngredientList:setRequirements(requirements, cacheKey)
     self.allRequirements = requirements or {}
     self.requirement = nil
+    self._requirementsKey = cacheKey
     self:refreshAllAvailableItems()
+end
+
+function SRU_IngredientList:invalidateItemCache()
+    if MSR.UpgradeItemCache and MSR.UpgradeItemCache.invalidate then
+        MSR.UpgradeItemCache.invalidate(self.player)
+    end
+end
+
+function SRU_IngredientList:getItemMeta(itemType, sampleItem)
+    return MSR.UpgradeItemCache.getItemMeta(itemType, self.player)
 end
 
 function SRU_IngredientList:refreshAvailableItems()
@@ -114,22 +128,33 @@ function SRU_IngredientList:refreshAllAvailableItems()
         return
     end
     
-    -- Collect all unique item types from all requirements
-    local allItemTypes = {}
-    local seenTypes = {}
+    local allItemTypes = nil
+    if self._requirementsKey then
+        allItemTypes = self._itemTypesCacheByKey[self._requirementsKey]
+    end
     
-    for _, req in ipairs(self.allRequirements) do
-        if req.type and not seenTypes[req.type] then
-            table.insert(allItemTypes, req.type)
-            seenTypes[req.type] = true
-        end
-        if req.substitutes then
-            for _, sub in ipairs(req.substitutes) do
-                if not seenTypes[sub] then
-                    table.insert(allItemTypes, sub)
-                    seenTypes[sub] = true
+    if not allItemTypes then
+        -- Collect all unique item types from all requirements
+        allItemTypes = {}
+        local seenTypes = {}
+        
+        for _, req in ipairs(self.allRequirements) do
+            if req.type and not seenTypes[req.type] then
+                table.insert(allItemTypes, req.type)
+                seenTypes[req.type] = true
+            end
+            if req.substitutes then
+                for _, sub in ipairs(req.substitutes) do
+                    if not seenTypes[sub] then
+                        table.insert(allItemTypes, sub)
+                        seenTypes[sub] = true
+                    end
                 end
             end
+        end
+        
+        if self._requirementsKey then
+            self._itemTypesCacheByKey[self._requirementsKey] = allItemTypes
         end
     end
     
@@ -146,50 +171,13 @@ end
 
 function SRU_IngredientList:findAvailableItems(itemTypes)
     if not self.player then return end
-    
-    -- Get item sources (inventory + relic storage)
-    local sources = MSR.UpgradeLogic.getItemSources(self.player)
+    MSR.UpgradeItemCache.setPlayer(self.player)
     
     for _, itemType in ipairs(itemTypes) do
-        local count = 0
-        local sampleItem = nil
-        
-        -- Count items from all sources (only those available for consumption)
-        -- This filters out favorites, crafting-consumed items, etc.
-        for _, container in ipairs(sources) do
-            if container then
-                local items = container:getItems()
-                if items then
-                    for i = 0, items:size() - 1 do
-                        local item = items:get(i)
-                        if item and item:getFullType() == itemType then
-                            -- Only count items that pass availability checks
-                            -- item:isEquipped() auto-checks equipped/worn status via container parent
-                            local available, _ = MSR.Transaction.IsItemAvailable(item, container)
-                            if available then
-                                count = count + 1
-                                if not sampleItem then
-                                    sampleItem = item
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
+        local count = MSR.UpgradeItemCache.getCount(itemType)
         
         -- Always show items (even with 0 count) so player knows what they need
-        local script = ScriptManager.instance:getItem(itemType)
-        local displayName = itemType
-        local texture = nil
-        
-        if script then
-            displayName = script:getDisplayName()
-            texture = script:getNormalTexture()
-        elseif sampleItem then
-            displayName = sampleItem:getDisplayName()
-            texture = sampleItem:getTexture()
-        end
+        local displayName, texture, script = self:getItemMeta(itemType)
         
         table.insert(self.availableItems, {
             itemType = itemType,

@@ -4,6 +4,7 @@
 require "00_core/00_MSR"
 
 require "MSR_Shared"
+require "MSR_RefugeGeneration"
 require "MSR_Validation"
 require "MSR_Migration"
 require "MSR_UpgradeData"
@@ -20,6 +21,7 @@ require "MSR_XPRetention"
 MSR_Server = MSR_Server or {}
 
 local _serverRelicContainerCache = {}
+local LOG = L.logger("Server")
 local CACHE_DURATION = 5
 
 -- Pending upgrade tracking for duplicate request protection
@@ -95,6 +97,15 @@ local function getServerTimestamp()
     return K.time()
 end
 
+local function isDebugAllowed(player)
+    if getDebug and getDebug() then return true end
+    if isDebugEnabled and isDebugEnabled() then return true end
+    if player and player.isAccessLevel then
+        return player:isAccessLevel("admin")
+    end
+    return false
+end
+
 local function checkTeleportCooldown(username)
     local lastTeleport = serverCooldowns.teleport[username] or 0
     local now = getServerTimestamp()
@@ -114,7 +125,7 @@ local function updateTeleportCooldown(username, penaltySeconds)
     serverCooldowns.teleport[username] = getServerTimestamp() + penaltySeconds
     
     if penaltySeconds > 0 then
-        L.debug("Server", "Applied encumbrance penalty for " .. username .. ": " .. penaltySeconds .. "s")
+        LOG.debug( "Applied encumbrance penalty for " .. username .. ": " .. penaltySeconds .. "s")
     end
 end
 
@@ -186,17 +197,17 @@ local function consumeItemsByIds(player, lockedItemIds)
     end
     
     if #sources == 0 then 
-        L.debug("Server", "[DEBUG] consumeItemsByIds: No item sources found")
+        LOG.debug( "[DEBUG] consumeItemsByIds: No item sources found")
         return false 
     end
     
-    L.debug("Server", "[DEBUG] consumeItemsByIds: Processing " .. K.count(lockedItemIds) .. " item types from " .. #sources .. " root sources")
+    LOG.debug( "[DEBUG] consumeItemsByIds: Processing " .. K.count(lockedItemIds) .. " item types from " .. #sources .. " root sources")
     
     local totalConsumed = 0
     local totalExpected = 0
     
     for itemType, itemIds in pairs(lockedItemIds) do
-        L.debug("Server", "[DEBUG] consumeItemsByIds: Processing " .. #itemIds .. " IDs for " .. itemType)
+        LOG.debug( "[DEBUG] consumeItemsByIds: Processing " .. #itemIds .. " IDs for " .. itemType)
         totalExpected = totalExpected + #itemIds
         
         for _, targetId in ipairs(itemIds) do
@@ -214,23 +225,23 @@ local function consumeItemsByIds(player, lockedItemIds)
                     -- getItemById finds items recursively, so item may not be directly in 'container'
                     local actualContainer = item:getContainer()
                     if not actualContainer then
-                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " has no container (orphaned)")
+                        LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " has no container (orphaned)")
                         break
                     end
                     
                     -- Verify item still in its actual container (game pattern from ISInventoryTransferAction:85)
                     if not actualContainer:contains(item) then
-                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " found but not in actual container (race condition)")
+                        LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " found but not in actual container (race condition)")
                         break
                     end
                     
                     -- Verify item type matches (safety check)
                     if item:getFullType() ~= itemType then
-                        L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " type mismatch: expected " .. itemType .. ", got " .. item:getFullType())
+                        LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " type mismatch: expected " .. itemType .. ", got " .. item:getFullType())
                         break
                     end
                     
-                    L.debug("Server", "[DEBUG] consumeItemsByIds: Consuming item " .. targetId .. " (" .. itemType .. ") from " .. tostring(actualContainer:getType()))
+                    LOG.debug( "[DEBUG] consumeItemsByIds: Consuming item " .. targetId .. " (" .. itemType .. ") from " .. tostring(actualContainer:getType()))
                     
                     -- Use DoRemoveItem for proper removal (game pattern from ISTransferAction:98)
                     actualContainer:DoRemoveItem(item)
@@ -245,16 +256,65 @@ local function consumeItemsByIds(player, lockedItemIds)
             end
             
             if not found then
-                L.debug("Server", "[DEBUG] consumeItemsByIds: Item " .. targetId .. " (" .. itemType .. ") NOT FOUND - may have been moved/consumed")
+                LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " (" .. itemType .. ") NOT FOUND - may have been moved/consumed")
                 -- Don't fail immediately - continue processing other items
                 -- Final success is determined by total consumed count
             end
         end
     end
     
-    L.debug("Server", "[DEBUG] consumeItemsByIds: Consumed " .. totalConsumed .. "/" .. totalExpected .. " items")
+    LOG.debug( "[DEBUG] consumeItemsByIds: Consumed " .. totalConsumed .. "/" .. totalExpected .. " items")
     
     return totalConsumed == totalExpected
+end
+
+-- Validate specific items by ID without consuming
+-- @param player: The player whose items to validate
+-- @param lockedItemIds: Table of {itemType = {itemId1, itemId2, ...}}
+-- @return: true if all items are present and available, false otherwise
+local function areLockedItemsAvailable(player, lockedItemIds)
+    if not player or not lockedItemIds then return false end
+
+    local sources = {}
+    local inv = MSR.safePlayerCall(player, "getInventory")
+    if inv then table.insert(sources, inv) end
+
+    local getRelicContainer = MSR.GetRelicContainer or (MSR_Server and MSR_Server.GetRelicContainer)
+    if getRelicContainer then
+        local rc = getRelicContainer(player, true)
+        if rc then table.insert(sources, rc) end
+    end
+
+    if #sources == 0 then
+        LOG.debug( "[DEBUG] areLockedItemsAvailable: No item sources found")
+        return false
+    end
+
+    for itemType, itemIds in pairs(lockedItemIds) do
+        for _, targetId in ipairs(itemIds) do
+            local found = false
+            for _, container in ipairs(sources) do
+                if not container then break end
+                local item = container:getItemById(targetId)
+                if item then
+                    local actualContainer = item:getContainer()
+                    if not actualContainer then break end
+                    if not actualContainer:contains(item) then break end
+                    if item:getFullType() ~= itemType then break end
+                    local available = MSR.Transaction.IsItemAvailable(item, actualContainer)
+                    if not available then break end
+                    found = true
+                    break
+                end
+            end
+            if not found then
+                LOG.debug( "[DEBUG] areLockedItemsAvailable: Missing item " .. tostring(targetId) .. " (" .. tostring(itemType) .. ")")
+                return false
+            end
+        end
+    end
+
+    return true
 end
 
 function MSR_Server.ValidateRefugeAccess(player, refugeId)
@@ -271,7 +331,7 @@ function MSR_Server.HandleModDataRequest(player, args)
     local username = player:getUsername()
     if not username then return end
     
-    L.debug("Server", "ModData request from " .. username)
+    LOG.debug( "ModData request from " .. username)
     
     -- Enable XP tracking for this player (MP: dedicated server or coop)
     -- This catches existing characters connecting who don't trigger OnCreatePlayer
@@ -280,7 +340,7 @@ function MSR_Server.HandleModDataRequest(player, args)
         if pmd and not pmd.MSR_XPTrackingReady then
             pmd.MSR_XPTrackingReady = true
             pmd.MSR_XPEarnedXp = pmd.MSR_XPEarnedXp or {}
-            L.debug("Server", "Enabled XP tracking for " .. username)
+            LOG.debug( "Enabled XP tracking for " .. username)
         end
     end
     
@@ -298,7 +358,7 @@ function MSR_Server.HandleModDataRequest(player, args)
     
     local returnPos = MSR.Data.GetReturnPositionByUsername(username)
     
-    L.debug("Server", "Sending ModData to " .. username .. ": refuge at " .. 
+    LOG.debug( "Sending ModData to " .. username .. ": refuge at " .. 
           refugeData.centerX .. "," .. refugeData.centerY .. " tier " .. refugeData.tier)
     
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.MODDATA_RESPONSE, {
@@ -350,9 +410,9 @@ function MSR_Server.HandleEnterRequest(player, args)
         end
         
         if not acceptVehicleData then
-            L.debug("Server", "Client sent vehicle data but doesn't have upgrade - ignoring")
+            LOG.debug( "Client sent vehicle data but doesn't have upgrade - ignoring")
         else
-            L.debug("Server", string.format("Accepting vehicle data: id=%s seat=%s", 
+            LOG.debug( string.format("Accepting vehicle data: id=%s seat=%s", 
                 tostring(args.vehicleId), tostring(args.vehicleSeat)))
         end
     end
@@ -367,7 +427,7 @@ function MSR_Server.HandleEnterRequest(player, args)
         end
     end
     
-    L.debug("Server", "Phase 1: Sending TeleportTo for " .. username)
+    LOG.debug( "Phase 1: Sending TeleportTo for " .. username)
     
     -- Calculate encumbrance penalty BEFORE teleport (weight may change after)
     local encumbrancePenalty = getEncumbrancePenalty(player)
@@ -399,7 +459,7 @@ function MSR_Server.HandleChunksReady(player, args)
         return
     end
     
-    L.debug("Server", "Phase 2: Waiting for server chunks to load for " .. username)
+    LOG.debug( "Phase 2: Waiting for server chunks to load for " .. username)
     
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
@@ -423,7 +483,7 @@ function MSR_Server.HandleChunksReady(player, args)
         
         if not playerValid then
             Events.OnTick.Remove(waitForServerChunks)
-            L.debug("Server", "Player disconnected during chunk wait for " .. tostring(usernameRef))
+            LOG.debug( "Player disconnected during chunk wait for " .. tostring(usernameRef))
             return
         end
         
@@ -458,14 +518,14 @@ function MSR_Server.HandleChunksReady(player, args)
             generated = true
             Events.OnTick.Remove(waitForServerChunks)
             
-            L.debug("Server", "All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
+            LOG.debug( "All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
             
             -- Server-side: Restore room IDs from saved ModData
             -- This must happen on server for multiplayer to work correctly
             if MSR.RoomPersistence and MSR.RoomPersistence.RestoreServer then
                 local restored = MSR.RoomPersistence.RestoreServer(refugeDataRef)
                 if restored > 0 then
-                    L.debug("Server", string.format("Restored %d room IDs from ModData (server-side)", restored))
+                    LOG.debug( string.format("Restored %d room IDs from ModData (server-side)", restored))
                 end
             end
             
@@ -478,12 +538,12 @@ function MSR_Server.HandleChunksReady(player, args)
             
             if not quickRelicCheck then
                 -- Relic missing - need full setup (recovery scenario)
-                L.debug("Server", "Relic missing - running EnsureRefugeStructures")
-                MSR.Shared.EnsureRefugeStructures(refugeDataRef, playerRef)
+                LOG.debug( "Relic missing - running EnsureRefugeStructures")
+                MSR.RefugeGeneration.EnsureRefugeStructures(refugeDataRef, playerRef)
             else
                 -- Relic exists - refuge is already generated, skip integrity check on normal entry
                 -- Only clear zombies that may have spawned
-                L.debug("Server", "Refuge already generated - skipping integrity check")
+                LOG.debug( "Refuge already generated - skipping integrity check")
                 MSR.ZombieClear.ClearZombiesFromArea(
                     refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
                     refugeDataRef.radius or 1, true, playerRef
@@ -521,7 +581,7 @@ function MSR_Server.HandleChunksReady(player, args)
                     end
                 end
                 
-                L.debug("Server", "Recalculated " .. recalculated .. " squares for visibility")
+                LOG.debug( "Recalculated " .. recalculated .. " squares for visibility")
             end
             Events.OnTick.Add(delayedBuildingRecalc)
             
@@ -536,10 +596,10 @@ function MSR_Server.HandleChunksReady(player, args)
                 if registry then
                     for k, v in pairs(registry) do
                         count = count + 1
-                        L.debug("Server", "ModData contains refuge: " .. tostring(k))
+                        LOG.debug( "ModData contains refuge: " .. tostring(k))
                     end
                 end
-                L.debug("Server", "Total refuges in ModData: " .. count)
+                LOG.debug( "Total refuges in ModData: " .. count)
             end
             
             sendServerCommand(playerRef, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.GENERATION_COMPLETE, {
@@ -551,13 +611,13 @@ function MSR_Server.HandleChunksReady(player, args)
                 roomIds = refugeDataRef.roomIds  -- Include roomIds for cutaway fix in MP
             })
             
-            L.debug("Server", "Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
+            LOG.debug( "Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
         end
         
         if tickCount >= maxTicks and not generated then
             Events.OnTick.Remove(waitForServerChunks)
             
-            L.debug("Server", "Timeout waiting for server chunks for " .. usernameRef)
+            LOG.debug( "Timeout waiting for server chunks for " .. usernameRef)
             
             sendServerCommand(playerRef, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
                 message = "Server could not load refuge area"
@@ -610,14 +670,14 @@ function MSR_Server.HandleExitRequest(player, args)
         response.vehicleX = returnPos.vehicleX
         response.vehicleY = returnPos.vehicleY
         response.vehicleZ = returnPos.vehicleZ
-        L.debug("Server", string.format("Including vehicle data in exit: id=%s seat=%s pos=%.1f,%.1f,%.1f", 
+        LOG.debug( string.format("Including vehicle data in exit: id=%s seat=%s pos=%.1f,%.1f,%.1f", 
             tostring(returnPos.vehicleId), tostring(returnPos.vehicleSeat),
             returnPos.vehicleX or 0, returnPos.vehicleY or 0, returnPos.vehicleZ or 0))
     end
     
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.EXIT_READY, response)
     
-    L.debug("Server", "Sent ExitReady to " .. username)
+    LOG.debug( "Sent ExitReady to " .. username)
 end
 
 function MSR_Server.HandleMoveRelicRequest(player, args)
@@ -677,7 +737,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
         refugeData.relicZ = refugeData.centerZ
         MSR.Data.SaveRefugeData(refugeData)
         
-        L.debug("Server", "Saved relic position to ModData: " .. targetX .. "," .. targetY)
+        LOG.debug( "Saved relic position to ModData: " .. targetX .. "," .. targetY)
         
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE, {
             cornerName = cornerName,
@@ -686,7 +746,7 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
             refugeData = MSR.Data.SerializeRefugeData(refugeData)
         })
         
-        L.debug("Server", "Moved relic for " .. username .. " to " .. cornerName)
+        LOG.debug( "Moved relic for " .. username .. " to " .. cornerName)
     else
         -- errorCode from MoveRelic IS already a PM message key
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
@@ -717,7 +777,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         end
     end
     
-    L.debug("Server", "HandleFeatureUpgradeRequest: " .. username .. 
+    LOG.debug( "HandleFeatureUpgradeRequest: " .. username .. 
           " upgradeId=" .. tostring(upgradeId) .. " targetLevel=" .. tostring(targetLevel))
     
     -- Duplicate request protection
@@ -725,7 +785,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         if pendingUpgrades[lockKey] then
             local elapsed = now - pendingUpgrades[lockKey]
             if elapsed < PENDING_TIMEOUT then
-                L.debug("Server", "Rejecting duplicate upgrade request for " .. lockKey .. " (elapsed: " .. elapsed .. "s)")
+                LOG.debug( "Rejecting duplicate upgrade request for " .. lockKey .. " (elapsed: " .. elapsed .. "s)")
                 sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "UPGRADE_ALREADY_PROCESSING"
@@ -740,7 +800,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         if completionTime then
             local timeSinceComplete = now - completionTime
             if timeSinceComplete < COMPLETION_COOLDOWN then
-                L.debug("Server", "Rejecting upgrade request for " .. lockKey .. " (cooldown: " .. string.format("%.1f", timeSinceComplete) .. "s)")
+                LOG.debug( "Rejecting upgrade request for " .. lockKey .. " (cooldown: " .. string.format("%.1f", timeSinceComplete) .. "s)")
                 sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
                     reason = "UPGRADE_COOLDOWN"
@@ -756,12 +816,12 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     end
     
     if lockedItemIds and not K.isEmpty(lockedItemIds) then
-        L.debug("Server", "HandleFeatureUpgradeRequest: Received lockedItemIds with " .. K.count(lockedItemIds) .. " item types")
+        LOG.debug( "HandleFeatureUpgradeRequest: Received lockedItemIds with " .. K.count(lockedItemIds) .. " item types")
         for itemType, ids in pairs(lockedItemIds) do
-            L.debug("Server", "  " .. itemType .. ": " .. #ids .. " items")
+            LOG.debug( "  " .. itemType .. ": " .. #ids .. " items")
         end
     else
-        L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: No lockedItemIds received, will use type-based consumption")
+        LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: No lockedItemIds received, will use type-based consumption")
     end
     
     if not upgradeId or not targetLevel then
@@ -779,6 +839,14 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = "Unknown upgrade: " .. tostring(upgradeId)
+        })
+        return
+    end
+    if upgrade.debugOnly and not isDebugAllowed(player) then
+        clearPendingLock()
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = "Debug-only upgrade"
         })
         return
     end
@@ -854,7 +922,9 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     -- This prevents losing items if the upgrade would fail (e.g., capacity check)
     local preValidateOk, preValidateErr = MSR.UpgradeLogic.validateUpgrade(player, upgradeId, targetLevel)
     if not preValidateOk then
-        L.debug("Server", "HandleFeatureUpgradeRequest: Pre-validation failed - " .. tostring(preValidateErr))
+        LOG.debug( "HandleFeatureUpgradeRequest: Pre-validation failed - " .. tostring(preValidateErr))
+        LOG.debug( "Upgrade pre-validation failed: upgradeId=%s user=%s level=%s",
+            tostring(upgradeId), tostring(username), tostring(targetLevel))
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
@@ -863,36 +933,20 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         return
     end
 
-    if #requirements > 0 then
-        local consumed = false
-        
-        -- Prefer ID-based consumption (more precise, prevents wrong item consumption)
-        if lockedItemIds and not K.isEmpty(lockedItemIds) then
-            L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: Using ID-based consumption")
-            consumed = consumeItemsByIds(player, lockedItemIds)
-            
-            if not consumed then
-                L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: ID-based consumption failed, some items may have been moved")
-            end
-        else
-            -- Fallback to type-based consumption (backwards compatibility)
-            L.debug("Server", "[DEBUG] HandleFeatureUpgradeRequest: Using type-based consumption (fallback)")
-            consumed = MSR.UpgradeLogic.consumeItems(player, requirements)
-        end
-        
-        if not consumed then
-            L.debug("Server", "HandleFeatureUpgradeRequest: Failed to consume items for " .. username)
+    if lockedItemIds and not K.isEmpty(lockedItemIds) then
+        local available = areLockedItemsAvailable(player, lockedItemIds)
+        if not available then
+            LOG.debug( "HandleFeatureUpgradeRequest: Locked items missing before apply for " .. username)
             clearPendingLock()
             sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                 transactionId = transactionId,
-                reason = "Failed to consume required items"
+                reason = "Required items unavailable"
             })
             return
         end
-        L.debug("Server", "HandleFeatureUpgradeRequest: Consumed items for " .. tostring(upgradeId))
     end
     
-    -- Use handler pattern for upgrades with special logic
+    -- Use handler pattern for upgrades with special logic (apply first, consume after success)
     local handler = MSR.UpgradeLogic.getHandler(upgradeId)
     local success, errorMsg, resultData = true, nil, nil
     
@@ -904,7 +958,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     end
     
     if not success then
-        L.debug("Server", upgradeId .. ": FAILED - " .. tostring(errorMsg))
+        LOG.debug( upgradeId .. ": FAILED - " .. tostring(errorMsg))
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
@@ -912,8 +966,32 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         })
         return
     end
+
+    if #requirements > 0 then
+        local consumed = false
+        
+        -- Prefer ID-based consumption (more precise, prevents wrong item consumption)
+        if lockedItemIds and not K.isEmpty(lockedItemIds) then
+            LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: Using ID-based consumption (post-apply)")
+            consumed = consumeItemsByIds(player, lockedItemIds)
+            
+            if not consumed then
+                LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: ID-based consumption failed, some items may have been moved")
+            end
+        else
+            -- Fallback to type-based consumption (backwards compatibility)
+            LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: Using type-based consumption (fallback, post-apply)")
+            consumed = MSR.UpgradeLogic.consumeItems(player, requirements)
+        end
+        
+        if not consumed then
+            LOG.debug( "HandleFeatureUpgradeRequest: Post-apply consumption failed for " .. username)
+        else
+            LOG.debug( "HandleFeatureUpgradeRequest: Consumed items for " .. tostring(upgradeId))
+        end
+    end
     
-    L.debug("Server", "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
+    LOG.debug( "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
     
     -- Build response with common fields
     local refugeData = MSR.Data.GetRefugeData(player)
@@ -949,7 +1027,7 @@ end
 function MSR_Server.HandleXPEssenceAbsorb(player, args)
     if not player then return end
     if not args or not args.itemId then
-        L.debug("Server", "XPEssenceAbsorb: missing itemId")
+        LOG.debug( "XPEssenceAbsorb: missing itemId")
         return
     end
     
@@ -961,40 +1039,40 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
     -- Only search player's main inventory (client ensures item is there)
     local inventory = player:getInventory()
     if not inventory then
-        L.debug("Server", "XPEssenceAbsorb: no inventory for " .. username)
+        LOG.debug( "XPEssenceAbsorb: no inventory for " .. username)
         return
     end
     
     local item = inventory:getItemById(itemId)
     if not item then
-        L.debug("Server", "XPEssenceAbsorb: item " .. tostring(itemId) .. " not in inventory for " .. username)
+        LOG.debug( "XPEssenceAbsorb: item " .. tostring(itemId) .. " not in inventory for " .. username)
         return
     end
     
     -- Verify it's an essence item
     local fullType = item:getFullType()
     if fullType ~= MSR.Config.ESSENCE_ITEM then
-        L.debug("Server", "XPEssenceAbsorb: item is not an essence: " .. tostring(fullType))
+        LOG.debug( "XPEssenceAbsorb: item is not an essence: " .. tostring(fullType))
         return
     end
     
     -- Get essence data and validate
     local itemMd = item:getModData()
     if not itemMd or not itemMd.msrXpEssence then
-        L.debug("Server", "XPEssenceAbsorb: not a valid essence for " .. username)
+        LOG.debug( "XPEssenceAbsorb: not a valid essence for " .. username)
         return
     end
     
     -- Check ownership
     local ownerUsername = itemMd.ownerUsername
     if ownerUsername and ownerUsername ~= username then
-        L.debug("Server", "XPEssenceAbsorb: essence belongs to " .. tostring(ownerUsername) .. ", not " .. username)
+        LOG.debug( "XPEssenceAbsorb: essence belongs to " .. tostring(ownerUsername) .. ", not " .. username)
         return
     end
     
     local xpMap = itemMd.xp
     if not xpMap or K.isEmpty(xpMap) then
-        L.debug("Server", "XPEssenceAbsorb: empty essence for " .. username)
+        LOG.debug( "XPEssenceAbsorb: empty essence for " .. username)
         return
     end
     
@@ -1013,7 +1091,7 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
     end
     
     if totalXp <= 0 then
-        L.debug("Server", "XPEssenceAbsorb: no XP to apply for " .. username)
+        LOG.debug( "XPEssenceAbsorb: no XP to apply for " .. username)
         return
     end
     
@@ -1030,7 +1108,7 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
         totalXp = totalXp
     })
     
-    L.debug("Server", string.format("XPEssenceAbsorb: sent %.0f XP to client for %s", totalXp, username))
+    LOG.debug( string.format("XPEssenceAbsorb: sent %.0f XP to client for %s", totalXp, username))
 end
 
 -----------------------------------------------------------
@@ -1051,7 +1129,7 @@ local function OnClientCommand(module, command, player, args)
     )
     
     if not isExemptFromRateLimit and not canProcessRequest(player) then
-        L.debug("Server", "Rate limited request from " .. tostring(player:getUsername()))
+        LOG.debug( "Rate limited request from " .. tostring(player:getUsername()))
         return
     end
     
@@ -1076,11 +1154,31 @@ local function OnClientCommand(module, command, player, args)
         end
     elseif command == MSR.Config.COMMANDS.XP_ESSENCE_ABSORB then
         MSR_Server.HandleXPEssenceAbsorb(player, args)
+    elseif command == MSR.Config.COMMANDS.DEBUG_ADD_CORES then
+        if not isDebugAllowed(player) then return end
+        local inv = MSR.safePlayerCall(player, "getInventory")
+        if not inv then return end
+        local itemType = MSR.Config.CORE_ITEM or "Base.MagicalCore"
+        local count = 1000
+        if sendAddItemToContainer then
+            for _ = 1, count do
+                local item = inv:AddItem(itemType)
+                if item then
+                    sendAddItemToContainer(inv, item)
+                end
+            end
+        elseif inv.AddItems then
+            inv:AddItems(itemType, count)
+        else
+            for _ = 1, count do
+                inv:AddItem(itemType)
+            end
+        end
     elseif command == "MSR_ServerEvent" or command == "MSR_ServerEventReply" then
         -- Handled by MSR.Events system in 07_Events.lua, ignore here
         return
     else
-        L.debug("Server", "Unknown command: " .. tostring(command))
+        LOG.debug( "Unknown command: " .. tostring(command))
     end
 end
 
@@ -1129,7 +1227,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
     local refugeData = MSR.Data.GetRefugeDataByUsername(username)
     if not refugeData then
         -- Player is in refuge coords but has no refuge data - unusual situation
-        L.debug("Server", "Player " .. username .. " in refuge coords but no data found")
+        LOG.debug( "Player " .. username .. " in refuge coords but no data found")
         return
     end
     
@@ -1153,7 +1251,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         
         if not playerValid then
             Events.OnTick.Remove(waitForChunksAndCheck)
-            L.debug("Server", "Player disconnected during stranded check for " .. tostring(usernameRef))
+            LOG.debug( "Player disconnected during stranded check for " .. tostring(usernameRef))
             return
         end
         
@@ -1161,7 +1259,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         if not areRefugeChunksLoaded(refugeDataRef) then
             if tickCount >= maxTicks then
                 Events.OnTick.Remove(waitForChunksAndCheck)
-                L.debug("Server", "Timeout waiting for refuge chunks for " .. usernameRef)
+                LOG.debug( "Timeout waiting for refuge chunks for " .. usernameRef)
             end
             return
         end
@@ -1170,7 +1268,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         checked = true
         Events.OnTick.Remove(waitForChunksAndCheck)
         
-        L.debug("Server", "Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
+        LOG.debug( "Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
         
         local hasRelic = MSR.Shared.FindRelicInRefuge(
             refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
@@ -1178,10 +1276,10 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         )
         
         if not hasRelic then
-            L.debug("Server", "Regenerating structures for stranded player " .. usernameRef)
-            MSR.Shared.EnsureRefugeStructures(refugeDataRef, playerRef)
+            LOG.debug( "Regenerating structures for stranded player " .. usernameRef)
+            MSR.RefugeGeneration.EnsureRefugeStructures(refugeDataRef, playerRef)
         else
-            L.debug("Server", "Structures intact for " .. usernameRef .. ", no regeneration needed")
+            LOG.debug( "Structures intact for " .. usernameRef .. ", no regeneration needed")
         end
     end
     
@@ -1205,7 +1303,7 @@ local function onPlayerDeathCleanup(args)
     serverCooldowns.teleport[username] = nil
     serverCooldowns.relicMove[username] = nil
     
-    L.debug("Server", "Cleaned up server cooldowns for " .. username)
+    LOG.debug( "Cleaned up server cooldowns for " .. username)
 end
 
 local function OnServerStart()
@@ -1216,7 +1314,7 @@ local function OnServerStart()
         return
     end
     
-    L.debug("Server", "Server initialized")
+    LOG.debug( "Server initialized")
     
     MSR.Data.InitializeModData()
     MSR.Data.TransmitModData()
@@ -1228,7 +1326,7 @@ local function OnPlayerFullyConnected(player)
     
     local playerUsername = player:getUsername() or "unknown"
     
-    L.debug("Server", "OnPlayerFullyConnected called for: " .. playerUsername)
+    LOG.debug( "OnPlayerFullyConnected called for: " .. playerUsername)
     
     local tickCount = 0
     local function delayedTransmit()
@@ -1240,16 +1338,16 @@ local function OnPlayerFullyConnected(player)
         MSR.Data.TransmitModData()
         
         if L.isDebug() then
-            L.debug("Server", "Transmitted ModData to " .. playerUsername)
+            LOG.debug( "Transmitted ModData to " .. playerUsername)
             local registry = MSR.Data.GetRefugeRegistry()
             if registry then
                 local count = 0
                 for k, v in pairs(registry) do
                     count = count + 1
                 end
-                L.debug("Server", "ModData has " .. count .. " refuge entries")
+                LOG.debug( "ModData has " .. count .. " refuge entries")
             else
-                L.debug("Server", "WARNING: Registry is nil!")
+                LOG.warning("Registry is nil!")
             end
         end
     end
@@ -1270,7 +1368,7 @@ local function OnPlayerConnect(player)
         end
     end
     
-    L.debug("Server", "Player connected: " .. username)
+    LOG.debug( "Player connected: " .. username)
 end
 
 Events.OnServerStarted.Add(OnServerStart)
@@ -1296,6 +1394,6 @@ if Events.OnCreatePlayer then
     end)
 end
 
-L.debug("Server", "Server module loaded")
+LOG.debug( "Server module loaded")
 
 return MSR_Server

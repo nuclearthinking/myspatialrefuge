@@ -2,6 +2,7 @@
 
 require "00_core/00_MSR"
 require "MSR_Shared"
+require "MSR_RefugeGeneration"
 require "MSR_Validation"
 require "MSR_Integrity"
 
@@ -145,7 +146,7 @@ function Expansion.Execute(player, refugeData, options)
         end
     end
     
-    local expandSuccess = MSR.Shared.ExpandRefuge(refugeData, newTier, player)
+    local expandSuccess = MSR.RefugeGeneration.ExpandRefuge(refugeData, newTier, player)
     if not expandSuccess then
         return false, "Expansion failed", nil
     end
@@ -179,7 +180,7 @@ function Expansion.Execute(player, refugeData, options)
         tierConfig = tierConfig
     }
     
-    L.debug("Expansion", "Execute complete: tier " .. newTier .. ", radius " .. newRadius)
+    LOG.debug( "Execute complete: tier " .. newTier .. ", radius " .. newRadius)
     
     return true, nil, resultData
 end

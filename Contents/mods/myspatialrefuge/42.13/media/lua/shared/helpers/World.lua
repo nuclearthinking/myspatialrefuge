@@ -37,6 +37,17 @@ function World.getSquare(x, y, z)
     return cell:getGridSquare(x, y, z)
 end
 
+---Get grid square only if chunk is loaded (alias for loaded checks)
+---@param x number
+---@param y number
+---@param z number
+---@return IsoGridSquare|nil
+function World.getLoadedSquare(x, y, z)
+    local square = World.getSquare(x, y, z)
+    if not square or not square:getChunk() then return nil end
+    return square
+end
+
 ---Get grid square only if chunk is loaded (safe for modifications)
 ---@param x number
 ---@param y number
@@ -84,6 +95,53 @@ function World.isAreaLoaded(centerX, centerY, z, radius)
         end
     end
     
+    return true
+end
+
+---Check if all perimeter chunks for radius+1 are loaded
+---@param centerX number
+---@param centerY number
+---@param z number
+---@param radius number
+---@return boolean
+function World.arePerimeterChunksLoaded(centerX, centerY, z, radius)
+    local cell = getCell()
+    if not cell then return false end
+
+    for dx = -radius - 1, radius + 1 do
+        for dy = -radius - 1, radius + 1 do
+            local isPerimeter = (dx == -radius - 1 or dx == radius + 1) or (dy == -radius - 1 or dy == radius + 1)
+            if isPerimeter then
+                local sq = cell:getGridSquare(centerX + dx, centerY + dy, z)
+                if not sq or not sq:getChunk() then
+                    return false
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+---Check if all chunks in a full area (radius+1) are loaded
+---@param centerX number
+---@param centerY number
+---@param z number
+---@param radius number
+---@return boolean
+function World.areAreaChunksLoaded(centerX, centerY, z, radius)
+    local cell = getCell()
+    if not cell then return false end
+
+    for dx = -radius - 1, radius + 1 do
+        for dy = -radius - 1, radius + 1 do
+            local sq = cell:getGridSquare(centerX + dx, centerY + dy, z)
+            if not sq or not sq:getChunk() then
+                return false
+            end
+        end
+    end
+
     return true
 end
 

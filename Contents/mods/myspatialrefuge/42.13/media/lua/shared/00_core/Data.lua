@@ -1,14 +1,12 @@
 -- 06_Data - ModData management (Shared)
 -- Assumes: MSR, MSR.Config, MSR.Env, L exist (loaded by 00_MSR.lua)
 
-if MSR.Data and MSR.Data._loaded then
+local Data = MSR.register("Data")
+if not Data then
     return MSR.Data
 end
 
-MSR.Data = MSR.Data or {}
-MSR.Data._loaded = true
-
-local Data = MSR.Data
+MSR.Data = Data
 local Config = MSR.Config
 local LOG = L.logger("Data")
 
@@ -96,6 +94,8 @@ end
 -- Tracks whether ModData has been confirmed loaded from disk
 -- CRITICAL: Do NOT create new refuges until this is true!
 local _modDataReady = false
+local _modDataRequested = false
+local MODDATA_READY_EVENT = MSR.Config.EVENTS.MODDATA_READY
 
 function Data.GetModData()
     return ModData.getOrCreate(Config.MODDATA_KEY)
@@ -111,7 +111,58 @@ function Data.SetModDataReady(ready)
     _modDataReady = ready
     if ready then
         LOG.debug("ModData marked as ready")
+        if MSR.Env.isMultiplayerClient() then
+            MSR.Events.Custom.Fire(MODDATA_READY_EVENT, { player = getPlayer() })
+        end
     end
+end
+
+-----------------------------------------------------------
+-- ModData Sync (MP Client)
+-----------------------------------------------------------
+
+function Data.HandleModDataResponse(args, player)
+    if not args or not args.refugeData then return end
+    player = player or getPlayer()
+    if not player then return end
+    local username = player:getUsername()
+    if not username or args.refugeData.username ~= username then return end
+
+    local modData = ModData.getOrCreate(Config.MODDATA_KEY)
+    modData[Config.REFUGES_KEY] = modData[Config.REFUGES_KEY] or {}
+    modData[Config.REFUGES_KEY][username] = args.refugeData
+
+    if args.returnPosition then
+        modData.ReturnPositions = modData.ReturnPositions or {}
+        modData.ReturnPositions[username] = args.returnPosition
+    end
+
+    -- Mark data as ready on client after receiving valid data from server
+    Data.SetModDataReady(true)
+
+    LOG.debug("Received ModData: refuge at %s,%s", tostring(args.refugeData.centerX), tostring(args.refugeData.centerY))
+end
+
+function Data.RequestModDataFromServer()
+    if not MSR.Env.isMultiplayerClient() or _modDataRequested then return false end
+
+    local player = getPlayer()
+    if not player or not player:getUsername() then return false end
+
+    _modDataRequested = true
+    LOG.debug("Requesting ModData from server")
+    sendClientCommand(Config.COMMAND_NAMESPACE, Config.COMMANDS.REQUEST_MODDATA, {})
+    return true
+end
+
+local function setupClientModDataSync()
+    if not MSR.Env.isMultiplayerClient() then return end
+
+    _modDataRequested = false
+
+    MSR.delay(60, function()
+        Data.RequestModDataFromServer()
+    end)
 end
 
 -- In MP, only the server should call this to create the structure
@@ -305,7 +356,7 @@ function Data.SaveRefugeData(refugeData)
     if verify and verify.upgrades then
         LOG.debug("SaveRefugeData: Verified upgrades=%s", formatUpgradesTable(verify.upgrades))
     else
-        LOG.debug("SaveRefugeData: WARNING - verify.upgrades is nil after save!")
+        LOG.warning("SaveRefugeData: verify.upgrades is nil after save!")
     end
     
     return true
@@ -482,13 +533,13 @@ function Data.SaveReturnPositionByUsername(username, x, y, z)
     if not username then return false end
     
     if not canModifyData() then
-        L.debug("Data", "MP client cannot save return position")
+        LOG.debug( "MP client cannot save return position")
         return false
     end
     
     -- Never save refuge coordinates as return position
     if Data.IsInRefugeCoordinates(x, y) then
-        L.debug("Data", "WARNING: Attempted to save refuge coordinates as return position - blocked!")
+        LOG.warning("Attempted to save refuge coordinates as return position - blocked!")
         return false
     end
     
@@ -572,6 +623,18 @@ function Data.ClearReturnPositionByUsername(username)
         return true
     end
     return false
+end
+
+local _eventsRegistered = false
+
+function Data.RegisterEvents()
+    if _eventsRegistered then return end
+    _eventsRegistered = true
+
+    MODDATA_READY_EVENT = MSR.Config.EVENTS.MODDATA_READY
+    if MSR.Events and MSR.Events.OnClientReady then
+        MSR.Events.OnClientReady.Add(setupClientModDataSync)
+    end
 end
 
 return MSR.Data

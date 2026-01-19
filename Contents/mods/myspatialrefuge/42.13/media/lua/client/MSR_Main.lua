@@ -9,8 +9,10 @@ require "MSR_Shared"
 require "MSR_PlayerMessage"
 require "MSR_XPRetention"
 require "MSR_Death"
+require "MSR_RestorationEffects"
 
 local PM = MSR.PlayerMessage
+local LOG = L.logger("Main")
 
 if MSR and MSR._mainLoaded then
     return MSR
@@ -51,6 +53,9 @@ function MSR.AllocateRefugeCoordinates()
 end
 
 function MSR.IsPlayerInRefuge(player)
+    if not MSR.Data or not MSR.Data.IsPlayerInRefugeCoords then
+        return false
+    end
     return MSR.Data.IsPlayerInRefugeCoords(player)
 end
 
@@ -92,7 +97,7 @@ function MSR.UpdateTeleportTimeWithPenalty(player, penaltySeconds)
     pmd.spatialRefuge_lastEncumbrancePenalty = penaltySeconds
     
     if penaltySeconds > 0 then
-        L.debug("Main", "Applied encumbrance penalty: " .. penaltySeconds .. "s")
+        LOG.debug( "Applied encumbrance penalty: " .. penaltySeconds .. "s")
     end
     
     return penaltySeconds
@@ -198,7 +203,7 @@ local function checkRefugeInheritance(player)
         local refugeData = MSR.Data.GetOrCreateRefugeData(player)
         -- Show message immediately after claiming orphan refuge
         if refugeData and refugeData.inheritedFrom then
-            L.debug("Main", "Inherited refuge from " .. refugeData.inheritedFrom)
+            LOG.debug( "Inherited refuge from " .. refugeData.inheritedFrom)
             PM.Say(player, PM.INHERITED_REFUGE_CONNECTION)
         end
     end

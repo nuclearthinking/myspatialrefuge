@@ -51,14 +51,59 @@ UI_RU = {
     UI_Upgrade_RefugeCoreStorage_L4 = "Выйдите за пределы нормы с помощью продвинутых пространственных манипуляций.", -- 1.14/07.01.2026
     UI_Upgrade_RefugeCoreStorage_L5 = "Достигните максимальной теоретической ёмкости через совершенную пространственную гармонию.", -- 1.14/07.01.2026
     
+    -- Refuge Basement
+    UI_Upgrade_RefugeBasement = "Подвал убежища", -- 1.20/18.01.2026
+    UI_Upgrade_RefugeBasement_L1 = "Вырыть подвал под убежищем и добавить нижний этаж с доступом по лестнице.", -- 1.20/18.01.2026
+    IGUI_BasementStairsBlocked = " <CENTRE> <SIZE:large> <RGB:1,0.85,0.4> Basement Access Blocked <LINE> <LINE> " ..
+        "<SIZE:medium> <RGB:1,1,1> Clear the surface of your refuge for at least one stairwell. <LINE> <LINE> " ..
+        "<SIZE:small> <LEFT> Remove solid objects from the stairwell area, then try the upgrade again. <LINE> " ..
+        "At least one stairwell must be clear to excavate a basement. ", -- 1.20/18.01.2026
+    
     -- Vehicle Teleport
     UI_Upgrade_VehicleTeleport = "Телепорт из транспорта", -- 1.16/09.01.2026
     UI_Upgrade_VehicleTeleport_L1 = "Сплетая нити пространства вокруг вашего транспорта, вы теперь можете входить в убежище, сидя в неподвижном транспорте. При выходе вы вернётесь на то же место.", -- 1.16/09.01.2026
-    
+
+    -- Sanctuary Healing
+    UI_Upgrade_SanctuaryHealing = "Целительное убежище", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L1 = "Убежище быстрее залечивает раны, пока вы отдыхаете внутри его границ.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L2 = "Убежище быстрее залечивает раны, пока вы отдыхаете внутри его границ.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L3 = "Убежище быстрее залечивает раны, пока вы отдыхаете внутри его границ.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L4 = "Убежище быстрее залечивает раны, пока вы отдыхаете внутри его границ.", -- 1.18/16.01.2026
+    UI_Upgrade_SanctuaryHealing_L5 = "Убежище быстрее залечивает раны, пока вы отдыхаете внутри его границ.", -- 1.18/16.01.2026
+
+    -- Restful Slumber
+    UI_Upgrade_RestfulSlumber = "Спокойный сон", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L1 = "Здесь легче заснуть, и усталость быстрее уменьшается во время сна.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L2 = "Здесь легче заснуть, и усталость быстрее уменьшается во время сна.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L3 = "Здесь легче заснуть, и усталость быстрее уменьшается во время сна.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L4 = "Здесь легче заснуть, и усталость быстрее уменьшается во время сна.", -- 1.18/16.01.2026
+    UI_Upgrade_RestfulSlumber_L5 = "Здесь легче заснуть, и усталость быстрее уменьшается во время сна.", -- 1.18/16.01.2026
+
+    -- Inner Peace
+    UI_Upgrade_InnerPeace = "Внутренний покой", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L1 = "Убежище успокаивает разум, быстрее снимая панику и стресс.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L2 = "Убежище успокаивает разум, быстрее снимая панику и стресс.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L3 = "Убежище успокаивает разум, быстрее снимая панику и стресс.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L4 = "Убежище успокаивает разум, быстрее снимая панику и стресс.", -- 1.18/16.01.2026
+    UI_Upgrade_InnerPeace_L5 = "Убежище успокаивает разум, быстрее снимая панику и стресс.", -- 1.18/16.01.2026
+
+    -- Muscle Recovery
+    UI_Upgrade_MuscleRecovery = "Восстановление мышц", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L1 = "Мышечная скованность проходит быстрее, пока вы остаётесь внутри убежища.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L2 = "Мышечная скованность проходит быстрее, пока вы остаётесь внутри убежища.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L3 = "Мышечная скованность проходит быстрее, пока вы остаётесь внутри убежища.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L4 = "Мышечная скованность проходит быстрее, пока вы остаётесь внутри убежища.", -- 1.18/16.01.2026
+    UI_Upgrade_MuscleRecovery_L5 = "Мышечная скованность проходит быстрее, пока вы остаётесь внутри убежища.", -- 1.18/16.01.2026
+
     UI_Effect_refugeSize = "Размер убежища", -- 1.5/31.12.2025
     UI_Effect_readingSpeedMultiplier = "Скорость чтения", -- 1.6/15.01.2026
     UI_Effect_refugeCastTimeMultiplier = "Скорость телепортации", -- 1.8/02.01.2026
     UI_Effect_relicStorageCapacity = "Хранилище реликвии", -- 1.14/07.01.2026
     UI_Effect_vehicleTeleportEnabled = "Телепорт из транспорта", -- 1.16/09.01.2026
     UI_Effect_Unlocked = "Разблокировано", -- 1.16/09.01.2026
+    UI_Effect_LevelFormat = "уровень %d", -- 1.18/16.01.2026
+    UI_Effect_refugeWoundRecoveryMultiplier = "Заживление ран", -- 1.19/16.01.2026
+    UI_Effect_refugeSleepFatigueMultiplier = "Качество сна", -- 1.18/16.01.2026
+    UI_Effect_refugeMentalRecoveryMultiplier = "Восстановление психики", -- 1.18/16.01.2026
+    UI_Effect_refugeStiffnessRecoveryMultiplier = "Восстановление мышц", -- 1.18/16.01.2026
 }

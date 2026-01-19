@@ -1,5 +1,6 @@
 require "00_core/00_MSR"
 require "helpers/World"
+require "MSR_BasementGeneration"
 
 
 local Integrity = MSR.register("Integrity")
@@ -273,6 +274,12 @@ local function ensureSingleRelic(refugeData, report)
     return keepRelic.obj
 end
 
+local function isBasementEnabled(refugeData)
+    if not refugeData or not refugeData.upgrades then return false end
+    local level = refugeData.upgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0
+    return level > 0
+end
+
 local function validateWalls(refugeData, report)
     if not refugeData then return 0 end
 
@@ -282,21 +289,29 @@ local function validateWalls(refugeData, report)
     local radius = refugeData.radius or 1
     local repaired = 0
 
-    MSR.World.iterateArea(centerX, centerY, centerZ, radius + 2, function(square)
-        local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
-        for _, obj in ipairs(walls) do
-            if obj.setIsThumpable then obj:setIsThumpable(false) end
-            if obj.setIsHoppable then obj:setIsHoppable(false) end
-            if obj.setCanBarricade then obj:setCanBarricade(false) end
-            if obj.setIsDismantable then obj:setIsDismantable(false) end
-            if obj.setCanBePlastered then obj:setCanBePlastered(false) end
-            repaired = repaired + 1
-        end
-    end)
+    local zLevels = { centerZ }
+    if isBasementEnabled(refugeData) then
+        table.insert(zLevels, centerZ - 1)
+    end
+
+    for _, z in ipairs(zLevels) do
+        MSR.World.iterateArea(centerX, centerY, z, radius + 2, function(square)
+            local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+            for _, obj in ipairs(walls) do
+                if obj.setIsThumpable then obj:setIsThumpable(false) end
+                if obj.setIsHoppable then obj:setIsHoppable(false) end
+                if obj.setCanBarricade then obj:setCanBarricade(false) end
+                if obj.setIsDismantable then obj:setIsDismantable(false) end
+                if obj.setCanBePlastered then obj:setCanBePlastered(false) end
+                repaired = repaired + 1
+            end
+        end)
+    end
 
     report.walls.repaired = repaired
     return repaired
 end
+
 
 local function syncAll(refugeData, relic, report)
     if not MSR.Env.canModifyData() then
@@ -478,5 +493,25 @@ function Integrity.FindRelic(refugeData)
 
     return relic, foundBy
 end
+
+-----------------------------------------------------------
+-- ModData Ready Hook (MP Client)
+-----------------------------------------------------------
+
+local MODDATA_READY_EVENT = MSR.Events.Names.MODDATA_READY
+
+local function onModDataReady(args)
+    if not MSR.Env.isMultiplayerClient() then return end
+    local player = args and args.player or getPlayer()
+    if not player then return end
+    if not MSR.Data.IsPlayerInRefugeCoords(player) then return end
+
+    local refugeData = MSR.GetRefugeData(player)
+    if refugeData and Integrity.CheckNeedsRepair(refugeData) then
+        Integrity.ValidateAndRepair(refugeData, { source = "reconnect", player = player })
+    end
+end
+
+MSR.Events.Custom.Add(MODDATA_READY_EVENT, onModDataReady)
 
 return MSR.Integrity
