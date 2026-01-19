@@ -181,6 +181,222 @@ itemGroups:
     - Base.OldTire2
     - Base.OldTire3
 
+  medical_tier1:
+    - Base.Bandage
+    - Base.AlcoholWipes
+    - Base.Disinfectant
+    - Base.Pills
+
+  medical_tier2:
+    - Base.Antibiotics
+    - Base.PillsAntiDep
+
+  bedding_tier1:
+    - Base.Pillow
+    - Base.Sheet
+
+  bedding_tier2:
+    - Base.Mattress
+    - Base.Pillow_Star
+    - Base.SleepingBag_Cheap_Green2
+    - Base.SleepingBag_Cheap_Blue
+    - Base.SleepingBag_Cheap_Green
+    - Base.SleepingBag_Cheap_Blue_Packed
+    - Base.SleepingBag_Cheap_Green_Packed
+    - Base.SleepingBag_Cheap_Green2_Packed
+    - Base.SleepingBag_Hide
+    - Base.SleepingBag_Hide_Packed
+    - Base.SleepingBag_HighQuality_Brown
+    - Base.SleepingBag_HighQuality_Brown_Packed
+    - Base.SleepingBag_Camo
+    - Base.SleepingBag_Camo_Packed
+    - Base.SleepingBag_RedPlaid
+    - Base.SleepingBag_RedPlaid_Packed
+    - Base.SleepingBag_GreenPlaid
+    - Base.SleepingBag_GreenPlaid_Packed
+    - Base.SleepingBag_Green
+    - Base.SleepingBag_Green_Packed
+    - Base.SleepingBag_BluePlaid
+    - Base.SleepingBag_BluePlaid_Packed
+
+  entertainment_tier1:
+    - Base.Book_Legal
+    - Base.Book_Computer
+    - Base.Book_Music
+    - Base.Book_Baseball
+    - Base.Book_Biography
+    - Base.Book_Occult
+    - Base.Book_AdventureNonFiction
+    - Base.Book_SchoolTextbook
+    - Base.Book_Golf
+    - Base.Book_SadNonFiction
+    - Base.Book_Childs
+    - Base.Book_Art
+    - Base.Book_SciFi
+    - Base.Book_Quackery
+    - Base.Book_Romance
+    - Base.Book_Philosophy
+    - Base.Book_MilitaryHistory
+    - Base.Book_GeneralNonFiction
+    - Base.Book_Cinema
+    - Base.Book_Thriller
+    - Base.Book_Travel
+    - Base.Book_ClassicFiction
+    - Base.Book_Military
+    - Base.Book_Farming
+    - Base.Book_Business
+    - Base.Book_LiteraryFiction
+    - Base.Book_Science
+    - Base.Book_GeneralReference
+    - Base.Book_Fantasy
+    - Base.Book_Western
+    - Base.Book_Medical
+    - Base.Book_Fiction
+    - Base.Book_Religion
+    - Base.Book_Politics
+    - Base.Book_Classic
+    - Base.Book_Fashion
+    - Base.Book_Sports
+    - Base.Book_Policing
+    - Base.Book_ClassicNonfiction
+    - Base.Book_CrimeFiction
+    - Base.Book_History
+    - Base.Book_Bible
+    - Base.Book_Rich
+    - Base.Book_Nature
+    - Base.Book_Horror
+    - Base.ComicBook
+    - Base.ComicBook_Retail
+    - Base.Magazine_Golf_New
+    - Base.Magazine_Science
+    - Base.Magazine_Rich_New
+    - Base.Magazine_Outdoors
+    - Base.Magazine_Childs_New
+    - Base.Magazine_Fashion_New
+    - Base.Magazine_Science_New
+    - Base.Magazine_Tech_New
+    - Base.Magazine_Car_New
+    - Base.Magazine_Cinema_New
+    - Base.Magazine_Golf
+    - Base.Magazine_Childs
+    - Base.Magazine_Health
+    - Base.Magazine_Military_New
+    - Base.Magazine_Business_New
+    - Base.Magazine_Sports_New
+    - Base.Magazine_Tech
+    - Base.Magazine_Hobby_New
+    - Base.Magazine_Police_New
+    - Base.Magazine_Business
+    - Base.Magazine_Music
+    - Base.Magazine_Humor
+    - Base.Magazine_Police
+    - Base.Magazine_Horror
+    - Base.Magazine_Outdoors_New
+    - Base.Magazine_Military
+    - Base.Magazine_Cinema
+    - Base.Magazine_New
+    - Base.Magazine_Gaming_New
+    - Base.Magazine_Gaming
+    - Base.Magazine_Teens
+    - Base.Magazine_Art_New
+    - Base.Magazine_Popular
+    - Base.Magazine_Humor_New
+    - Base.Magazine_Music_New
+    - Base.Magazine_Sports
+    - Base.Magazine_Horror_New
+    - Base.Magazine_Health_New
+    - Base.Magazine_Teens_New
+    - Base.Magazine_Art
+    - Base.Magazine_Crime_New
+    - Base.Magazine_Fashion
+    - Base.Magazine_Car
+    - Base.Magazine_Crime
+    - Base.Magazine_Firearm
+    - Base.Magazine_Popular_New
+    - Base.Magazine_Hobby
+    - Base.Magazine_Firearm_New
+    - Base.Newspaper_Herald_New
+    - Base.Newspaper_Recent
+    - Base.Newspaper_New
+    - Base.Newspaper_Times_New
+    - Base.Newspaper_Knews_New
+    - Base.Newspaper_Dispatch_New
+    - Base.Paperback
+    - Base.Paperback_AdventureNonFiction
+    - Base.Paperback_Art
+    - Base.Paperback_Baseball
+    - Base.Paperback_Bible
+    - Base.Paperback_Biography
+    - Base.Paperback_Business
+    - Base.Paperback_Childs
+    - Base.Paperback_Cinema
+    - Base.Paperback_Classic
+    - Base.Paperback_ClassicFiction
+    - Base.Paperback_ClassicNonfiction
+    - Base.Paperback_Computer
+    - Base.Paperback_Conspiracy
+    - Base.Paperback_CrimeFiction
+    - Base.Paperback_Diet
+    - Base.Paperback_Fantasy
+    - Base.Paperback_Fashion
+    - Base.Paperback_Fiction
+    - Base.Paperback_Golf
+    - Base.Paperback_Hass
+    - Base.Paperback_History
+    - Base.Paperback_Horror
+    - Base.Paperback_Legal
+    - Base.Paperback_LiteraryFiction
+    - Base.Paperback_Medical
+    - Base.Paperback_Military
+    - Base.Paperback_MilitaryHistory
+    - Base.Paperback_Music
+    - Base.Paperback_Nature
+    - Base.Paperback_NewAge
+    - Base.Paperback_Occult
+    - Base.Paperback_Philosophy
+    - Base.Paperback_Play
+    - Base.Paperback_Policing
+    - Base.Paperback_Politics
+    - Base.Paperback_Poor
+    - Base.Paperback_Quackery
+    - Base.Paperback_Quigley
+    - Base.Paperback_Relationship
+    - Base.Paperback_Religion
+    - Base.Paperback_Rich
+    - Base.Paperback_Romance
+    - Base.Paperback_SadNonFiction
+    - Base.Paperback_Scary
+    - Base.Paperback_Science
+    - Base.Paperback_SciFi
+    - Base.Paperback_SelfHelp
+    - Base.Paperback_Sexy
+    - Base.Paperback_Sports
+
+  entertainment_tier2:
+    - Base.RadioRed
+    - Base.RadioBlack
+    - Base.CDplayer
+    - Base.RadioMakeShift
+    - Base.GuitarAcoustic
+    - Base.GuitarElectric
+    - Base.GuitarElectricBass
+    - Base.Keytar
+    - Base.Saxophone
+    - Base.Violin
+    - Base.Trumpet
+    - Base.Flute
+    - Base.Banjo
+    - Base.Drumstick
+
+
+  pain_relief_tier1:
+    - Base.Pills
+    - Base.PillsSleepingTablets
+
+  pain_relief_tier2:
+    - Base.PillsBeta
+    - Base.PillsVitamins
+
 upgrades:
   faster_reading:
     id: faster_reading
@@ -388,6 +604,21 @@ upgrades:
           - type: Base.ScrapMetal
             count: 20
 
+  refuge_basement:
+    id: refuge_basement
+    name: UI_Upgrade_RefugeBasement
+    icon: media/textures/Item_Shovel.png
+    category: shelter
+    maxLevel: 1
+    dependencies:
+      - expand_refuge
+    levels:
+      1:
+        description: UI_Upgrade_RefugeBasement_L1
+        requirements:
+          - type: Base.MagicalCore
+            count: 100
+
   vehicle_teleport:
     id: vehicle_teleport
     name: UI_Upgrade_VehicleTeleport
@@ -407,6 +638,294 @@ upgrades:
             count: 4
             substitutes:
               - $vehicle_tires
+
+  sanctuary_healing:
+    id: sanctuary_healing
+    name: UI_Upgrade_SanctuaryHealing
+    icon: media/textures/Item_Bandage.png
+    category: comfort
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_SanctuaryHealing_L1
+        effects:
+          refugeWoundRecoveryMultiplier: 1.2
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.SRU_MedicalTier1
+            count: 5
+            substitutes:
+              - $medical_tier1
+      2:
+        description: UI_Upgrade_SanctuaryHealing_L2
+        effects:
+          refugeWoundRecoveryMultiplier: 1.4
+        requirements:
+          - type: Base.MagicalCore
+            count: 12
+          - type: Base.SRU_MedicalTier1
+            count: 8
+            substitutes:
+              - $medical_tier1
+      3:
+        description: UI_Upgrade_SanctuaryHealing_L3
+        effects:
+          refugeWoundRecoveryMultiplier: 1.6
+        requirements:
+          - type: Base.MagicalCore
+            count: 25
+          - type: Base.SRU_MedicalTier1
+            count: 12
+            substitutes:
+              - $medical_tier1
+      4:
+        description: UI_Upgrade_SanctuaryHealing_L4
+        effects:
+          refugeWoundRecoveryMultiplier: 1.8
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.SRU_MedicalTier1
+            count: 14
+            substitutes:
+              - $medical_tier1
+          - type: Base.SRU_MedicalTier2
+            count: 4
+            substitutes:
+              - $medical_tier2
+      5:
+        description: UI_Upgrade_SanctuaryHealing_L5
+        effects:
+          refugeWoundRecoveryMultiplier: 2.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.SRU_MedicalTier1
+            count: 18
+            substitutes:
+              - $medical_tier1
+          - type: Base.SRU_MedicalTier2
+            count: 6
+            substitutes:
+              - $medical_tier2
+
+  restful_slumber:
+    id: restful_slumber
+    name: UI_Upgrade_RestfulSlumber
+    icon: media/textures/Item_Pillow.png
+    category: comfort
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_RestfulSlumber_L1
+        effects:
+          refugeSleepFatigueMultiplier: 1.2
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.SRU_BeddingTier1
+            count: 4
+            substitutes:
+              - $bedding_tier1
+      2:
+        description: UI_Upgrade_RestfulSlumber_L2
+        effects:
+          refugeSleepFatigueMultiplier: 1.4
+        requirements:
+          - type: Base.MagicalCore
+            count: 12
+          - type: Base.SRU_BeddingTier1
+            count: 6
+            substitutes:
+              - $bedding_tier1
+      3:
+        description: UI_Upgrade_RestfulSlumber_L3
+        effects:
+          refugeSleepFatigueMultiplier: 1.6
+        requirements:
+          - type: Base.MagicalCore
+            count: 25
+          - type: Base.SRU_BeddingTier1
+            count: 8
+            substitutes:
+              - $bedding_tier1
+      4:
+        description: UI_Upgrade_RestfulSlumber_L4
+        effects:
+          refugeSleepFatigueMultiplier: 1.8
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.SRU_BeddingTier1
+            count: 10
+            substitutes:
+              - $bedding_tier1
+          - type: Base.SRU_BeddingTier2
+            count: 3
+            substitutes:
+              - $bedding_tier2
+      5:
+        description: UI_Upgrade_RestfulSlumber_L5
+        effects:
+          refugeSleepFatigueMultiplier: 2.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.SRU_BeddingTier1
+            count: 12
+            substitutes:
+              - $bedding_tier1
+          - type: Base.SRU_BeddingTier2
+            count: 4
+            substitutes:
+              - $bedding_tier2
+
+  inner_peace:
+    id: inner_peace
+    name: UI_Upgrade_InnerPeace
+    icon: media/textures/Item_Book.png
+    category: comfort
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_InnerPeace_L1
+        effects:
+          refugeMentalRecoveryMultiplier: 1.5
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.SRU_EntertainmentTier1
+            count: 4
+            substitutes:
+              - $entertainment_tier1
+      2:
+        description: UI_Upgrade_InnerPeace_L2
+        effects:
+          refugeMentalRecoveryMultiplier: 2.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 12
+          - type: Base.SRU_EntertainmentTier1
+            count: 6
+            substitutes:
+              - $entertainment_tier1
+      3:
+        description: UI_Upgrade_InnerPeace_L3
+        effects:
+          refugeMentalRecoveryMultiplier: 3.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 25
+          - type: Base.SRU_EntertainmentTier1
+            count: 8
+            substitutes:
+              - $entertainment_tier1
+      4:
+        description: UI_Upgrade_InnerPeace_L4
+        effects:
+          refugeMentalRecoveryMultiplier: 3.5
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.SRU_EntertainmentTier1
+            count: 10
+            substitutes:
+              - $entertainment_tier1
+          - type: Base.SRU_EntertainmentTier2
+            count: 3
+            substitutes:
+              - $entertainment_tier2
+      5:
+        description: UI_Upgrade_InnerPeace_L5
+        effects:
+          refugeMentalRecoveryMultiplier: 4.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.SRU_EntertainmentTier1
+            count: 12
+            substitutes:
+              - $entertainment_tier1
+          - type: Base.SRU_EntertainmentTier2
+            count: 4
+            substitutes:
+              - $entertainment_tier2
+
+  muscle_recovery:
+    id: muscle_recovery
+    name: UI_Upgrade_MuscleRecovery
+    icon: media/textures/Item_Pills.png
+    category: comfort
+    maxLevel: 5
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_MuscleRecovery_L1
+        effects:
+          refugeStiffnessRecoveryMultiplier: 1.25
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.SRU_PainReliefTier1
+            count: 4
+            substitutes:
+              - $pain_relief_tier1
+      2:
+        description: UI_Upgrade_MuscleRecovery_L2
+        effects:
+          refugeStiffnessRecoveryMultiplier: 1.5
+        requirements:
+          - type: Base.MagicalCore
+            count: 12
+          - type: Base.SRU_PainReliefTier1
+            count: 6
+            substitutes:
+              - $pain_relief_tier1
+      3:
+        description: UI_Upgrade_MuscleRecovery_L3
+        effects:
+          refugeStiffnessRecoveryMultiplier: 2.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 25
+          - type: Base.SRU_PainReliefTier1
+            count: 8
+            substitutes:
+              - $pain_relief_tier1
+      4:
+        description: UI_Upgrade_MuscleRecovery_L4
+        effects:
+          refugeStiffnessRecoveryMultiplier: 2.25
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.SRU_PainReliefTier1
+            count: 10
+            substitutes:
+              - $pain_relief_tier1
+          - type: Base.SRU_PainReliefTier2
+            count: 3
+            substitutes:
+              - $pain_relief_tier2
+      5:
+        description: UI_Upgrade_MuscleRecovery_L5
+        effects:
+          refugeStiffnessRecoveryMultiplier: 2.5
+        requirements:
+          - type: Base.MagicalCore
+            count: 50
+          - type: Base.SRU_PainReliefTier1
+            count: 12
+            substitutes:
+              - $pain_relief_tier1
+          - type: Base.SRU_PainReliefTier2
+            count: 4
+            substitutes:
+              - $pain_relief_tier2
 
 # =============================================================================
 # EXAMPLE UPGRADE (uncomment and modify to add new upgrades)

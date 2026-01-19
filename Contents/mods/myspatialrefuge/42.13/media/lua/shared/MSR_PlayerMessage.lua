@@ -98,6 +98,7 @@ PM.UPGRADE_FAILED = "UPGRADE_FAILED"
 PM.UPGRADE_COOLDOWN = "UPGRADE_COOLDOWN"
 PM.UPGRADE_ALREADY_PROCESSING = "UPGRADE_ALREADY_PROCESSING"
 PM.REFUGE_ERROR = "REFUGE_ERROR"
+PM.BASEMENT_STAIRS_BLOCKED = "BASEMENT_STAIRS_BLOCKED"
 
 -- Protected object messages (pool for random selection)
 PM.PROTECTED_OBJECT = "PROTECTED_OBJECT"
@@ -165,6 +166,7 @@ local MessageToTranslationKey = {
     [PM.UPGRADE_COOLDOWN] = "IGUI_UpgradeCooldown",
     [PM.UPGRADE_ALREADY_PROCESSING] = "IGUI_UpgradeAlreadyProcessing",
     [PM.REFUGE_ERROR] = "IGUI_RefugeError",
+    [PM.BASEMENT_STAIRS_BLOCKED] = "IGUI_BasementStairsBlocked",
 }
 
 -----------------------------------------------------------

@@ -8,6 +8,7 @@ if not MSR then
 end
 
 local Utils = {}
+local LOG = L.logger("MSR")
 
 -----------------------------------------------------------
 -- Player Resolution Utilities
@@ -64,6 +65,56 @@ function Utils.isPlayerValid(playerRef)
     return ok and result ~= nil
 end
 
+--- Check if player is inside refuge coordinates
+--- @param player IsoPlayer|number
+--- @return boolean
+function Utils.isPlayerInRefuge(player)
+    local resolved = Utils.resolvePlayer(player)
+    if not resolved then return false end
+    if MSR.Data and MSR.Data.IsPlayerInRefugeCoords then
+        return MSR.Data.IsPlayerInRefugeCoords(resolved)
+    end
+    return false
+end
+
+--- Best-effort combat check (zombie pressure or recent damage)
+--- @param player IsoPlayer|number
+--- @return boolean
+function Utils.isPlayerInCombat(player)
+    local resolved = Utils.resolvePlayer(player)
+    if not resolved then return false end
+
+    local stats = Utils.safePlayerCall(resolved, "getStats")
+    if stats then
+        local ok, chasing = pcall(function() return stats:getNumChasingZombies() end)
+        if ok and chasing and chasing > 0 then return true end
+        local ok2, visible = pcall(function() return stats:getNumVisibleZombies() end)
+        if ok2 and visible and visible > 0 then return true end
+        local ok3, close = pcall(function() return stats:getNumVeryCloseZombies() end)
+        if ok3 and close and close > 0 then return true end
+    end
+
+    if MSR.GetLastDamageTime and MSR.Config and MSR.Config.getCombatBlockTime then
+        local lastDamage = MSR.GetLastDamageTime(resolved)
+        if lastDamage and (K.time() - lastDamage) < MSR.Config.getCombatBlockTime() then
+            return true
+        end
+    end
+
+    return false
+end
+
+--- Scale positive value using difficulty (higher value = better)
+--- @param baseValue number
+--- @return number
+function Utils.scalePositiveValue(baseValue)
+    if type(baseValue) ~= "number" then return baseValue end
+    if D and D.positiveValue then
+        return D.positiveValue(baseValue)
+    end
+    return baseValue
+end
+
 -----------------------------------------------------------
 -- Delayed Execution Utilities
 -----------------------------------------------------------
@@ -92,7 +143,7 @@ function Utils.delay(ticks, callback)
         Events.OnTick.Remove(onTick)
         local ok, err = pcall(callback)
         if not ok and L then
-            L.error("MSR", "delay callback error: " .. tostring(err))
+            LOG.error( "delay callback error: " .. tostring(err))
         end
     end
     
@@ -163,12 +214,12 @@ function Utils.poll(opts)
             completed = true
             Events.OnTick.Remove(onTick)
             if tag and L then
-                L.debug("MSR", "poll timeout: " .. tag .. " after " .. tickCount .. " ticks")
+                LOG.debug( "poll timeout: " .. tag .. " after " .. tickCount .. " ticks")
             end
             if opts.onTimeout then
                 local ok, err = pcall(opts.onTimeout)
                 if not ok and L then
-                    L.error("MSR", "poll onTimeout error: " .. tostring(err))
+                    LOG.error( "poll onTimeout error: " .. tostring(err))
                 end
             end
             return
@@ -180,7 +231,7 @@ function Utils.poll(opts)
         -- Check condition
         local ok, success, result = pcall(opts.condition)
         if not ok then
-            if L then L.error("MSR", "poll condition error: " .. tostring(success)) end
+            if L then LOG.error( "poll condition error: " .. tostring(success)) end
             return
         end
         
@@ -188,11 +239,11 @@ function Utils.poll(opts)
             completed = true
             Events.OnTick.Remove(onTick)
             if tag and L then
-                L.debug("MSR", "poll success: " .. tag .. " after " .. tickCount .. " ticks")
+                LOG.debug( "poll success: " .. tag .. " after " .. tickCount .. " ticks")
             end
             local callOk, err = pcall(opts.onSuccess, result)
             if not callOk and L then
-                L.error("MSR", "poll onSuccess error: " .. tostring(err))
+                LOG.error( "poll onSuccess error: " .. tostring(err))
             end
         end
     end
@@ -248,7 +299,7 @@ function Utils.pollWithPlayer(player, opts)
     wrappedOpts.onSuccess = function(result)
         if result and result._disconnected then
             if tag and L then
-                L.debug("MSR", "poll cancelled - player disconnected: " .. tag)
+                LOG.debug( "poll cancelled - player disconnected: " .. tag)
             end
             if onDisconnect then
                 onDisconnect()
@@ -290,6 +341,8 @@ end
 MSR.resolvePlayer    = Utils.resolvePlayer
 MSR.safePlayerCall   = Utils.safePlayerCall
 MSR.isPlayerValid    = Utils.isPlayerValid
+MSR.isPlayerInRefuge = Utils.isPlayerInRefuge
+MSR.isPlayerInCombat = Utils.isPlayerInCombat
 MSR.delay            = Utils.delay
 MSR.delayWithPlayer  = Utils.delayWithPlayer
 MSR.poll             = Utils.poll

@@ -15,6 +15,7 @@ MSR.VehicleTeleport = MSR.VehicleTeleport or {}
 MSR.VehicleTeleport._loaded = true
 
 local VT = MSR.VehicleTeleport
+local LOG = L.logger("VehicleTeleport")
 local PM = MSR.PlayerMessage
 local Config = MSR.Config
 
@@ -72,7 +73,7 @@ function VT.ExitVehicleForTeleport(player)
     local vehicle = player:getVehicle()
     if vehicle then
         vehicle:exit(player)
-        L.debug("VehicleTeleport", "Player exited vehicle before teleport")
+        LOG.debug( "Player exited vehicle before teleport")
         return true
     end
     return false
@@ -93,7 +94,7 @@ function VT.TryReenterVehicle(player, vehicleId, vehicleSeat, vehicleX, vehicleY
     if not player then return end
     if not vehicleId then return end
     
-    L.debug("VehicleTeleport", string.format("Attempting to re-enter vehicle ID=%s seat=%s at %.1f,%.1f,%.1f", 
+    LOG.debug( string.format("Attempting to re-enter vehicle ID=%s seat=%s at %.1f,%.1f,%.1f", 
         tostring(vehicleId), tostring(vehicleSeat), vehicleX or 0, vehicleY or 0, vehicleZ or 0))
     
     local attempts = 0
@@ -108,7 +109,7 @@ function VT.TryReenterVehicle(player, vehicleId, vehicleSeat, vehicleX, vehicleY
             Events.OnPlayerUpdate.Remove(doReenter)
             if not vehicleFound then
                 PM.Say(player, PM.VEHICLE_NOT_FOUND)
-                L.debug("VehicleTeleport", "Vehicle not found after timeout")
+                LOG.debug( "Vehicle not found after timeout")
             end
             return
         end
@@ -137,7 +138,7 @@ function VT.TryReenterVehicle(player, vehicleId, vehicleSeat, vehicleX, vehicleY
                     local vehicle = sq:getVehicleContainer()
                     if vehicle then
                         vehicleFound = true
-                        L.debug("VehicleTeleport", string.format("Found vehicle at search offset %d,%d", dx, dy))
+                        LOG.debug( string.format("Found vehicle at search offset %d,%d", dx, dy))
                         
                         -- Move player to vehicle position (required for enter() to work)
                         local vehX, vehY, vehZ = vehicle:getX(), vehicle:getY(), vehicle:getZ()
@@ -158,10 +159,10 @@ function VT.TryReenterVehicle(player, vehicleId, vehicleSeat, vehicleX, vehicleY
                             triggerEvent("OnEnterVehicle", player)
                             
                             PM.Say(player, PM.RETURNED_TO_VEHICLE)
-                            L.debug("VehicleTeleport", "Successfully re-entered vehicle")
+                            LOG.debug( "Successfully re-entered vehicle")
                         else
                             PM.Say(player, PM.VEHICLE_ENTRY_FAILED)
-                            L.debug("VehicleTeleport", "Vehicle found but could not enter (seat may be occupied)")
+                            LOG.debug( "Vehicle found but could not enter (seat may be occupied)")
                         end
                         
                         Events.OnPlayerUpdate.Remove(doReenter)

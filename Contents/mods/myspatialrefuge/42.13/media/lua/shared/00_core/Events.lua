@@ -41,6 +41,15 @@ MSR.Events._loaded = true
 local E = MSR.Events
 local LOG = L.logger("Events")
 
+E.Names = MSR.Config and MSR.Config.EVENTS or {
+    PLAYER_DEATH = "MSR_PlayerDeath",
+    PLAYER_DIED_IN_REFUGE = "MSR_PlayerDiedInRefuge",
+    CORPSE_FOUND = "MSR_CorpseFound",
+    CORPSE_PROTECTED = "MSR_CorpseProtected",
+    ESSENCE_CREATED = "MSR_EssenceCreated",
+    MODDATA_READY = "MSR_ModDataReady"
+}
+
 local serverReadyHandlers = {}
 local clientReadyHandlers = {}
 local anyReadyHandlers = {}
@@ -288,12 +297,13 @@ function E.Custom.GetHandlerCount(eventName)
     return handlers and #handlers or 0
 end
 
--- Pre-register death events for documentation and initialization
-E.Custom.Register("MSR_PlayerDeath")
-E.Custom.Register("MSR_PlayerDiedInRefuge")
-E.Custom.Register("MSR_CorpseFound")
-E.Custom.Register("MSR_CorpseProtected")
-E.Custom.Register("MSR_EssenceCreated")
+-- Pre-register custom events for documentation and initialization
+E.Custom.Register(E.Names.PLAYER_DEATH)
+E.Custom.Register(E.Names.PLAYER_DIED_IN_REFUGE)
+E.Custom.Register(E.Names.CORPSE_FOUND)
+E.Custom.Register(E.Names.CORPSE_PROTECTED)
+E.Custom.Register(E.Names.ESSENCE_CREATED)
+E.Custom.Register(E.Names.MODDATA_READY)
 
 -----------------------------------------------------------
 -- Server-Authoritative Events (auto client→server forwarding)
@@ -565,5 +575,9 @@ function E.GetStatus()
 end
 
 LOG.debug("Event wrapper system loaded")
+
+if MSR.Data and MSR.Data.RegisterEvents then
+    MSR.Data.RegisterEvents()
+end
 
 return MSR.Events

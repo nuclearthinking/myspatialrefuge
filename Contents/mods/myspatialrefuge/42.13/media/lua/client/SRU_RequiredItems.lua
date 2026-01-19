@@ -3,6 +3,7 @@
 -- Displays item slots with icons, names, and have/need counts
 
 require "ISUI/ISPanel"
+require "MSR_UpgradeItemCache"
 
 SRU_RequiredItems = ISPanel:derive("SRU_RequiredItems")
 
@@ -216,7 +217,8 @@ function SRU_ItemSlot:updateItemCount()
     end
     
     -- Get available count using upgrade logic
-    self.haveCount = MSR.UpgradeLogic.getAvailableItemCount(self.player, self.requirement)
+    MSR.UpgradeItemCache.setPlayer(self.player)
+    self.haveCount = MSR.UpgradeItemCache.getCountForRequirement(self.requirement)
     self.hasEnough = self.haveCount >= self.needCount
 end
 

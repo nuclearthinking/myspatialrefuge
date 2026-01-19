@@ -6,12 +6,19 @@ require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "MSR_UpgradeData"
 require "MSR_UpgradeLogic"
+require "MSR_UpgradeItemCache"
 
 SRU_UpgradeDetails = ISPanel:derive("SRU_UpgradeDetails")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 local FONT_HGT_LARGE = getTextManager():getFontHeight(UIFont.Large)
+local ABSTRACT_EFFECTS = {
+    refugeWoundRecoveryMultiplier = true,
+    refugeSleepFatigueMultiplier = true,
+    refugeMentalRecoveryMultiplier = true,
+    refugeStiffnessRecoveryMultiplier = true,
+}
 
 -----------------------------------------------------------
 -- Configuration
@@ -104,6 +111,7 @@ end
 function SRU_UpgradeDetails:setUpgrade(upgrade, level)
     self.upgrade = upgrade
     self.level = level
+    self._requirements = nil
     
     if upgrade and level then
         self.levelData = MSR.UpgradeData.getLevelData(upgrade.id, level)
@@ -111,6 +119,7 @@ function SRU_UpgradeDetails:setUpgrade(upgrade, level)
         self.isLocked = not MSR.UpgradeData.isUpgradeUnlocked(self.player, upgrade.id)
         -- Get missing dependencies
         self.missingDependencies = self:getMissingDependencies()
+        self._requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, upgrade.id)
     else
         self.levelData = nil
         self.isLocked = false
@@ -119,9 +128,8 @@ function SRU_UpgradeDetails:setUpgrade(upgrade, level)
     
     -- Update required items (uses difficulty-scaled costs)
     if self.requiredItems then
-        local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, upgrade.id)
-        if requirements then
-            self.requiredItems:setRequirements(requirements)
+        if self._requirements then
+            self.requiredItems:setRequirements(self._requirements)
         else
             self.requiredItems:setRequirements({})
         end
@@ -197,13 +205,20 @@ function SRU_UpgradeDetails:checkHasRequiredItems()
     end
     
     -- Use difficulty-scaled requirements
-    local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, self.upgrade.id)
+    local requirements = self._requirements
     if not requirements then
         return true
     end
     
-    -- Use upgrade logic to check items
-    return MSR.UpgradeLogic.hasRequiredItems(self.player, requirements)
+    -- Use shared UI cache to avoid repeated scans
+    MSR.UpgradeItemCache.setPlayer(self.player)
+    for _, req in ipairs(requirements) do
+        local haveCount = MSR.UpgradeItemCache.getCountForRequirement(req)
+        if haveCount < (req.count or 1) then
+            return false
+        end
+    end
+    return true
 end
 
 -----------------------------------------------------------
@@ -346,7 +361,7 @@ function SRU_UpgradeDetails:render()
             
             for effectName, effectValue in pairs(self.levelData.effects) do
                 local effectText = self:formatEffect(effectName, effectValue)
-                self:drawText("  + " .. effectText, self.padding, y, 0.5, 0.8, 0.5, 1, UIFont.Small)
+                self:drawText("  " .. effectText, self.padding, y, 0.5, 0.8, 0.5, 1, UIFont.Small)
                 y = y + FONT_HGT_SMALL
             end
         end
@@ -390,6 +405,12 @@ end
 
 function SRU_UpgradeDetails:formatEffect(name, value)
     local displayName = getText("UI_Effect_" .. name) or name
+
+    if self:isAbstractEffect(name) then
+        local levelFormat = getText("UI_Effect_LevelFormat") or "level %d"
+        local levelText = string.format(levelFormat, self.level or 1)
+        return string.format("%s: %s", displayName, levelText)
+    end
     
     -- Boolean/unlock effects (name ends with "Enabled") - show as unlocked ability
     if string.sub(name, -7) == "Enabled" then
@@ -412,6 +433,10 @@ function SRU_UpgradeDetails:formatEffect(name, value)
     else
         return string.format("%s: %s", displayName, tostring(value))
     end
+end
+
+function SRU_UpgradeDetails:isAbstractEffect(name)
+    return ABSTRACT_EFFECTS[name] == true
 end
 
 return SRU_UpgradeDetails

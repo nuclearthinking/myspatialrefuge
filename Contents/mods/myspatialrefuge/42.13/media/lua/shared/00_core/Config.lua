@@ -66,9 +66,15 @@ MSR.Config = {
     UPGRADES = {
         EXPAND_REFUGE = "expand_refuge",
         CORE_STORAGE = "refuge_core_storage",
+        REFUGE_BASEMENT = "refuge_basement",
         FASTER_READING = "faster_reading",
         FASTER_CAST = "faster_refuge_cast",
         VEHICLE_TELEPORT = "vehicle_teleport",
+        SANCTUARY_HEALING = "sanctuary_healing",
+        RESTFUL_SLUMBER = "restful_slumber",
+        INNER_PEACE = "inner_peace",
+        MUSCLE_RECOVERY = "muscle_recovery",
+        DEBUG_FAIL_UPGRADE = "debug_fail_upgrade",
     },
     
     COMMAND_NAMESPACE = "SpatialRefuge",
@@ -78,6 +84,7 @@ MSR.Config = {
         REQUEST_EXIT = "RequestExit",
         REQUEST_MOVE_RELIC = "RequestMoveRelic",
         CHUNKS_READY = "ChunksReady",
+        DEBUG_ADD_CORES = "DebugAddCores",
         
         MODDATA_RESPONSE = "ModDataResponse",
         TELEPORT_TO = "TeleportTo",
@@ -98,6 +105,46 @@ MSR.Config = {
         
         -- Note: Death handling uses MSR.Events.Server system
         -- No separate death command needed
+    },
+
+    EVENTS = {
+        PLAYER_DEATH = "MSR_PlayerDeath",
+        PLAYER_DIED_IN_REFUGE = "MSR_PlayerDiedInRefuge",
+        CORPSE_FOUND = "MSR_CorpseFound",
+        CORPSE_PROTECTED = "MSR_CorpseProtected",
+        ESSENCE_CREATED = "MSR_EssenceCreated",
+        MODDATA_READY = "MSR_ModDataReady"
+    },
+
+    BASEMENT = {
+        FLOOR_SPRITE = "floors_exterior_street_01_17",
+        WALL_NORTH = "walls_commercial_03_49",
+        WALL_WEST = "walls_commercial_03_48",
+        WALL_CORNER_NW = "walls_commercial_03_51",
+        WALL_CORNER_SE = "walls_commercial_03_51"
+    },
+
+    BASEMENT_STAIRWELLS = {
+        {
+            xOffset = -9,
+            yOffset = -5,
+            north = true,
+            sprites = {
+                "fixtures_stairs_01_8",
+                "fixtures_stairs_01_9",
+                "fixtures_stairs_01_10"
+            }
+        },
+        {
+            xOffset = -5,
+            yOffset = -9,
+            north = false,
+            sprites = {
+                "fixtures_stairs_01_0",
+                "fixtures_stairs_01_1",
+                "fixtures_stairs_01_2"
+            }
+        }
     }
 }
 
@@ -127,8 +174,24 @@ function MSR.Config.getEncumbrancePenaltyCap()
     return D.negativeValue(MSR.Config.ENCUMBRANCE_PENALTY_CAP)
 end
 
+function MSR.Config.getEssenceEnabled()
+    local sandbox = SandboxVars and SandboxVars.MySpatialRefuge
+    if sandbox and sandbox.EssenceEnabled ~= nil then
+        return sandbox.EssenceEnabled
+    end
+    
+    return MSR.Config.ESSENCE_ENABLED
+end
+
 function MSR.Config.getEssenceRetentionPercent()
-    return math.min(100, D.positiveValue(MSR.Config.ESSENCE_RETENTION_PERCENT))
+    local baseValue = MSR.Config.ESSENCE_RETENTION_PERCENT
+    local sandbox = SandboxVars and SandboxVars.MySpatialRefuge
+    
+    if sandbox and type(sandbox.EssenceRetentionPercent) == "number" then
+        baseValue = sandbox.EssenceRetentionPercent
+    end
+    
+    return math.min(100, D.positiveValue(math.max(0, baseValue)))
 end
 
 function MSR.Config.getRelicStorageCapacity(refugeData)

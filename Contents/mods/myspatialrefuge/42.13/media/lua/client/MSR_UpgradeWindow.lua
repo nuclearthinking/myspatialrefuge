@@ -3,6 +3,7 @@ require "ui/framework/CUI_Framework"
 require "MSR_UpgradeData"
 require "MSR_PlayerMessage"
 require "MSR_InventoryHooks"
+require "MSR_UpgradeItemCache"
 
 ---@class MSR_UpgradeWindow : ISPanel
 ---@field player IsoPlayer
@@ -81,6 +82,7 @@ function MSR_UpgradeWindow:new(x, y, width, height, player, relic)
     
     o.player = player
     o.playerNum = player:getPlayerNum()
+    MSR.UpgradeItemCache.setPlayer(player)
     o.padding = Config.padding
     o.headerHeight = Config.headerHeight
     o.selectedUpgrade = nil
@@ -198,6 +200,7 @@ function MSR_UpgradeWindow:onInventoryChanged()
     local now = K.timeMs()
     if (now - self._lastRefreshTime) < self._refreshThrottleMs then return end
     self._lastRefreshTime = now
+    MSR.UpgradeItemCache.invalidate(self.player)
     self:refreshCurrentUpgrade()
 end
 
@@ -289,7 +292,7 @@ function MSR_UpgradeWindow:selectUpgrade(upgradeId)
     
     if self.ingredientList then
         local requirements = MSR.UpgradeData.getNextLevelRequirements(self.player, upgradeId)
-        self.ingredientList:setRequirements(requirements or {})
+        self.ingredientList:setRequirements(requirements or {}, upgradeId .. ":" .. tostring(self.selectedLevel))
     end
 end
 
@@ -330,7 +333,9 @@ function MSR_UpgradeWindow:onUpgradeClick()
         self:setUpgradePending(false)
         if self.player then
             local PM = MSR.PlayerMessage
-            if err then
+            if err == PM.BASEMENT_STAIRS_BLOCKED then
+                MSR.UpgradeLogic.showBasementStairsBlockedAlert()
+            elseif err then
                 PM.SayRaw(self.player, err)
             else
                 PM.Say(self.player, PM.UPGRADE_FAILED)
@@ -354,6 +359,8 @@ function MSR_UpgradeWindow:close()
     self:setVisible(false)
     self:removeFromUIManager()
     MSR_UpgradeWindow.instance = nil
+    MSR._basementStairsAlertShown = nil
+    MSR.UpgradeItemCache.invalidate(self.player)
 end
 
 function MSR_UpgradeWindow:isKeyConsumed(key)

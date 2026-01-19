@@ -50,13 +50,13 @@ end
 -- Core Module Initialization
 -----------------------------------------------------------
 
-require "00_core/Utils"        -- MSR.Utils (delay, poll, player utils)
 require "00_core/KahluaCompat" -- K global
 require "00_core/Logging"      -- L global
-require "00_core/Difficulty"   -- D global
 require "00_core/Env"          -- MSR.Env
 require "00_core/Config"       -- MSR.Config
-require "00_core/Data"         -- MSR.Data
+require "00_core/Data"         -- MSR.Data (load early)
+require "00_core/Utils"        -- MSR.Utils (delay, poll, player utils)
+require "00_core/Difficulty"   -- D global
 require "00_core/Events"       -- MSR.Events
 require "00_core/Validate"     -- Core validation
 

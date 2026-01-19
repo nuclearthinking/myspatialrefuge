@@ -75,6 +75,13 @@ function Env.isClient()
     return isClient()
 end
 
+function Env.isDebugEnabled()
+    if getDebug and getDebug() then return true end
+    if getCore and getCore():getDebug() then return true end
+    if isDebugEnabled and isDebugEnabled() then return true end
+    return false
+end
+
 -- SP or server can modify; MP client cannot
 function Env.canModifyData()
     if not _cacheValid and isGameReady() then

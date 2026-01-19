@@ -8,4 +8,10 @@ Sandbox_PTBR = {
     Sandbox_RefugeDifficulty_option3 = "Normal", -- 1.11/06.01.2026
     Sandbox_RefugeDifficulty_option4 = "Difícil", -- 1.11/06.01.2026
     Sandbox_RefugeDifficulty_option5 = "Muito difícil", -- 1.11/06.01.2026
+    
+    Sandbox_RefugeEssenceEnabled = "Sistema de retenção de XP ativado", -- 1.11/19.01.2026
+    Sandbox_RefugeEssenceEnabled_tooltip = "Configuração avançada. Altera o sistema de essência de XP (rastreia a XP ganha e gera essência ao morrer). Use Dificuldade em vez disso se não souber o que está fazendo.", -- 1.11/19.01.2026
+    
+    Sandbox_RefugeEssenceRetentionPercent = "Porcentagem de XP retida", -- 1.11/19.01.2026
+    Sandbox_RefugeEssenceRetentionPercent_tooltip = "Configuração avançada. Porcentagem base de XP recuperada ao absorver uma essência. A dificuldade modifica este valor (máx. 100%).", -- 1.11/19.01.2026
 }

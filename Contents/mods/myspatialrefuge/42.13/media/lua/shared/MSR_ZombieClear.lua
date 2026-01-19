@@ -1,6 +1,5 @@
 require "00_core/00_MSR"
 
--- Register module (returns nil if already loaded - skip initialization)
 local ZombieClear = MSR.register("ZombieClear")
 if not ZombieClear then return MSR.ZombieClear end
 local LOG = L.logger("ZombieClear")
@@ -106,7 +105,7 @@ end
 
 function ZombieClear.Pause(reason)
     clearingPausedUntil = K.time() + PAUSE_DURATION
-    L.debug("ZombieClear", "Pausing clearing for " .. PAUSE_DURATION .. "s (" .. tostring(reason) .. ")")
+    LOG.debug( "Pausing clearing for " .. PAUSE_DURATION .. "s (" .. tostring(reason) .. ")")
 end
 
 --- @param refugeData table Refuge data with centerX, centerY, centerZ, radius
@@ -135,7 +134,7 @@ function ZombieClear.PeriodicClearForPlayer(player)
     
     local cleared = ZombieClear.ClearRefuge(refugeData, player)
     if cleared > 0 then
-        L.debug("ZombieClear", "Periodic clear for player: removed " .. cleared .. " zombies/corpses")
+        LOG.debug( "Periodic clear for player: removed " .. cleared .. " zombies/corpses")
     end
     return cleared
 end
@@ -158,7 +157,7 @@ function ZombieClear.PeriodicClearAllPlayers()
     end
     
     if totalCleared > 0 then
-        L.debug("ZombieClear", "Periodic clear for all players: removed " .. totalCleared .. " zombies/corpses")
+        LOG.debug( "Periodic clear for all players: removed " .. totalCleared .. " zombies/corpses")
     end
     return totalCleared
 end
@@ -169,7 +168,7 @@ end
 
 local function onServerPeriodicClear()
     if ZombieClear.IsPaused() then
-        L.debug("ZombieClear", "Clearing paused, skipping periodic clear")
+        LOG.debug( "Clearing paused, skipping periodic clear")
         return
     end
     
@@ -195,7 +194,7 @@ end
 
 -- Subscribe to death event (decoupled from MSR_Death module)
 MSR.Events.Custom.Add("MSR_PlayerDiedInRefuge", onPlayerDiedInRefuge)
-L.debug("ZombieClear", "Subscribed to MSR_PlayerDiedInRefuge event")
+LOG.debug( "Subscribed to MSR_PlayerDiedInRefuge event")
 
 -- Register periodic clearing based on environment
 -- Only one handler should run per environment to avoid duplicates
@@ -203,7 +202,7 @@ MSR.Events.OnAnyReady.Add(function()
     if MSR.Env.hasServerAuthority() then
         -- SP, Coop host, Dedicated server: use server clearing
         Events.EveryOneMinute.Add(onServerPeriodicClear)
-        L.debug("ZombieClear", "Server authority periodic clear registered")
+        LOG.debug( "Server authority periodic clear registered")
     end
     -- MP clients don't need to register - server handles clearing
 end)

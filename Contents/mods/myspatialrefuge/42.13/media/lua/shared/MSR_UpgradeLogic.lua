@@ -6,6 +6,8 @@ require "00_core/Config"
 require "MSR_Shared"
 require "00_core/Data"
 require "MSR_RefugeExpansion"
+require "MSR_BasementGeneration"
+require "helpers/World"
 require "MSR_PlayerMessage"
 local PM = MSR.PlayerMessage
 if MSR and MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
@@ -17,6 +19,14 @@ MSR.UpgradeLogic._loaded = true
 
 local UpgradeLogic = MSR.UpgradeLogic
 local TRANSACTION_TYPE_UPGRADE = "REFUGE_FEATURE_UPGRADE"
+local LOG = L.logger("UpgradeLogic")
+
+local function invalidateItemCountCaches(player)
+    local ok, Cache = pcall(require, "MSR_UpgradeItemCache")
+    if ok and Cache and Cache.invalidate then
+        Cache.invalidate(player)
+    end
+end
 
 local function resolvePlayer(player)
     return MSR.resolvePlayer(player)
@@ -31,7 +41,7 @@ function UpgradeLogic.syncObjectToClients(object, syncModData)
 
     if object.sendObjectChange then
         object:sendObjectChange("containers")
-        L.debug("UpgradeLogic", "Synced object container")
+        LOG.debug("Synced object container")
     end
 
     if syncModData ~= false and object.transmitModData then
@@ -46,11 +56,11 @@ local UpgradeHandlers = {} -- { apply(player, level) -> success, error, extraDat
 ---@param handler table { apply, validate?, getResponseData?, onSuccess?, invalidatesCache? }
 function UpgradeLogic.registerHandler(upgradeId, handler)
     if not handler or type(handler.apply) ~= "function" then
-        L.log("UpgradeLogic", "ERROR: Handler for " .. upgradeId .. " must have apply function")
+        LOG.error("Handler for " .. upgradeId .. " must have apply function")
         return
     end
     UpgradeHandlers[upgradeId] = handler
-    L.debug("UpgradeLogic", "Registered handler: " .. upgradeId)
+    LOG.debug("Registered handler: " .. upgradeId)
 end
 
 --- Pre-validate upgrade before consuming items (for handlers with validation logic)
@@ -105,6 +115,9 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
 
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return false, "Unknown upgrade" end
+    if upgrade.debugOnly and not (MSR.Env and MSR.Env.isDebugEnabled and MSR.Env.isDebugEnabled()) then
+        return false, "Debug-only upgrade"
+    end
     if not MSR.UpgradeData.isUpgradeUnlocked(playerObj, upgradeId) then return false, "Dependencies not met" end
 
     local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId)
@@ -128,11 +141,11 @@ function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player" end
 
-    L.debug("Upgrade", "purchaseUpgrade: " .. tostring(upgradeId) .. " level " .. tostring(targetLevel))
+    LOG.debug("purchaseUpgrade: " .. tostring(upgradeId) .. " level " .. tostring(targetLevel))
 
     local canPurchase, err = UpgradeLogic.canPurchaseUpgrade(playerObj, upgradeId, targetLevel)
     if not canPurchase then
-        L.debug("Upgrade", "CANNOT purchase - " .. tostring(err))
+        LOG.debug("CANNOT purchase - " .. tostring(err))
         return false, err
     end
     local requirements = MSR.UpgradeData.getNextLevelRequirements(playerObj, upgradeId) or {}
@@ -145,13 +158,22 @@ function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
 end
 
 function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirements)
-    if not UpgradeLogic.consumeItems(player, requirements) then
-        return false, "Failed to consume items"
+    local transaction = nil
+    if requirements and #requirements > 0 then
+        local err = nil
+        transaction, err = MSR.Transaction.Begin(player, TRANSACTION_TYPE_UPGRADE, requirements)
+        if not transaction then
+            return false, err or "Failed to start transaction"
+        end
     end
+
     local handler = UpgradeLogic.getHandler(upgradeId)
     if handler then
         local success, errorMsg, resultData = handler.apply(player, targetLevel)
         if not success then
+            if transaction then
+                MSR.Transaction.Rollback(player, transaction.id)
+            end
             return false, errorMsg or "Upgrade failed"
         end
         if handler.onSuccess then
@@ -161,6 +183,15 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
         MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
         UpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
     end
+
+    if transaction then
+        local committed = MSR.Transaction.Commit(player, transaction.id)
+        if not committed then
+            LOG.debug("Transaction commit failed for " .. tostring(transaction.id))
+        end
+    end
+    
+    invalidateItemCountCaches(player)
 
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
@@ -180,7 +211,7 @@ function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirem
         lockedItemIds[itemType] = data.itemIds
     end
 
-    L.debug("Upgrade", "Transaction " .. transaction.id .. " with " .. K.count(lockedItemIds) .. " item types")
+    LOG.debug("Transaction " .. transaction.id .. " with " .. K.count(lockedItemIds) .. " item types")
     sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE, {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
@@ -231,7 +262,7 @@ function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
     local effects = MSR.UpgradeData.getLevelEffects(upgradeId, level)
     if not effects then return end
 
-    L.debug("Upgrade", "Applied effects for " .. upgradeId .. " level " .. level)
+    LOG.debug("Applied effects for " .. upgradeId .. " level " .. level)
 end
 
 --- Calculate storage capacity for a given level (without modifying saved data)
@@ -290,7 +321,7 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     if not relic then
         -- No relic exists - safe to set level, capacity will apply on next creation
         MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
-        L.log("UpgradeLogic", "Relic not found, capacity will apply on next creation")
+        LOG.info("Relic not found, capacity will apply on next creation")
         return true, nil
     end
 
@@ -311,14 +342,14 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     md.storageUpgradeLevel = level
     UpgradeLogic.syncObjectToClients(relic, true)
 
-    L.log("UpgradeLogic", "Updated relic storage capacity to " .. newCapacity)
+    LOG.info("Updated relic storage capacity to " .. newCapacity)
     return true, nil
 end
 
 local function registerBuiltinHandlers()
     -- Guard against duplicate registration
     if UpgradeHandlers[MSR.Config.UPGRADES.CORE_STORAGE] then
-        L.debug("UpgradeLogic", "Handlers already registered, skipping")
+        LOG.debug("Handlers already registered, skipping")
         return
     end
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.CORE_STORAGE, {
@@ -327,6 +358,76 @@ local function registerBuiltinHandlers()
         end,
         apply = function(player, level)
             return UpgradeLogic.applyStorageUpgrade(player, level)
+        end,
+        invalidatesCache = true
+    })
+
+    UpgradeLogic.registerHandler(MSR.Config.UPGRADES.REFUGE_BASEMENT, {
+        validate = function(player, level)
+            local playerObj = resolvePlayer(player)
+            if not playerObj then return false, "Invalid player" end
+
+            local refugeData = MSR.Data.GetRefugeData(playerObj)
+            if not refugeData then return false, "Refuge data not found" end
+
+            LOG.debug("Basement validate: user=%s tier=%s level=%s center=%s,%s,%s radius=%s",
+                tostring(playerObj:getUsername()),
+                tostring(refugeData.tier), tostring(level),
+                tostring(refugeData.centerX), tostring(refugeData.centerY), tostring(refugeData.centerZ),
+                tostring(refugeData.radius))
+
+            if (refugeData.tier or 0) < MSR.Config.MAX_TIER then
+                return false, "Requires maximum refuge expansion"
+            end
+
+            local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.REFUGE_BASEMENT)
+            if currentLevel >= (level or 1) then
+                return false, "Already at this level"
+            end
+
+            local basementZ = MSR.BasementGeneration.GetBasementZ(refugeData)
+            local upperLoaded = MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, refugeData.centerZ, refugeData.radius)
+            local lowerLoaded = MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, basementZ, refugeData.radius)
+            LOG.debug("Basement chunk checks: upperLoaded=%s lowerLoaded=%s basementZ=%s",
+                tostring(upperLoaded), tostring(lowerLoaded), tostring(basementZ))
+            if not upperLoaded then
+                return false, "Refuge area not fully loaded. Move around and try again."
+            end
+
+            local stairsOk, available = MSR.BasementGeneration.CheckStairwellAvailability(refugeData)
+            if not stairsOk then
+                LOG.debug("Basement validate failed: no clear stairwell (available=%s)", tostring(available))
+                return false, PM.BASEMENT_STAIRS_BLOCKED
+            end
+
+            return true, nil
+        end,
+        apply = function(player, level)
+            local playerObj = resolvePlayer(player)
+            if not playerObj then return false, "Invalid player" end
+
+            local refugeData = MSR.Data.GetRefugeData(playerObj)
+            if not refugeData then return false, "Refuge data not found" end
+
+            LOG.debug("Basement apply: user=%s level=%s center=%s,%s,%s radius=%s",
+                tostring(playerObj:getUsername()), tostring(level),
+                tostring(refugeData.centerX), tostring(refugeData.centerY), tostring(refugeData.centerZ),
+                tostring(refugeData.radius))
+
+            local success, errorMsg = MSR.BasementGeneration.Generate(refugeData, playerObj)
+            if not success then
+                LOG.debug("Basement apply failed: %s", tostring(errorMsg))
+                return false, errorMsg or "Basement generation failed"
+            end
+
+            MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.REFUGE_BASEMENT, level)
+
+            if MSR.RoomPersistence then
+                MSR.RoomPersistence.Save(refugeData)
+                MSR.RoomPersistence.Restore(refugeData)
+            end
+
+            return true, nil
         end,
         invalidatesCache = true
     })
@@ -358,7 +459,14 @@ local function registerBuiltinHandlers()
         invalidatesCache = true
     })
 
-    L.debug("UpgradeLogic", "Built-in handlers registered")
+    UpgradeLogic.registerHandler(MSR.Config.UPGRADES.DEBUG_FAIL_UPGRADE, {
+        apply = function(player, level)
+            return false, "Debug upgrade failed intentionally"
+        end,
+        invalidatesCache = false
+    })
+
+    LOG.debug("Built-in handlers registered")
 end
 
 function UpgradeLogic.getPlayerEffect(player, effectName)
@@ -378,6 +486,8 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
         end
     end
     
+    invalidateItemCountCaches(playerObj)
+    
     if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
         if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(playerObj) end
     end
@@ -387,6 +497,10 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
         UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
     MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
+
+    if MSR.EffectSystem and MSR.EffectSystem.markDirty then
+        MSR.EffectSystem.markDirty(playerObj)
+    end
 
     local shouldInvalidateCache = not handler or handler.invalidatesCache ~= false
     if shouldInvalidateCache and MSR.InvalidateRelicContainerCache then
@@ -422,6 +536,9 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
         if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
             MSR_UpgradeWindow.instance:setUpgradePending(false)
         end
+        if reason == PM.BASEMENT_STAIRS_BLOCKED then
+            UpgradeLogic.showBasementStairsBlockedAlert()
+        end
     end
 
     if reason then
@@ -434,6 +551,25 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
     else
         PM.Say(playerObj, PM.UPGRADE_FAILED)
     end
+end
+
+function UpgradeLogic.showBasementStairsBlockedAlert()
+    if MSR._basementStairsAlertShown then return end
+    if not ISModalRichText then return end
+
+    MSR._basementStairsAlertShown = true
+    local defaultMsg = " <CENTRE> <SIZE:large> <RGB:1,0.85,0.4> Basement Access Blocked <LINE> <LINE> " ..
+        "<SIZE:medium> <RGB:1,1,1> Clear the surface of your refuge for at least one stairwell. <LINE> <LINE> " ..
+        "<SIZE:small> <LEFT> Remove solid objects from the stairwell area (top corner of refuge), then try the upgrade again. <LINE> " ..
+        "At least one stairwell must be clear to excavate a basement. "
+    local message = getTextOrDefault and getTextOrDefault("IGUI_BasementStairsBlocked", defaultMsg) or defaultMsg
+    local screenW = getCore():getScreenWidth()
+    local screenH = getCore():getScreenHeight()
+    local width, height = 520, 280
+    local modal = ISModalRichText:new((screenW - width) / 2, (screenH - height) / 2, width, height, message, false)
+    modal:initialise()
+    modal:addToUIManager()
+    modal:setAlwaysOnTop(true)
 end
 
 -- Register handlers on server authority (SP, Coop host, Dedicated server)

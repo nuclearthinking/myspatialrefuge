@@ -12,6 +12,7 @@ MSR.Validation = MSR.Validation or {}
 MSR.Validation._loaded = true
 
 local Validation = MSR.Validation
+local LOG = L.logger("Validation")
 local Config = MSR.Config
 local Data = MSR.Data
 
@@ -91,7 +92,7 @@ function Validation.GetWeightRatio(player)
     
     maxWeight = player:getMaxWeight()
     
-    L.debug("Validation", string.format("Weight: %.1f/%.1f (%s)", 
+    LOG.debug( string.format("Weight: %.1f/%.1f (%s)", 
         invWeight or 0, maxWeight or 0, player:getUsername() or "?"))
     
     if invWeight and maxWeight and maxWeight > 0 then
@@ -119,7 +120,7 @@ function Validation.GetEncumbrancePenalty(player)
     local cap = Config.getEncumbrancePenaltyCap()
     local penalty = math.floor(math.min(D.negativeValue(overloadFactor * multiplier), cap))
     
-    L.debug("Validation", string.format("Encumbrance penalty: %ds (ratio=%.2f, difficulty=%s)", penalty, ratio, MSR.GetDifficultyName() or "?"))
+    LOG.debug( string.format("Encumbrance penalty: %ds (ratio=%.2f, difficulty=%s)", penalty, ratio, MSR.GetDifficultyName() or "?"))
     
     return penalty
 end
