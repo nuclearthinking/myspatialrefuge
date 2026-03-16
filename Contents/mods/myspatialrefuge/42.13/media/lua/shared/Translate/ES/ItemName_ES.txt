@@ -1,4 +1,0 @@
-ItemName_ES = {
-    -- XP Essence System
-    ItemName_Base.MSR_ExperienceEssence = "Esencia de Experiencia",
-}

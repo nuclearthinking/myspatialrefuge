@@ -1,0 +1,14 @@
+{
+    "Sandbox_MySpatialRefuge": "My Spatial Refuge",
+    "Sandbox_RefugeDifficulty": "Сложность",
+    "Sandbox_RefugeDifficulty_tooltip": "Общий уровень сложности. Лёгкий: меньше затрат, короче перезарядки, сильнее эффекты. Сложный: больше затрат, длиннее перезарядки, слабее эффекты.",
+    "Sandbox_RefugeDifficulty_option1": "Очень лёгкий",
+    "Sandbox_RefugeDifficulty_option2": "Лёгкий",
+    "Sandbox_RefugeDifficulty_option3": "Обычный",
+    "Sandbox_RefugeDifficulty_option4": "Сложный",
+    "Sandbox_RefugeDifficulty_option5": "Очень сложный",
+    "Sandbox_RefugeEssenceEnabled": "Система сохранения опыта включена",
+    "Sandbox_RefugeEssenceEnabled_tooltip": "Продвинутая настройка. Изменяет систему эссенции опыта (отслеживает полученный опыт и создаёт эссенцию при смерти). Используйте «Сложность», если не уверены.",
+    "Sandbox_RefugeEssenceRetentionPercent": "Процент возврата опыта",
+    "Sandbox_RefugeEssenceRetentionPercent_tooltip": "Продвинутая настройка. Базовый процент возвращаемого опыта при поглощении эссенции. Сложность модифицирует значение (не выше 100%)."
+}

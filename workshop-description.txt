@@ -79,7 +79,7 @@ In exchange for knowledge of your world, the Spatial Refuge offers new ways to i
 
 [h2]Compatibility[/h2]
 [list]
-[*] [b]Game Version:[/b] 42.13 or higher
+[*] [b]Game Version:[/b] 42.14 and 42.15
 [*] [b]Multiplayer:[/b] Fully compatible (each player has own refuge)
 [*] [b]Co-op:[/b] Fully compatible
 [*] [b]Singleplayer:[/b] Compatible
