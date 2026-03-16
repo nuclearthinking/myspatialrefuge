@@ -1,4 +1,0 @@
-ItemName_RU = {
-    -- XP Essence System
-    ItemName_Base.MSR_ExperienceEssence = "Эссенция Опыта",
-}

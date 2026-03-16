@@ -1,0 +1,3 @@
+ItemName_ES = {
+    Base.MSR_ExperienceEssence = "Esencia de Experiencia",
+}

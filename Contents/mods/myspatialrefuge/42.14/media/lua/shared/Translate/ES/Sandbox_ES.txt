@@ -1,0 +1,14 @@
+Sandbox_ES = {
+    Sandbox_MySpatialRefuge = "My Spatial Refuge",
+    Sandbox_RefugeDifficulty = "Dificultad",
+    Sandbox_RefugeDifficulty_tooltip = "Nivel de dificultad general. Fácil: costos más bajos, tiempos de espera más cortos, efectos más fuertes. Difícil: costos más altos, tiempos de espera más largos, efectos más débiles.",
+    Sandbox_RefugeDifficulty_option1 = "Muy fácil",
+    Sandbox_RefugeDifficulty_option2 = "Fácil",
+    Sandbox_RefugeDifficulty_option3 = "Normal",
+    Sandbox_RefugeDifficulty_option4 = "Difícil",
+    Sandbox_RefugeDifficulty_option5 = "Muy difícil",
+    Sandbox_RefugeEssenceEnabled = "Sistema de retención de XP activado",
+    Sandbox_RefugeEssenceEnabled_tooltip = "Ajuste avanzado. Cambia el sistema de esencia de XP (registra la XP ganada y genera esencia al morir). Usa Dificultad en su lugar si no sabes lo que haces.",
+    Sandbox_RefugeEssenceRetentionPercent = "Porcentaje de XP retenida",
+    Sandbox_RefugeEssenceRetentionPercent_tooltip = "Ajuste avanzado. Porcentaje base de XP recuperada al absorber una esencia. La dificultad modifica este valor (máx. 100%).",
+}

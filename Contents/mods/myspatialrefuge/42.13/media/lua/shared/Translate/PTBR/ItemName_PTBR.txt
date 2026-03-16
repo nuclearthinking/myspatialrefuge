@@ -1,4 +1,0 @@
-ItemName_PTBR = {
-    -- XP Essence System
-    ItemName_Base.MSR_ExperienceEssence = "Essência de Experiência",
-}
