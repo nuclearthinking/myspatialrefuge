@@ -5,6 +5,7 @@
 -- Version 3: Custom relic sprite (myspatialrefuge_0)
 -- Version 4: Added upgrades table for feature upgrades (faster_reading, etc.)
 -- Version 5: Added roomIds table for room persistence (no breaking changes)
+-- Version 6: Added lastActiveTime for refuge decay and reclamation
 
 require "00_core/00_MSR"
 
@@ -251,11 +252,32 @@ local function migrate_4_to_5(player)
     return true, "Migrated v4 -> v5 (roomIds support)"
 end
 
+-----------------------------------------------------------
+-- Migration: v5 -> v6
+-- Add lastActiveTime for refuge decay and reclamation
+-----------------------------------------------------------
+
+local function migrate_5_to_6(player)
+    local username = player:getUsername()
+    local refugeData = Data.GetRefugeDataByUsername(username)
+
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+
+    refugeData.lastActiveTime = refugeData.lastActiveTime or refugeData.createdTime or K.time()
+    refugeData.dataVersion = 6
+    Data.SaveRefugeData(refugeData)
+
+    return true, "Migrated v5 -> v6 (last active tracking)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
     [2] = migrate_2_to_3,
     [3] = migrate_3_to_4,
-    [4] = migrate_4_to_5
+    [4] = migrate_4_to_5,
+    [5] = migrate_5_to_6
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)

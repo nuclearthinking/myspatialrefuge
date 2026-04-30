@@ -13,6 +13,8 @@ MSR.Config = {
     REFUGE_BASE_Y = 1000,
     REFUGE_BASE_Z = 0,
     REFUGE_SPACING = 50,
+    REFUGE_GRID_SIZE = 20,
+    REFUGE_DECAY_TRIGGER_PERCENT = 95,
     
     TIERS = { -- size = radius * 2 + 1
         [0] = { radius = 1, size = 3, cores = 0, displayName = "3x3" },
@@ -53,7 +55,7 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    CURRENT_DATA_VERSION = 5, -- v1:per-player v2:global v3:relic v4:upgrades v5:roomIds
+    CURRENT_DATA_VERSION = 6, -- v1:per-player v2:global v3:relic v4:upgrades v5:roomIds v6:lastActiveTime
     
     CORE_ITEM = "Base.MagicalCore",
     
@@ -61,6 +63,10 @@ MSR.Config = {
     ESSENCE_ENABLED = true,
     ESSENCE_RETENTION_PERCENT = 75,  -- % of earned XP recovered when absorbing essence
     ESSENCE_ITEM = "Base.MSR_ExperienceEssence",
+
+    -- Refuge decay
+    DECAY_ENABLED = true,
+    DECAY_MIN_DAYS = 14,
 
     -- Upgrade IDs (must match upgrades.yaml)
     UPGRADES = {
@@ -98,6 +104,8 @@ MSR.Config = {
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
         SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
+        ADMIN_COMMAND = "AdminCommand",
+        ADMIN_RESPONSE = "AdminResponse",
 
         -- XP Essence commands
         XP_ESSENCE_ABSORB = "XPEssenceAbsorb",
@@ -192,6 +200,61 @@ function MSR.Config.getEssenceRetentionPercent()
     end
     
     return math.min(100, D.positiveValue(math.max(0, baseValue)))
+end
+
+function MSR.Config.getRefugeGridSize()
+    return math.max(1, tonumber(MSR.Config.REFUGE_GRID_SIZE) or 20)
+end
+
+function MSR.Config.getRefugeSlotCount()
+    local gridSize = MSR.Config.getRefugeGridSize()
+    return gridSize * gridSize
+end
+
+function MSR.Config.getDecayEnabled()
+    local sandbox = SandboxVars and SandboxVars.MySpatialRefuge
+    if sandbox and sandbox.DecayEnabled ~= nil then
+        return sandbox.DecayEnabled
+    end
+
+    return MSR.Config.DECAY_ENABLED
+end
+
+function MSR.Config.getDecayMinDays()
+    local sandbox = SandboxVars and SandboxVars.MySpatialRefuge
+    local value = MSR.Config.DECAY_MIN_DAYS
+
+    if sandbox and type(sandbox.DecayMinDays) == "number" then
+        value = sandbox.DecayMinDays
+    end
+
+    value = math.floor(value)
+    if value < 1 then
+        value = 1
+    end
+
+    return value
+end
+
+function MSR.Config.getDecayTriggerPercent()
+    local percent = tonumber(MSR.Config.REFUGE_DECAY_TRIGGER_PERCENT) or 95
+    if percent < 1 then
+        percent = 1
+    elseif percent > 100 then
+        percent = 100
+    end
+    return percent
+end
+
+function MSR.Config.getDecayTriggerSlotCount()
+    local slotCount = MSR.Config.getRefugeSlotCount()
+    local triggerSlots = math.floor(slotCount * (MSR.Config.getDecayTriggerPercent() / 100))
+    if triggerSlots < 1 then
+        triggerSlots = 1
+    elseif triggerSlots > slotCount then
+        triggerSlots = slotCount
+    end
+    return triggerSlots
 end
 
 function MSR.Config.getRelicStorageCapacity(refugeData)

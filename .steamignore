@@ -1,15 +1,35 @@
-# Files to exclude from Steam Workshop upload
-# Uses glob patterns similar to .gitignore
+# Files to exclude from Steam Workshop upload staging.
+# Note: this tool stages only the Contents/ tree, so patterns are matched
+# against files inside Contents/, not files in the mod root.
 
-# Documentation (not needed in game)
+# Editor / OS junk if it ever gets copied into Contents/
+Thumbs.db
+desktop.ini
+.DS_Store
+.git/
+.idea/
+.vscode/
+
+# Temporary / backup / patch leftovers
+*.bak
+*.tmp
+*.temp
+*.log
+*.orig
+*.rej
+*~
+~$*
+
+# Documentation accidentally placed inside Contents/
 *.md
 docs/
 
-# Development files
-*.bak
-*.tmp
-.git/
-
-# Changelog files (kept in repo, not needed in mod)
-CHANGELOG.*
-
+# Large source assets / archives that should never ship in-game
+*.psd
+*.psb
+*.kra
+*.xcf
+*.blend
+*.zip
+*.7z
+*.rar

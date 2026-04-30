@@ -46,7 +46,11 @@ function Data.SerializeRefugeData(refugeData)
         relicX = refugeData.relicX,
         relicY = refugeData.relicY,
         relicZ = refugeData.relicZ,
-        upgrades = refugeData.upgrades
+        upgrades = refugeData.upgrades,
+        createdTime = refugeData.createdTime,
+        lastActiveTime = refugeData.lastActiveTime,
+        lastExpanded = refugeData.lastExpanded,
+        dataVersion = refugeData.dataVersion
     }
 end
 
@@ -222,27 +226,85 @@ function Data.GetRefugeDataByUsername(username)
     return registry[username]
 end
 
+function Data.GetRefugeSlotFromCoordinates(x, y)
+    if type(x) ~= "number" or type(y) ~= "number" then
+        return nil
+    end
+
+    local gridSize = Config.getRefugeGridSize()
+    local col = math.floor((x - Config.REFUGE_BASE_X) / Config.REFUGE_SPACING + 0.5)
+    local row = math.floor((y - Config.REFUGE_BASE_Y) / Config.REFUGE_SPACING + 0.5)
+
+    if col < 0 or col >= gridSize or row < 0 or row >= gridSize then
+        return nil
+    end
+
+    return row * gridSize + col
+end
+
+function Data.GetRefugeCoordinatesForSlot(slot)
+    slot = tonumber(slot)
+    if not slot or slot < 0 then return nil end
+
+    local gridSize = Config.getRefugeGridSize()
+    local totalSlots = Config.getRefugeSlotCount()
+    if slot >= totalSlots then
+        return nil
+    end
+
+    local col = slot % gridSize
+    local row = math.floor(slot / gridSize)
+
+    return Config.REFUGE_BASE_X + (col * Config.REFUGE_SPACING),
+           Config.REFUGE_BASE_Y + (row * Config.REFUGE_SPACING),
+           Config.REFUGE_BASE_Z
+end
+
+function Data.GetRefugeSlotStats()
+    local registry = Data.GetRefugeRegistry()
+    local usedSlots = registry and K.count(registry) or 0
+    local totalSlots = Config.getRefugeSlotCount()
+
+    return {
+        usedSlots = usedSlots,
+        totalSlots = totalSlots,
+        freeSlots = math.max(0, totalSlots - usedSlots)
+    }
+end
+
+local function buildOccupiedRefugeLookup(registry)
+    local occupied = {}
+    if not registry then
+        return occupied
+    end
+
+    for _, refugeData in pairs(registry) do
+        if refugeData and refugeData.centerX ~= nil and refugeData.centerY ~= nil then
+            occupied[refugeData.centerX .. "," .. refugeData.centerY] = true
+        end
+    end
+
+    return occupied
+end
+
 -- Should only be called on server
 function Data.AllocateRefugeCoordinates()
     local registry = Data.GetRefugeRegistry()
     if not registry then
         return Config.REFUGE_BASE_X, Config.REFUGE_BASE_Y, Config.REFUGE_BASE_Z
     end
-    local baseX = Config.REFUGE_BASE_X
-    local baseY = Config.REFUGE_BASE_Y
-    local baseZ = Config.REFUGE_BASE_Z
-    local spacing = Config.REFUGE_SPACING
-    
-    local count = K.count(registry)
-    
-    local row = math.floor(count / 10)
-    local col = count % 10
-    
-    local centerX = baseX + (col * spacing)
-    local centerY = baseY + (row * spacing)
-    local centerZ = baseZ
-    
-    return centerX, centerY, centerZ
+
+    local occupied = buildOccupiedRefugeLookup(registry)
+    local totalSlots = Config.getRefugeSlotCount()
+
+    for slot = 0, totalSlots - 1 do
+        local centerX, centerY, centerZ = Data.GetRefugeCoordinatesForSlot(slot)
+        if centerX and not occupied[centerX .. "," .. centerY] then
+            return centerX, centerY, centerZ
+        end
+    end
+
+    return nil, nil, nil
 end
 
 -- Creating new refuge data is only allowed on server or singleplayer
@@ -280,8 +342,10 @@ function Data.GetOrCreateRefugeData(player)
                     orphanData.orphanedTime = nil
                     orphanData.inheritedFrom = orphanData.originalOwner or oldUsername
                     orphanData.inheritedTime = K.time()
+                    orphanData.lastActiveTime = K.time()
                     orphanData.username = username
                     orphanData.refugeId = "refuge_" .. username
+                    orphanData.dataVersion = Config.CURRENT_DATA_VERSION
                     
                     registry[oldUsername] = nil
                     registry[username] = orphanData
@@ -295,8 +359,17 @@ function Data.GetOrCreateRefugeData(player)
             end
         end
         
+        if Config.getDecayEnabled() and MSR.Decay and MSR.Decay.ShouldAttemptReclaimForAllocation and
+                MSR.Decay.ShouldAttemptReclaimForAllocation() then
+            MSR.Decay.ReclaimOldestInactiveRefuge()
+        end
+
         -- Create new refuge
         local centerX, centerY, centerZ = Data.AllocateRefugeCoordinates()
+        if not centerX then
+            LOG.error("Cannot create refuge for %s - no free refuge slots available", username)
+            return nil
+        end
         
         refugeData = {
             refugeId = "refuge_" .. username,
@@ -310,6 +383,7 @@ function Data.GetOrCreateRefugeData(player)
             relicY = centerY,
             relicZ = centerZ,
             createdTime = K.time(),
+            lastActiveTime = K.time(),
             lastExpanded = K.time(),
             dataVersion = Config.CURRENT_DATA_VERSION,
             upgrades = {}
@@ -321,6 +395,45 @@ function Data.GetOrCreateRefugeData(player)
     end
     
     return refugeData
+end
+
+function Data.TouchRefugeActivity(username)
+    if not username or not canModifyData() then
+        return false
+    end
+
+    local refugeData = Data.GetRefugeDataByUsername(username)
+    if not refugeData then
+        return false
+    end
+
+    refugeData.lastActiveTime = K.time()
+    return Data.SaveRefugeData(refugeData)
+end
+
+function Data.DeleteRefugeDataByUsername(username)
+    if not username then return false, nil end
+
+    if not canModifyData() then
+        LOG.debug("MP client cannot delete refuge data")
+        return false, nil
+    end
+
+    local registry = Data.GetRefugeRegistry()
+    if not registry then return false, nil end
+
+    local existing = registry[username]
+    if not existing then return false, nil end
+
+    registry[username] = nil
+
+    local modData = Data.InitializeModData()
+    if modData and modData.ReturnPositions then
+        modData.ReturnPositions[username] = nil
+    end
+
+    Data.TransmitModData()
+    return true, existing
 end
 
 -- Only server/singleplayer can save refuge data
@@ -365,21 +478,12 @@ end
 -- Only server/singleplayer can delete refuge data
 function Data.DeleteRefugeData(player)
     if not player then return false end
-    
-    if not canModifyData() then
-        LOG.debug("MP client cannot delete refuge data")
-        return false
-    end
-    
+
     local username = player:getUsername()
     if not username then return false end
-    
-    local registry = Data.GetRefugeRegistry()
-    if not registry then return false end
-    
-    registry[username] = nil
-    Data.TransmitModData()
-    return true
+
+    local success = Data.DeleteRefugeDataByUsername(username)
+    return success
 end
 
 -----------------------------------------------------------
@@ -440,8 +544,10 @@ function Data.ClaimOrphanRefuge(player)
     orphanData.orphanedTime = nil
     orphanData.inheritedFrom = orphanData.originalOwner or oldUsername
     orphanData.inheritedTime = K.time()
+    orphanData.lastActiveTime = K.time()
     orphanData.username = newUsername
     orphanData.refugeId = "refuge_" .. newUsername
+    orphanData.dataVersion = Config.CURRENT_DATA_VERSION
     
     registry[oldUsername] = nil
     registry[newUsername] = orphanData
@@ -470,11 +576,12 @@ local function getRefugeBounds()
         local baseX = Config.REFUGE_BASE_X
         local baseY = Config.REFUGE_BASE_Y
         local maxRadius = 10
+        local edgeOffset = (Config.getRefugeGridSize() - 1) * Config.REFUGE_SPACING
         refugeBoundsCache = {
             minX = baseX - maxRadius,
             minY = baseY - maxRadius,
-            maxX = baseX + 1000,
-            maxY = baseY + 1000
+            maxX = baseX + edgeOffset + maxRadius + 1,
+            maxY = baseY + edgeOffset + maxRadius + 1
         }
     end
     return refugeBoundsCache

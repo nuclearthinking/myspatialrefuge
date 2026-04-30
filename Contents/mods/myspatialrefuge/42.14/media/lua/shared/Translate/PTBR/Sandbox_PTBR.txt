@@ -11,4 +11,8 @@ Sandbox_PTBR = {
     Sandbox_RefugeEssenceEnabled_tooltip = "Configuração avançada. Altera o sistema de essência de XP (rastreia a XP ganha e gera essência ao morrer). Use Dificuldade em vez disso se não souber o que está fazendo.",
     Sandbox_RefugeEssenceRetentionPercent = "Porcentagem de XP retida",
     Sandbox_RefugeEssenceRetentionPercent_tooltip = "Configuração avançada. Porcentagem base de XP recuperada ao absorver uma essência. A dificuldade modifica este valor (máx. 100%).",
+    Sandbox_RefugeDecayEnabled = "Recuperação de refúgios abandonados",
+    Sandbox_RefugeDecayEnabled_tooltip = "Quando o uso dos refúgios chega a cerca de 95% dos espaços disponíveis, o servidor pode recuperar primeiro os refúgios que estão inativos há mais tempo. Apenas refúgios inativos pelo menos pelo número mínimo de dias podem ser recuperados.",
+    Sandbox_RefugeDecayMinDays = "Dias mínimos de inatividade antes da recuperação",
+    Sandbox_RefugeDecayMinDays_tooltip = "Número mínimo de dias que um jogador pode ficar ausente antes que seu refúgio possa ser recuperado automaticamente quando os espaços estiverem quase esgotados.",
 }
