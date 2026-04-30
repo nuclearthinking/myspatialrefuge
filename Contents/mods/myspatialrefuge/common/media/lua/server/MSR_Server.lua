@@ -7,6 +7,7 @@ require "MSR_Shared"
 require "MSR_RefugeGeneration"
 require "MSR_Validation"
 require "MSR_Migration"
+require "MSR_Decay"
 require "MSR_UpgradeData"
 require "MSR_Transaction"
 require "MSR_Integrity"
@@ -351,10 +352,12 @@ function MSR_Server.HandleModDataRequest(player, args)
     local refugeData = MSR.Data.GetOrCreateRefugeData(player)
     if not refugeData then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            message = "Failed to get or create refuge data"
+            message = "No refuge slots are currently available"
         })
         return
     end
+
+    MSR.Data.TouchRefugeActivity(username)
     
     local returnPos = MSR.Data.GetReturnPositionByUsername(username)
     
@@ -395,10 +398,12 @@ function MSR_Server.HandleEnterRequest(player, args)
     local refugeData = MSR.Data.GetOrCreateRefugeData(player)
     if not refugeData then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            message = "Failed to create refuge data"
+            message = "No refuge slots are currently available"
         })
         return
     end
+
+    MSR.Data.TouchRefugeActivity(username)
     
     -- Handle vehicle data - only accept if player has vehicle_teleport upgrade
     local acceptVehicleData = false
@@ -1136,7 +1141,8 @@ local function OnClientCommand(module, command, player, args)
     local isExemptFromRateLimit = (
         command == MSR.Config.COMMANDS.CHUNKS_READY or
         command == MSR.Config.COMMANDS.REQUEST_MODDATA or
-        command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE
+        command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE or
+        command == MSR.Config.COMMANDS.ADMIN_COMMAND
     )
     
     if not isExemptFromRateLimit and not canProcessRequest(player) then
@@ -1185,6 +1191,9 @@ local function OnClientCommand(module, command, player, args)
                 inv:AddItem(itemType)
             end
         end
+    elseif command == MSR.Config.COMMANDS.ADMIN_COMMAND then
+        -- Handled by MSR_AdminHandler.lua
+        return
     elseif command == "MSR_ServerEvent" or command == "MSR_ServerEventReply" then
         -- Handled by MSR.Events system in 07_Events.lua, ignore here
         return
@@ -1378,6 +1387,8 @@ local function OnPlayerConnect(player)
             MSR.Data.TransmitModData()
         end
     end
+
+    MSR.Data.TouchRefugeActivity(username)
     
     LOG.debug( "Player connected: " .. username)
 end

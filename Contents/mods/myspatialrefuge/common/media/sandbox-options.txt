@@ -8,3 +8,9 @@ option MySpatialRefuge.EssenceEnabled
 
 option MySpatialRefuge.EssenceRetentionPercent
 {type = integer, min = 0, max = 100, default = 75, page = MySpatialRefuge, translation = RefugeEssenceRetentionPercent,}
+
+option MySpatialRefuge.DecayEnabled
+{type = boolean, default = true, page = MySpatialRefuge, translation = RefugeDecayEnabled,}
+
+option MySpatialRefuge.DecayMinDays
+{type = integer, min = 1, max = 365, default = 14, page = MySpatialRefuge, translation = RefugeDecayMinDays,}
