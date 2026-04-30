@@ -15,4 +15,7 @@ Sandbox_ES = {
     Sandbox_RefugeDecayEnabled_tooltip = "Cuando el uso de refugios alcanza aproximadamente el 95% de los espacios disponibles, el servidor puede recuperar primero los refugios que llevan más tiempo inactivos. Solo se consideran los refugios inactivos durante al menos los días mínimos.",
     Sandbox_RefugeDecayMinDays = "Días mínimos de inactividad antes de recuperar",
     Sandbox_RefugeDecayMinDays_tooltip = "Número mínimo de días que un jugador puede estar ausente antes de que su refugio pueda recuperarse automáticamente cuando casi no queden espacios.",
+    Sandbox_MySpatialCore = "My Spatial Core",
+    Sandbox_ZombieCoreDropChance = "Probabilidad de Obtener Núcleo de Zombi",
+    Sandbox_ZombieCoreDropChance_tooltip = "Probabilidad porcentual de que los zombis suelten un Extraño Núcleo de Zombi (1-100%).",
 }
