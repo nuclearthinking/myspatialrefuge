@@ -14,3 +14,6 @@ option MySpatialRefuge.DecayEnabled
 
 option MySpatialRefuge.DecayMinDays
 {type = integer, min = 1, max = 365, default = 14, page = MySpatialRefuge, translation = RefugeDecayMinDays,}
+
+option MySpatialCore.ZombieCoreDropChance
+{type = integer, min = 1, max = 100, default = 30, page = MySpatialCore, translation = ZombieCoreDropChance,}

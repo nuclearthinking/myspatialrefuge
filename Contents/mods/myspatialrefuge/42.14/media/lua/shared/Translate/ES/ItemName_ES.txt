@@ -1,3 +1,4 @@
 ItemName_ES = {
     Base.MSR_ExperienceEssence = "Esencia de Experiencia",
+    Base.MagicalCore = "Extraño Núcleo de Zombi",
 }

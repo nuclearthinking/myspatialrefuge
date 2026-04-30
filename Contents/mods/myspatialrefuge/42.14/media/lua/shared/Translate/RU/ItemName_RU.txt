@@ -1,3 +1,4 @@
 ItemName_RU = {
     Base.MSR_ExperienceEssence = "Эссенция Опыта",
+    Base.MagicalCore = "Странное Ядро Зомби",
 }

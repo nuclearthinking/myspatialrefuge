@@ -15,4 +15,7 @@ Sandbox_PTBR = {
     Sandbox_RefugeDecayEnabled_tooltip = "Quando o uso dos refúgios chega a cerca de 95% dos espaços disponíveis, o servidor pode recuperar primeiro os refúgios que estão inativos há mais tempo. Apenas refúgios inativos pelo menos pelo número mínimo de dias podem ser recuperados.",
     Sandbox_RefugeDecayMinDays = "Dias mínimos de inatividade antes da recuperação",
     Sandbox_RefugeDecayMinDays_tooltip = "Número mínimo de dias que um jogador pode ficar ausente antes que seu refúgio possa ser recuperado automaticamente quando os espaços estiverem quase esgotados.",
+    Sandbox_MySpatialCore = "My Spatial Core",
+    Sandbox_ZombieCoreDropChance = "Chance de Queda de Núcleo de Zumbi",
+    Sandbox_ZombieCoreDropChance_tooltip = "Chance percentual de zumbis deixarem cair um Estranho Núcleo de Zumbi (1-100%).",
 }
