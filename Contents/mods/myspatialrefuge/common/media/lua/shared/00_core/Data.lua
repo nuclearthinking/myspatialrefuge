@@ -58,16 +58,6 @@ end
 -- Environment Helpers (delegated to MSR.Env)
 -----------------------------------------------------------
 
-local function getCachedIsServer()
-    if not MSR.Env then return isServer() end
-    return MSR.Env.isServer()
-end
-
-local function getCachedIsClient()
-    if not MSR.Env then return isClient() end
-    return MSR.Env.isClient()
-end
-
 local function canModifyData()
     if not MSR.Env then
         -- Fallback if MSR.Env not loaded yet
@@ -76,19 +66,8 @@ local function canModifyData()
     return MSR.Env.canModifyData()
 end
 
-local function isMultiplayerClient()
-    if not MSR.Env then
-        return isClient() and not isServer()
-    end
-    return MSR.Env.isClient() and not MSR.Env.isServer()
-end
-
 function Data.CanModifyData()
     return canModifyData()
-end
-
-function Data.IsMultiplayerClient()
-    return isMultiplayerClient()
 end
 
 -----------------------------------------------------------
@@ -608,13 +587,149 @@ function Data.IsPlayerInRefugeCoords(player)
     return Data.IsInRefugeCoordinates(x, y)
 end
 
+local RETURN_BACKUP_KEYS = {
+    "MSR_ReturnX",
+    "MSR_ReturnY",
+    "MSR_ReturnZ",
+    "MSR_ReturnSavedAt",
+    "MSR_ReturnFromVehicle",
+    "MSR_ReturnVehicleId",
+    "MSR_ReturnVehicleSeat",
+    "MSR_ReturnVehicleX",
+    "MSR_ReturnVehicleY",
+    "MSR_ReturnVehicleZ"
+}
+
+local function getPlayerModData(player)
+    if not player or not player.getModData then return nil end
+    local ok, pmd = pcall(function() return player:getModData() end)
+    if ok then return pmd end
+    return nil
+end
+
+local function isValidReturnPosition(pos)
+    if type(pos) ~= "table" then return false end
+    if type(pos.x) ~= "number" or type(pos.y) ~= "number" or type(pos.z) ~= "number" then
+        return false
+    end
+    return not Data.IsInRefugeCoordinates(pos.x, pos.y)
+end
+
+local function transmitPlayerModData(player)
+    if player and player.transmitModData then
+        pcall(function() player:transmitModData() end)
+    end
+end
+
+local function saveReturnPositionBackup(player, returnPos)
+    if not player or not isValidReturnPosition(returnPos) then return false end
+
+    local pmd = getPlayerModData(player)
+    if not pmd then return false end
+
+    for _, key in ipairs(RETURN_BACKUP_KEYS) do
+        pmd[key] = nil
+    end
+
+    -- Store flat values; nested tables in player ModData are unreliable in MP.
+    pmd.MSR_ReturnX = returnPos.x
+    pmd.MSR_ReturnY = returnPos.y
+    pmd.MSR_ReturnZ = returnPos.z
+    pmd.MSR_ReturnSavedAt = K.time()
+
+    if returnPos.fromVehicle then
+        pmd.MSR_ReturnFromVehicle = true
+        pmd.MSR_ReturnVehicleId = returnPos.vehicleId
+        pmd.MSR_ReturnVehicleSeat = returnPos.vehicleSeat
+        pmd.MSR_ReturnVehicleX = returnPos.vehicleX
+        pmd.MSR_ReturnVehicleY = returnPos.vehicleY
+        pmd.MSR_ReturnVehicleZ = returnPos.vehicleZ
+    end
+
+    transmitPlayerModData(player)
+    return true
+end
+
+local function getReturnPositionBackup(player)
+    local pmd = getPlayerModData(player)
+    if not pmd then return nil end
+
+    local x = tonumber(pmd.MSR_ReturnX)
+    local y = tonumber(pmd.MSR_ReturnY)
+    local z = tonumber(pmd.MSR_ReturnZ)
+    if not x or not y or z == nil then return nil end
+
+    local pos = { x = x, y = y, z = z }
+    if not isValidReturnPosition(pos) then return nil end
+
+    if pmd.MSR_ReturnFromVehicle == true then
+        pos.fromVehicle = true
+        pos.vehicleId = pmd.MSR_ReturnVehicleId
+        pos.vehicleSeat = pmd.MSR_ReturnVehicleSeat
+        pos.vehicleX = tonumber(pmd.MSR_ReturnVehicleX)
+        pos.vehicleY = tonumber(pmd.MSR_ReturnVehicleY)
+        pos.vehicleZ = tonumber(pmd.MSR_ReturnVehicleZ)
+    end
+
+    return pos
+end
+
+local function clearReturnPositionBackup(player)
+    local pmd = getPlayerModData(player)
+    if not pmd then return false end
+
+    for _, key in ipairs(RETURN_BACKUP_KEYS) do
+        pmd[key] = nil
+    end
+
+    transmitPlayerModData(player)
+    return true
+end
+
+local function validateReturnCoordinates(username, x, y, z, context)
+    if type(x) ~= "number" or type(y) ~= "number" or type(z) ~= "number" then
+        LOG.warning("Invalid %sreturn position for %s: %s,%s,%s",
+            context or "", tostring(username), tostring(x), tostring(y), tostring(z))
+        return false
+    end
+
+    if Data.IsInRefugeCoordinates(x, y) then
+        LOG.warning("Attempted to save refuge coordinates as %sreturn position - blocked!", context or "")
+        return false
+    end
+
+    return true
+end
+
+local function saveReturnPositionRecord(username, returnPos, player, context)
+    if not username or not returnPos then return false end
+
+    if not canModifyData() then
+        LOG.debug("MP client cannot save %sreturn position", context or "")
+        return false
+    end
+
+    local modData = Data.InitializeModData()
+    if not modData then return false end
+
+    modData.ReturnPositions = modData.ReturnPositions or {}
+    modData.ReturnPositions[username] = returnPos
+
+    if player then
+        saveReturnPositionBackup(player, returnPos)
+    end
+
+    Data.TransmitModData()
+    return true
+end
+
 function Data.GetReturnPosition(player)
     if not player then return nil end
     
     local username = player:getUsername()
     if not username then return nil end
     
-    return Data.GetReturnPositionByUsername(username)
+    return Data.GetReturnPositionByUsername(username) or getReturnPositionBackup(player)
 end
 
 function Data.GetReturnPositionByUsername(username)
@@ -623,7 +738,15 @@ function Data.GetReturnPositionByUsername(username)
     local modData = Data.InitializeModData()
     if not modData or not modData.ReturnPositions then return nil end
     
-    return modData.ReturnPositions[username]
+    local returnPos = modData.ReturnPositions[username]
+    if isValidReturnPosition(returnPos) then
+        return returnPos
+    end
+
+    if returnPos then
+        LOG.warning("Ignoring invalid return position for %s", tostring(username))
+    end
+    return nil
 end
 
 function Data.SaveReturnPosition(player, x, y, z)
@@ -632,61 +755,25 @@ function Data.SaveReturnPosition(player, x, y, z)
     local username = player:getUsername()
     if not username then return false end
     
-    return Data.SaveReturnPositionByUsername(username, x, y, z)
+    return Data.SaveReturnPositionByUsername(username, x, y, z, player)
 end
 
 -- Only server/singleplayer can save return positions
-function Data.SaveReturnPositionByUsername(username, x, y, z)
+function Data.SaveReturnPositionByUsername(username, x, y, z, player)
     if not username then return false end
-    
-    if not canModifyData() then
-        LOG.debug( "MP client cannot save return position")
-        return false
-    end
-    
-    -- Never save refuge coordinates as return position
-    if Data.IsInRefugeCoordinates(x, y) then
-        LOG.warning("Attempted to save refuge coordinates as return position - blocked!")
-        return false
-    end
-    
-    local modData = Data.InitializeModData()
-    if not modData then return false end
-    
-    if not modData.ReturnPositions then
-        modData.ReturnPositions = {}
-    end
-    
-    modData.ReturnPositions[username] = { x = x, y = y, z = z }
-    Data.TransmitModData()
-    
-    return true
+    if not validateReturnCoordinates(username, x, y, z, "") then return false end
+
+    local returnPos = { x = x, y = y, z = z }
+    return saveReturnPositionRecord(username, returnPos, player, "")
 end
 
 --- Save return position with vehicle data (for vehicle teleport upgrade)
 --- Structure: {x, y, z, fromVehicle, vehicleId, vehicleSeat, vehicleX, vehicleY, vehicleZ}
-function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicleSeat, vehicleX, vehicleY, vehicleZ)
+function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicleSeat, vehicleX, vehicleY, vehicleZ, player)
     if not username then return false end
-    
-    if not canModifyData() then
-        LOG.debug("MP client cannot save return position (vehicle)")
-        return false
-    end
-    
-    -- Never save refuge coordinates as return position
-    if Data.IsInRefugeCoordinates(x, y) then
-        LOG.warning("Attempted to save refuge coordinates as return position (vehicle) - blocked!")
-        return false
-    end
-    
-    local modData = Data.InitializeModData()
-    if not modData then return false end
-    
-    if not modData.ReturnPositions then
-        modData.ReturnPositions = {}
-    end
-    
-    modData.ReturnPositions[username] = {
+    if not validateReturnCoordinates(username, x, y, z, "vehicle ") then return false end
+
+    local returnPos = {
         x = x,
         y = y,
         z = z,
@@ -697,7 +784,7 @@ function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicl
         vehicleY = vehicleY,
         vehicleZ = vehicleZ
     }
-    Data.TransmitModData()
+    if not saveReturnPositionRecord(username, returnPos, player, "vehicle ") then return false end
     
     LOG.debug("Saved return position with vehicle: %s at %.1f,%.1f,%.1f vehicleId=%s seat=%s",
         username, x, y, z, tostring(vehicleId), tostring(vehicleSeat))
@@ -706,16 +793,16 @@ function Data.SaveReturnPositionWithVehicle(username, x, y, z, vehicleId, vehicl
 end
 
 function Data.ClearReturnPosition(player)
-    if not player then return end
+    if not player then return false end
     
     local username = player:getUsername()
-    if not username then return end
+    if not username then return false end
     
-    Data.ClearReturnPositionByUsername(username)
+    return Data.ClearReturnPositionByUsername(username, player)
 end
 
 -- Only server/singleplayer can clear return positions
-function Data.ClearReturnPositionByUsername(username)
+function Data.ClearReturnPositionByUsername(username, player)
     if not username then return false end
     
     if not canModifyData() then
@@ -723,6 +810,10 @@ function Data.ClearReturnPositionByUsername(username)
         return false
     end
     
+    if player then
+        clearReturnPositionBackup(player)
+    end
+
     local modData = Data.InitializeModData()
     if modData and modData.ReturnPositions then
         modData.ReturnPositions[username] = nil
