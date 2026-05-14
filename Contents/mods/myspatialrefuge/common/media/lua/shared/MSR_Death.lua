@@ -9,6 +9,7 @@
 -- All handlers subscribe to these events - no direct module coupling
 
 require "00_core/00_MSR"
+require "helpers/World"
 
 local Death = MSR.register("Death")
 if not Death then return MSR.Death end
@@ -16,6 +17,9 @@ if not Death then return MSR.Death end
 local LOG = L.logger("Death")
 
 Death.PROTECTED_KEY = "MSR_ProtectedCorpse"
+
+local DEATH_DEDUPE_SECONDS = 10
+local processedDeaths = {}
 
 local function summarizeXpMap(xpMap)
     local count = 0
@@ -29,25 +33,50 @@ local function summarizeXpMap(xpMap)
     return count, total
 end
 
+local function buildDeathKey(username, onlineId, x, y, z)
+    return table.concat({
+        tostring(username or "unknown"),
+        tostring(onlineId or "noid"),
+        tostring(x or 0),
+        tostring(y or 0),
+        tostring(z or 0)
+    }, ":")
+end
+
+local function isDuplicateDeath(username, onlineId, x, y, z)
+    local now = K.time()
+    local key = buildDeathKey(username, onlineId, x, y, z)
+
+    for deathKey, ts in pairs(processedDeaths) do
+        if now - ts > DEATH_DEDUPE_SECONDS then
+            processedDeaths[deathKey] = nil
+        end
+    end
+
+    if processedDeaths[key] and now - processedDeaths[key] <= DEATH_DEDUPE_SECONDS then
+        return true, key
+    end
+
+    processedDeaths[key] = now
+    return false, key
+end
+
 --- @param body IsoDeadBody|IsoZombie
 --- @return boolean
 function Death.IsProtected(body)
-    local md = body and body:getModData()
+    local md = MSR.World.getModData(body)
     return md and md[Death.PROTECTED_KEY] == true
 end
 
 
 local function findPlayerCorpse(x, y, z, username, playerOnlineId)
-    local cell = getCell()
-    if not cell then return nil end
-
     for dx = -2, 2 do
         for dy = -2, 2 do
-            local square = cell:getGridSquare(x + dx, y + dy, z)
+            local square = MSR.World.getSquare(x + dx, y + dy, z)
             if square then
                 for _, body in K.iter(square:getDeadBodys()) do
                     if body:isPlayer() then
-                        local md = body:getModData()
+                        local md = MSR.World.getModData(body) or {}
                         
                         -- Match by onlineID (MP) or owner marker (SP)
                         local matchByOnlineId = playerOnlineId and body:getCharacterOnlineID() == playerOnlineId
@@ -65,7 +94,9 @@ local function findPlayerCorpse(x, y, z, username, playerOnlineId)
 end
 
 local function protectCorpse(body, username)
-    local md = body:getModData()
+    local md = MSR.World.getModData(body)
+    if not md then return end
+
     md[Death.PROTECTED_KEY] = true
     md.MSR_CorpseOwner = nil
     
@@ -143,7 +174,7 @@ end
 --- Clear player's teleport-related ModData
 local function clearPlayerModData(player)
     if not player then return end
-    local pmd = player:getModData()
+    local pmd = MSR.World.getModData(player)
     if not pmd then return end
     
     pmd.spatialRefuge_id = nil
@@ -191,6 +222,7 @@ end
 --- Orchestrates all death-related events
 local function handlePlayerDeath(player, args)
     if not player then return end
+    args = args or {}
     
     local username = args.username
     local deathX = args.x
@@ -198,7 +230,19 @@ local function handlePlayerDeath(player, args)
     local deathZ = args.z
     local diedInRefuge = args.diedInRefuge
     local playerOnlineId = args.onlineId
-    local earnedXpCount, earnedXpTotal = summarizeXpMap(args.earnedXp)
+
+    local duplicate, deathKey = isDuplicateDeath(username, playerOnlineId, deathX, deathY, deathZ)
+    if duplicate then
+        LOG.debug("Ignoring duplicate death event for %s (%s)", tostring(username), tostring(deathKey))
+        return
+    end
+
+    local earnedXp = {}
+    if MSR.XPRetention and MSR.XPRetention.ConsumeEarnedXpSnapshot then
+        earnedXp = MSR.XPRetention.ConsumeEarnedXpSnapshot(player, args)
+    end
+
+    local earnedXpCount, earnedXpTotal = summarizeXpMap(earnedXp)
     
     LOG.debug("Processing death for %s at %d,%d,%d (inRefuge=%s onlineId=%s earnedXpEntries=%d total=%.3f)",
         tostring(username), deathX, deathY, deathZ, tostring(diedInRefuge), tostring(playerOnlineId),
@@ -221,14 +265,15 @@ local function handlePlayerDeath(player, args)
         MSR.Events.Custom.Fire("MSR_PlayerDiedInRefuge", username)
         
         -- Mark corpse owner for finding (copies to corpse)
-        if player and player:getModData() then
-            player:getModData().MSR_CorpseOwner = username
+        local pmd = MSR.World.getModData(player)
+        if pmd then
+            pmd.MSR_CorpseOwner = username
         end
     end
     
     -- Always search for corpse (for XP essence, etc.)
     -- Pass earnedXp so it can be added to corpse inventory
-    startCorpseSearch(deathX, deathY, deathZ, username, playerOnlineId, diedInRefuge, args.earnedXp)
+    startCorpseSearch(deathX, deathY, deathZ, username, playerOnlineId, diedInRefuge, earnedXp)
 end
 
 -----------------------------------------------------------
@@ -246,10 +291,10 @@ MSR.Events.Server.On("OnPlayerDeath")
         local y = math.floor(player:getY())
         local z = math.floor(player:getZ())
         
-        -- Check if died in refuge (need to do this on client side too for immediate feedback)
-        -- Load Data module lazily
         local diedInRefuge = false
-        if MSR.Data and MSR.Data.IsPlayerInRefugeCoords then
+        if MSR.isPlayerInRefuge then
+            diedInRefuge = MSR.isPlayerInRefuge(player)
+        elseif MSR.Data and MSR.Data.IsPlayerInRefugeCoords then
             diedInRefuge = MSR.Data.IsPlayerInRefugeCoords(player)
         end
         
@@ -259,34 +304,13 @@ MSR.Events.Server.On("OnPlayerDeath")
             onlineId = player:getOnlineID()
         end
         
-        -- Include earned XP from client's ModData
-        -- transmitModData() doesn't sync nested tables reliably, so we send XP in event args
-        local earnedXp = nil
-        local pmd = player:getModData()
-        if not pmd then
-            LOG.debug("OnPlayerDeath argBuilder: missing modData for %s", tostring(username))
-        elseif pmd.MSR_XPEarnedXp then
-            earnedXp = {}
-            local xpCount = 0
-            local totalXp = 0
-            for perkName, amount in pairs(pmd.MSR_XPEarnedXp) do
-                earnedXp[perkName] = amount
-                xpCount = xpCount + 1
-                totalXp = totalXp + (amount or 0)
-            end
-            LOG.debug("CLIENT sending XP data: xpPerks=%d, totalXp=%.1f", xpCount, totalXp)
-        else
-            LOG.debug("OnPlayerDeath argBuilder: no MSR_XPEarnedXp table for %s", tostring(username))
-        end
-        
         return {
             username = username,
             x = x,
             y = y,
             z = z,
             diedInRefuge = diedInRefuge,
-            onlineId = onlineId,
-            earnedXp = earnedXp
+            onlineId = onlineId
         }
     end)
     :onServer(handlePlayerDeath)

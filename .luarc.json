@@ -1,8 +1,12 @@
 {
     "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
     "workspace.library": [
-        "./.luals"
+        "./.luals/Umbrella/library",
+        "./.luals/pz_stubs.lua"
     ],
+    "workspace.checkThirdParty": false,
+    "workspace.maxPreload": 10000,
+    "workspace.preloadFileSize": 1000,
     "diagnostics.globals": [
         "MSR",
         "require",

@@ -1,10 +1,11 @@
 -- MSR_XPRetention - Souls-like XP retention system
--- Tracks naturally earned XP and creates an "Experience Essence" on death
--- that can be absorbed by the next character to recover a portion of the XP.
+-- Server-authoritative XP tracking and essence recovery for SP/coop/dedicated.
 
 require "00_core/00_MSR"
 require "00_core/Env"
 require "00_core/Config"
+require "helpers/Inventory"
+require "helpers/World"
 require "MSR_PlayerMessage"
 
 local XPR = MSR.register("XPRetention")
@@ -20,6 +21,16 @@ PM.Register("ESSENCE_ABSORBED", "IGUI_MSR_EssenceAbsorbed")
 PM.Register("ESSENCE_NOT_YOURS", "IGUI_MSR_EssenceNotYours")
 PM.Register("ESSENCE_EMPTY", "IGUI_MSR_EssenceEmpty")
 
+local ESSENCE_VERSION = 2
+local TRACKING_GATE_TICKS = 10
+
+local earnedByUsername = {}
+local suppressXpRecording = 0
+
+-----------------------------------------------------------
+-- XP map helpers
+-----------------------------------------------------------
+
 local function summarizeXpMap(xpMap)
     local count = 0
     local total = 0
@@ -32,8 +43,30 @@ local function summarizeXpMap(xpMap)
     return count, total
 end
 
+local function copyPositiveXpMap(source)
+    local xpMap = {}
+    local total = 0
+
+    for perkName, amount in pairs(source or {}) do
+        if type(perkName) == "string" and type(amount) == "number" and amount > 0 then
+            xpMap[perkName] = amount
+            total = total + amount
+        end
+    end
+
+    return xpMap, total
+end
+
+local function getPlayerUsername(player)
+    local username = MSR.safePlayerCall(player, "getUsername")
+    if username and username ~= "" then
+        return username
+    end
+    return nil
+end
+
 -----------------------------------------------------------
--- Perk Utilities
+-- Perk utilities
 -----------------------------------------------------------
 
 local perkCache = {}
@@ -97,110 +130,158 @@ local function getLocalizedPerkName(perkName)
 end
 
 -----------------------------------------------------------
--- Essence Utilities
+-- Authority XP tracking
 -----------------------------------------------------------
 
-local function transmitModData()
-    if MSR.Data and MSR.Data.TransmitModData then
-        MSR.Data.TransmitModData()
-    end
+local function ensureAuthority()
+    return MSR.Env and MSR.Env.hasServerAuthority and MSR.Env.hasServerAuthority()
 end
 
------------------------------------------------------------
--- XP Tracking
------------------------------------------------------------
+local function enableTrackingFor(username, generation, reason)
+    local record = earnedByUsername[username]
+    if not record or record.generation ~= generation then return end
 
-local function onAddXP(player, perk, amount)
-    if not player or not perk or type(amount) ~= "number" then
-        LOG.debug("onAddXP ignored: invalid args (player=%s perk=%s amountType=%s)",
-            tostring(player ~= nil), tostring(perk ~= nil), type(amount))
-        return
-    end
+    record.ready = true
+    LOG.info("XP tracking enabled for %s (%s)", tostring(username), tostring(reason or "unknown"))
+end
 
-    local localPlayer = getPlayer()
-    if not localPlayer then
-        LOG.debug("onAddXP ignored: no local player context")
-        return
-    end
-    if player ~= localPlayer then
-        LOG.debug("onAddXP ignored: event player is not local player")
-        return
+local function createTrackingRecord(player, username, reason, resetExisting)
+    local previous = earnedByUsername[username]
+    if previous and not resetExisting then
+        LOG.debug("EnsureTracking skipped for %s (reason=%s ready=%s generation=%s)",
+            tostring(username), tostring(reason or "unknown"), tostring(previous.ready), tostring(previous.generation))
+        return true
     end
 
-    local pmd = player:getModData()
-    if not pmd then
-        LOG.debug("onAddXP ignored: missing modData")
-        return
-    end
-    if not pmd.MSR_XPTrackingReady then
-        LOG.debug("onAddXP ignored: tracking not ready")
-        return
+    local generation = ((previous and previous.generation) or 0) + 1
+    earnedByUsername[username] = {
+        ready = false,
+        xp = {},
+        generation = generation,
+        createdReason = reason
+    }
+
+    if resetExisting then
+        LOG.info("StartTracking reset for %s (reason=%s generation=%d)",
+            tostring(username), tostring(reason or "unknown"), generation)
+    else
+        LOG.info("EnsureTracking created for %s (reason=%s generation=%d)",
+            tostring(username), tostring(reason or "unknown"), generation)
     end
 
-    pmd.MSR_XPEarnedXp = pmd.MSR_XPEarnedXp or {}
+    MSR.delayWithPlayer(TRACKING_GATE_TICKS, player, function()
+        enableTrackingFor(username, generation, reason)
+    end)
+
+    return true
+end
+
+function XPR.EnsureTracking(player, reason)
+    if not ensureAuthority() then return false end
+    if not Config.getEssenceEnabled() then return false end
+
+    local username = getPlayerUsername(player)
+    if not username then return false end
+
+    return createTrackingRecord(player, username, reason, false)
+end
+
+function XPR.StartTracking(player, reason)
+    if not ensureAuthority() then return false end
+    if not Config.getEssenceEnabled() then return false end
+
+    local username = getPlayerUsername(player)
+    if not username then return false end
+
+    return createTrackingRecord(player, username, reason, true)
+end
+
+function XPR.RecordXp(player, perk, amount)
+    if not ensureAuthority() then return false end
+    if suppressXpRecording > 0 then return false end
+    if not player or not perk or type(amount) ~= "number" then return false end
+
+    local username = getPlayerUsername(player)
+    if not username then return false end
+
+    local record = earnedByUsername[username]
+    if not record then
+        XPR.EnsureTracking(player, "addxp")
+        record = earnedByUsername[username]
+    end
+
+    if not record then
+        LOG.debug("RecordXp ignored: tracking missing for %s", tostring(username))
+        return false
+    end
+
+    if not record.ready then
+        LOG.debug("RecordXp ignored: tracking gate queued for %s (reason=%s generation=%s)",
+            tostring(username), tostring(record.createdReason or "unknown"), tostring(record.generation))
+        return false
+    end
 
     local perkName = getPerkName(perk)
-    if not perkName then return end
+    if not perkName then return false end
 
-    local current = pmd.MSR_XPEarnedXp[perkName] or 0
-    pmd.MSR_XPEarnedXp[perkName] = math.max(0, current + amount)
+    local current = record.xp[perkName] or 0
+    local nextAmount = math.max(0, current + amount)
+    record.xp[perkName] = nextAmount
 
-    LOG.debug( string.format("Tracked XP: %s %+.3f (total: %.3f)",
-        perkName, amount, pmd.MSR_XPEarnedXp[perkName]))
+    LOG.debug(string.format("Tracked XP: %s %+.3f (total: %.3f)",
+        perkName, amount, nextAmount))
+
+    return true
 end
 
-local function enableXPTracking(player)
-    if not player then return end
+function XPR.ConsumeEarnedXpSnapshot(player, deathArgs)
+    if not ensureAuthority() then return {} end
 
-    local pmd = player:getModData()
-    if not pmd or pmd.MSR_XPTrackingReady then return end
+    local username = (deathArgs and deathArgs.username) or getPlayerUsername(player)
+    if not username then return {} end
 
-    pmd.MSR_XPTrackingReady = true
-    pmd.MSR_XPEarnedXp = pmd.MSR_XPEarnedXp or {}
+    local record = earnedByUsername[username]
+    earnedByUsername[username] = nil
 
-    LOG.info( "XP tracking enabled for " .. (player:getUsername() or "unknown"))
+    if not record then
+        LOG.debug("No XP tracking record to consume for %s", tostring(username))
+        return {}
+    end
+
+    local xpMap, total = copyPositiveXpMap(record.xp)
+    local count = K.count(xpMap)
+
+    LOG.debug("Consumed XP snapshot for %s: perks=%d total=%.3f ready=%s generation=%s",
+        tostring(username), count, total, tostring(record.ready), tostring(record.generation))
+
+    return xpMap
 end
 
-local function setupTrackingGate(player)
-    if not player then return end
-
-    local localPlayer = getPlayer()
-    if not localPlayer or player ~= localPlayer then
-        LOG.debug("setupTrackingGate skipped: non-local player context")
-        return
-    end
-
-    local pmd = player:getModData()
-    if not pmd then return end
-    if pmd.MSR_XPTrackingGateStarted then
-        LOG.debug("setupTrackingGate skipped: gate already started")
-        return
-    end
-    pmd.MSR_XPTrackingGateStarted = true
-    LOG.info("setupTrackingGate started for %s", tostring(player:getUsername()))
-
-    MSR.delayWithPlayer(10, player, enableXPTracking)
+local function onAddXP(player, perk, amount)
+    XPR.RecordXp(player, perk, amount)
 end
 
 -----------------------------------------------------------
--- Essence Creation
+-- Essence creation
 -----------------------------------------------------------
 
-local function buildXpMap(earnedXp)
-    local xpMap = {}
-    local total = 0
+local function prepareEssenceItem(username, xpMap)
+    local essence = instanceItem and instanceItem(Config.ESSENCE_ITEM)
+    if not essence then return nil end
 
-    for perkName, amount in pairs(earnedXp or {}) do
-        if type(amount) == "number" and amount > 0 then
-            xpMap[perkName] = amount
-            total = total + amount
-        end
-    end
+    local itemMd = MSR.World.getModData(essence)
+    if not itemMd then return nil end
 
-    return xpMap, total
+    itemMd.msrXpEssence = true
+    itemMd.msrXpEssenceVersion = ESSENCE_VERSION
+    itemMd.ownerUsername = username
+    itemMd.createdTs = K.time()
+    itemMd.xp = xpMap
+
+    return essence
 end
 
-local function createEssenceItem(corpse, x, y, z)
+local function placeEssenceItem(corpse, x, y, z, essence)
     x = x or 0
     y = y or 0
     z = z or 0
@@ -208,28 +289,29 @@ local function createEssenceItem(corpse, x, y, z)
     if corpse and corpse.getContainer then
         local container = corpse:getContainer()
         if container and container.AddItem then
-            local essence = container:AddItem(Config.ESSENCE_ITEM)
-            if essence then
-                return essence, "corpse inventory"
+            local added = container:AddItem(essence)
+            if added then
+                if MSR.Env.isServer() and sendAddItemToContainer then
+                    sendAddItemToContainer(container, added)
+                end
+                return added, "corpse inventory"
             end
         end
     end
 
-    local cell = getCell()
-    local square = cell and cell:getGridSquare(x, y, z)
-
+    local square = MSR.World.getSquare(x, y, z)
     if square then
-        local essence = square:AddWorldInventoryItem(Config.ESSENCE_ITEM, 0.5, 0.5, 0)
-        if essence then
-            return essence, string.format("ground at (%d, %d, %d)", x, y, z)
+        local added = square:AddWorldInventoryItem(essence, 0.5, 0.5, 0, true)
+        if added then
+            return added, string.format("ground at (%d, %d, %d)", x, y, z)
         end
     end
 
     return nil, nil
 end
 
-local function createEssenceOnCorpseFound(args)
-    if not MSR.Env.hasServerAuthority() then
+function XPR.CreateEssenceFromSnapshot(args)
+    if not ensureAuthority() then
         LOG.info("Skipping essence creation: no server authority")
         return
     end
@@ -252,7 +334,7 @@ local function createEssenceOnCorpseFound(args)
         return
     end
 
-    local xpMap, totalXp = buildXpMap(earnedXp)
+    local xpMap, totalXp = copyPositiveXpMap(earnedXp)
     local xpCount = K.count(xpMap)
     if totalXp <= 0 then
         LOG.info("No earned XP to preserve for %s (entries=%d rawTotal=%.3f)",
@@ -260,36 +342,36 @@ local function createEssenceOnCorpseFound(args)
         return
     end
 
-    local essence, location = createEssenceItem(corpse, args.x, args.y, args.z)
+    local essence = prepareEssenceItem(username, xpMap)
     if not essence then
-        LOG.warning("Failed to create essence item for %s at %s,%s,%s", username,
-            tostring(args.x), tostring(args.y), tostring(args.z))
+        LOG.warning("Failed to create essence item instance for %s", tostring(username))
         return
     end
 
-    local itemMd = essence:getModData()
-    itemMd.msrXpEssence = true
-    itemMd.ownerUsername = username
-    itemMd.createdTs = K.time()
-    itemMd.xp = xpMap
-
-    transmitModData()
+    local placedEssence, location = placeEssenceItem(corpse, args.x, args.y, args.z, essence)
+    if not placedEssence then
+        LOG.warning("Failed to place essence item for %s at %s,%s,%s", username,
+            tostring(args.x), tostring(args.y), tostring(args.z))
+        return
+    end
 
     LOG.info("Created essence with %.1f XP (%d perks) for %s at %s",
         totalXp, xpCount, username, location)
 
     MSR.Events.Custom.Fire("MSR_EssenceCreated", {
         username = username,
-        essence = essence,
+        essence = placedEssence,
         location = location
     })
 end
 
 -----------------------------------------------------------
--- Essence Absorption
+-- Essence absorption
 -----------------------------------------------------------
 
 local function showAbsorptionFeedback(player, appliedPerks)
+    if not player or not appliedPerks then return end
+
     player:getEmitter():playSound("GainExperienceLevel")
 
     local lines = {}
@@ -305,9 +387,18 @@ local function showAbsorptionFeedback(player, appliedPerks)
 end
 
 local function grantRecoveredXp(player, perk, amount)
-    -- Recovery semantics: no XP multiplier on absorbed essence.
+    -- Recovery semantics: no XP multiplier, and recovered XP is not tracked as newly earned.
     if not addXpNoMultiplier then return false end
-    addXpNoMultiplier(player, perk, amount)
+
+    suppressXpRecording = suppressXpRecording + 1
+    local ok, err = pcall(addXpNoMultiplier, player, perk, amount)
+    suppressXpRecording = math.max(0, suppressXpRecording - 1)
+
+    if not ok then
+        LOG.warning("Failed to grant recovered XP: %s", tostring(err))
+        return false
+    end
+
     return true
 end
 
@@ -323,12 +414,12 @@ local function applyXpMapToPlayer(player, xpMap, retentionFactor)
             local perk = getPerkFromName(perkName)
             if perk then
                 local appliedAmount = amount * retentionFactor
-                if appliedAmount > 0 then
-                    if grantRecoveredXp(player, perk, appliedAmount) then
-                        appliedTotal = appliedTotal + appliedAmount
-                        appliedPerks[perkName] = appliedAmount
-                    end
+                if appliedAmount > 0 and grantRecoveredXp(player, perk, appliedAmount) then
+                    appliedTotal = appliedTotal + appliedAmount
+                    appliedPerks[perkName] = appliedAmount
                 end
+            else
+                LOG.warning("Unknown perk in essence: %s", tostring(perkName))
             end
         end
     end
@@ -336,86 +427,126 @@ local function applyXpMapToPlayer(player, xpMap, retentionFactor)
     return appliedTotal, appliedPerks
 end
 
-XPR.ApplyXpMap = applyXpMapToPlayer
-
 local function removeEssenceItem(item)
+    if not item then return end
+
     local container = item:getContainer()
     if container then
         container:DoRemoveItem(item)
-        if MSR.Env.isServer() then
+        if MSR.Env.isServer() and sendRemoveItemFromContainer then
             sendRemoveItemFromContainer(container, item)
         end
     end
 end
 
-XPR.RemoveEssenceItem = removeEssenceItem
-
 local function canAbsorbEssence(player, itemMd)
     if MSR.Env.isSingleplayer() then return true end
     if not itemMd.ownerUsername then return true end
 
-    local username = player:getUsername()
+    local username = getPlayerUsername(player)
     return username and itemMd.ownerUsername == username
 end
 
-function XPR.ApplyEssence(player, item)
-    if not player or not item then return false, "Invalid arguments" end
+local function hasContainer(containers, target)
+    if not target then return false end
 
-    local username = player:getUsername()
+    for _, container in ipairs(containers or {}) do
+        if container == target then
+            return true
+        end
+    end
+
+    return false
+end
+
+local function resolveInventoryEssence(player, itemOrItemId)
+    if not player or not itemOrItemId then return nil, "Invalid arguments" end
+
+    local containers = MSR.Inventory.getPlayerContainers(player, true)
+    if not containers or #containers == 0 then return nil, "No inventory" end
+
+    local item = itemOrItemId
+    local actualContainer = nil
+    local foundById = false
+    if type(itemOrItemId) == "number" then
+        item, actualContainer = MSR.Inventory.findItemById(containers, itemOrItemId)
+        foundById = item ~= nil
+    elseif type(itemOrItemId) == "string" then
+        local itemId = tonumber(itemOrItemId)
+        if not itemId then return nil, "Invalid item id" end
+        item, actualContainer = MSR.Inventory.findItemById(containers, itemId)
+        foundById = item ~= nil
+    elseif item and item.getContainer then
+        actualContainer = item:getContainer()
+    end
+
+    if not item then return nil, "Item not in inventory" end
+    if not item.getFullType or item:getFullType() ~= Config.ESSENCE_ITEM then return nil, "Not an essence item" end
+
+    actualContainer = actualContainer or (item.getContainer and item:getContainer())
+    if not actualContainer then return nil, "Item not in inventory" end
+    if not foundById and not hasContainer(containers, actualContainer) then return nil, "Item not in inventory" end
+    if actualContainer.contains and not actualContainer:contains(item) then return nil, "Item not in inventory" end
+
+    return item, nil
+end
+
+function XPR.HandleAbsorbRequest(player, itemOrItemId)
+    if not ensureAuthority() then return false, "No authority" end
+
+    local username = getPlayerUsername(player)
     if not username then return false, "Invalid player" end
 
-    local itemMd = item:getModData()
+    local item, resolveErr = resolveInventoryEssence(player, itemOrItemId)
+    if not item then
+        LOG.debug("XPEssenceAbsorb: %s for %s", tostring(resolveErr), tostring(username))
+        return false, "ESSENCE_EMPTY"
+    end
+
+    local itemMd = MSR.World.getModData(item)
     if not itemMd or not itemMd.msrXpEssence then
-        return false, "Not a valid essence"
+        LOG.debug("XPEssenceAbsorb: not a valid essence for %s", tostring(username))
+        return false, "ESSENCE_EMPTY"
     end
 
     if not canAbsorbEssence(player, itemMd) then
-        return false, "Not your essence"
+        LOG.debug("XPEssenceAbsorb: essence belongs to %s, not %s",
+            tostring(itemMd.ownerUsername), tostring(username))
+        return false, "ESSENCE_NOT_YOURS"
     end
 
     local xpMap = itemMd.xp
     if not xpMap or K.isEmpty(xpMap) then
-        return false, "Empty essence"
+        LOG.debug("XPEssenceAbsorb: empty essence for %s", tostring(username))
+        return false, "ESSENCE_EMPTY"
     end
 
-    local xpSystem = player:getXp()
-    if not xpSystem then return false, "No XP system" end
+    if not MSR.safePlayerCall(player, "getXp") then
+        LOG.debug("XPEssenceAbsorb: no XP system for %s", tostring(username))
+        return false, "ESSENCE_EMPTY"
+    end
 
-    local retentionPercent = Config.getEssenceRetentionPercent()
-    local retentionFactor = retentionPercent / 100
-
+    local retentionFactor = Config.getEssenceRetentionPercent() / 100
     local appliedTotal, appliedPerks = applyXpMapToPlayer(player, xpMap, retentionFactor)
 
-    if appliedTotal > 0 then
-        showAbsorptionFeedback(player, appliedPerks)
+    if appliedTotal <= 0 then
+        LOG.warning("XPEssenceAbsorb: failed to apply recovered XP for %s", tostring(username))
+        return false, "ESSENCE_EMPTY"
     end
 
     removeEssenceItem(item)
 
-    LOG.info( string.format("Absorbed %.1f total XP for %s", appliedTotal, username))
-    return true, appliedTotal
+    LOG.info(string.format("XPEssenceAbsorb: applied %.1f XP for %s", appliedTotal, username))
+    return true, nil, appliedTotal, appliedPerks
 end
 
 function XPR.AbsorbEssence(player, item)
     if not player or not item then return end
+    if item:getFullType() ~= Config.ESSENCE_ITEM then return end
 
-    local itemMd = item:getModData()
-    if not itemMd or not itemMd.msrXpEssence then
-        PM.Say(player, "ESSENCE_EMPTY")
-        return
-    end
+    local playerInventory = MSR.safePlayerCall(player, "getInventory")
+    if not playerInventory then return end
 
-    if not canAbsorbEssence(player, itemMd) then
-        PM.Say(player, "ESSENCE_NOT_YOURS")
-        return
-    end
-
-    if not itemMd.xp or K.isEmpty(itemMd.xp) then
-        PM.Say(player, "ESSENCE_EMPTY")
-        return
-    end
-
-    local playerInventory = player:getInventory()
     local itemContainer = item:getContainer()
 
     if itemContainer ~= playerInventory then
@@ -429,32 +560,26 @@ end
 function XPR.DoAbsorb(player, item)
     if not player or not item then return end
 
-    local playerInventory = player:getInventory()
-    if not playerInventory then return end
+    local resolvedItem = resolveInventoryEssence(player, item)
+    if not resolvedItem then return end
 
-    local inInventory
-    if isClient() then
-        inInventory = playerInventory:containsID(item:getID())
-    else
-        inInventory = playerInventory:contains(item)
-    end
-
-    if not inInventory then return end
-
-    if MSR.Env.isSingleplayer() then
-        local success = XPR.ApplyEssence(player, item)
+    if ensureAuthority() then
+        local success, message, _, appliedPerks = XPR.HandleAbsorbRequest(player, resolvedItem)
         if success then
+            showAbsorptionFeedback(player, appliedPerks)
             PM.Say(player, "ESSENCE_ABSORBED")
+        elseif message then
+            PM.Say(player, message)
         end
     else
         sendClientCommand(Config.COMMAND_NAMESPACE, Config.COMMANDS.XP_ESSENCE_ABSORB, {
-            itemId = item:getID()
+            itemId = resolvedItem:getID()
         })
     end
 end
 
 -----------------------------------------------------------
--- Context Menu
+-- Context menu
 -----------------------------------------------------------
 
 local function findEssenceInSelection(items)
@@ -496,13 +621,13 @@ local function onFillInventoryObjectContextMenu(playerNum, context, items)
 end
 
 -----------------------------------------------------------
--- Event Registration
+-- Event registration
 -----------------------------------------------------------
 
 require "00_core/Events"
 
 local clientRegistered = false
-local serverRegistered = false
+local authorityRegistered = false
 
 local function isSandboxReady()
     return SandboxVars and SandboxVars.MySpatialRefuge ~= nil
@@ -515,7 +640,7 @@ local function withSandboxReady(tag, callback)
         end, function()
             callback()
         end, 600, function()
-            LOG.warning( "Sandbox settings not ready; skipping %s registration", tag)
+            LOG.warning("Sandbox settings not ready; skipping %s registration", tag)
         end)
         return
     end
@@ -546,26 +671,18 @@ local function onServerCommand(module, command, args)
     if appliedTotal > 0 then
         showAbsorptionFeedback(player, appliedPerks)
         PM.Say(player, "ESSENCE_ABSORBED")
-        LOG.info( string.format("Client displayed absorbed %.1f total XP", appliedTotal))
+        LOG.info(string.format("Client displayed absorbed %.1f total XP", appliedTotal))
     end
-end
-
-local function onCreatePlayer(_, player)
-    if player then setupTrackingGate(player) end
 end
 
 local function registerClientHandlers()
     if clientRegistered then return end
     if not Config.getEssenceEnabled() then
-        LOG.info( "XP essence disabled - skipping client registration")
+        LOG.info("XP essence disabled - skipping client registration")
         return
     end
 
     clientRegistered = true
-
-    if Events.AddXP then
-        Events.AddXP.Add(onAddXP)
-    end
 
     if Events.OnFillInventoryObjectContextMenu then
         Events.OnFillInventoryObjectContextMenu.Add(onFillInventoryObjectContextMenu)
@@ -574,26 +691,40 @@ local function registerClientHandlers()
     if Events.OnServerCommand then
         Events.OnServerCommand.Add(onServerCommand)
     end
-
-    if Events.OnCreatePlayer then
-        Events.OnCreatePlayer.Add(onCreatePlayer)
-    end
-
-    local player = getPlayer()
-    if player then
-        setupTrackingGate(player)
-    end
 end
 
-local function registerServerHandlers()
-    if serverRegistered then return end
+local function registerAuthorityHandlers()
+    if authorityRegistered then return end
+    if not ensureAuthority() then return end
     if not Config.getEssenceEnabled() then
-        LOG.info( "XP essence disabled - skipping server registration")
+        LOG.info("XP essence disabled - skipping authority registration")
         return
     end
 
-    serverRegistered = true
-    MSR.Events.Custom.Add("MSR_CorpseFound", createEssenceOnCorpseFound)
+    authorityRegistered = true
+
+    if Events.AddXP then
+        Events.AddXP.Add(onAddXP)
+    end
+
+    if Events.OnCreatePlayer then
+        Events.OnCreatePlayer.Add(function(_, player)
+            XPR.StartTracking(player, "create")
+        end)
+    end
+
+    if Events.OnPlayerConnect then
+        Events.OnPlayerConnect.Add(function(player)
+            XPR.StartTracking(player, "connect")
+        end)
+    end
+
+    MSR.Events.Custom.Add("MSR_CorpseFound", XPR.CreateEssenceFromSnapshot)
+
+    local player = getPlayer and getPlayer()
+    if player then
+        XPR.StartTracking(player, "ready")
+    end
 end
 
 MSR.Events.OnClientReady.Add(function()
@@ -601,7 +732,7 @@ MSR.Events.OnClientReady.Add(function()
 end)
 
 MSR.Events.OnServerReady.Add(function()
-    withSandboxReady("server", registerServerHandlers)
+    withSandboxReady("authority", registerAuthorityHandlers)
 end)
 
 return MSR.XPRetention

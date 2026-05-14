@@ -109,7 +109,7 @@ MSR.Config = {
 
         -- XP Essence commands
         XP_ESSENCE_ABSORB = "XPEssenceAbsorb",
-        XP_ESSENCE_APPLY = "XPEssenceApply"  -- Server→Client: apply XP locally
+        XP_ESSENCE_APPLY = "XPEssenceApply"  -- Server->Client: absorption feedback only
         
         -- Note: Death handling uses MSR.Events.Server system
         -- No separate death command needed

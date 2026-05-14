@@ -1,0 +1,42 @@
+{
+    "$schema": "https://raw.githubusercontent.com/EmmyLuaLs/emmylua-analyzer-rust/refs/heads/main/crates/emmylua_code_analysis/resources/schema.json",
+    "runtime": {
+        "version": "Lua5.1"
+    },
+    "workspace": {
+        "workspaceRoots": [
+            "Contents/mods/myspatialrefuge/common/media/lua"
+        ],
+        "library": [
+            ".luals/Umbrella/library",
+            ".luals/pz_stubs.lua"
+        ],
+        "ignoreDir": [
+            ".git",
+            ".luals",
+            "docs"
+        ]
+    },
+    "diagnostics": {
+        "enable": true,
+        "disable": [
+            "inject-field",
+            "preferred-local-alias",
+            "unnecessary-if"
+        ],
+        "globals": [
+            "MSR",
+            "require",
+            "DebugLog",
+            "LogSeverity",
+            "isClient",
+            "isServer",
+            "getDebug",
+            "getTimestamp",
+            "writeLog"
+        ]
+    },
+    "strict": {
+        "requirePath": false
+    }
+}

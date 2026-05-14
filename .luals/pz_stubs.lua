@@ -401,6 +401,11 @@ function getText(key) end
 ---@return string
 function getTextOrNull(key, ...) end
 
+---@param key string
+---@param fallback string
+---@return string
+function getTextOrDefault(key, fallback) end
+
 -- Logging
 ---@param ... any
 function print(...) end

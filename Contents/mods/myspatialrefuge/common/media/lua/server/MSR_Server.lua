@@ -2,6 +2,7 @@
 -- On dedicated servers, automatic directory scanning may not complete before server code runs
 
 require "00_core/00_MSR"
+require "helpers/World"
 
 require "MSR_Shared"
 require "MSR_RefugeGeneration"
@@ -334,16 +335,9 @@ function MSR_Server.HandleModDataRequest(player, args)
     if not username then return end
     
     LOG.debug( "ModData request from " .. username)
-    
-    -- Enable XP tracking for this player (MP: dedicated server or coop)
-    -- This catches existing characters connecting who don't trigger OnCreatePlayer
-    if MSR.Env.hasServerAuthority() and not MSR.Env.isSingleplayer() then
-        local pmd = player:getModData()
-        if pmd and not pmd.MSR_XPTrackingReady then
-            pmd.MSR_XPTrackingReady = true
-            pmd.MSR_XPEarnedXp = pmd.MSR_XPEarnedXp or {}
-            LOG.debug( "Enabled XP tracking for " .. username)
-        end
+
+    if MSR.XPRetention and MSR.XPRetention.EnsureTracking then
+        MSR.XPRetention.EnsureTracking(player, "moddata")
     end
     
     if MSR.Migration.NeedsMigration(player) then
@@ -491,44 +485,13 @@ function MSR_Server.HandleChunksReady(player, args)
     local function waitForServerChunks()
         tickCount = tickCount + 1
         
-        local playerValid = false
-        if playerRef then
-            local ok, result = pcall(function() return playerRef:getUsername() end)
-            playerValid = ok and result ~= nil
-        end
-        
-        if not playerValid then
+        if not MSR.isPlayerValid(playerRef) then
             Events.OnTick.Remove(waitForServerChunks)
             LOG.debug( "Player disconnected during chunk wait for " .. tostring(usernameRef))
             return
         end
         
-        local cell = getCell()
-        if not cell then return end
-        
-        local allChunksLoaded = true
-        local cornerOffsets = {
-            {0, 0},      -- Center
-            {-radius, -radius},  -- NW corner
-            {radius, -radius},   -- NE corner  
-            {-radius, radius},   -- SW corner
-            {radius, radius}     -- SE corner
-        }
-        
-        for _, offset in ipairs(cornerOffsets) do
-            local checkX = centerX + offset[1]
-            local checkY = centerY + offset[2]
-            local square = cell:getGridSquare(checkX, checkY, centerZ)
-            if not square then
-                allChunksLoaded = false
-                break
-            end
-            local chunk = square:getChunk()
-            if not chunk then
-                allChunksLoaded = false
-                break
-            end
-        end
+        local allChunksLoaded = MSR.World.isAreaLoaded(centerX, centerY, centerZ, radius)
         
         if allChunksLoaded and not generated then
             generated = true
@@ -577,25 +540,11 @@ function MSR_Server.HandleChunksReady(player, args)
                 
                 Events.OnTick.Remove(delayedBuildingRecalc)
                 
-                local cell = getCell()
-                if not cell then return end
-                
                 local centerX = refugeDataRef.centerX
                 local centerY = refugeDataRef.centerY
                 local centerZ = refugeDataRef.centerZ
                 local radius = refugeDataRef.radius or 1
-                local recalculated = 0
-                
-                -- Single pass: RecalcAllWithNeighbours for visibility/lighting
-                for x = centerX - radius - 1, centerX + radius + 1 do
-                    for y = centerY - radius - 1, centerY + radius + 1 do
-                        local square = cell:getGridSquare(x, y, centerZ)
-                        if square and square:getChunk() then
-                            square:RecalcAllWithNeighbours(true)
-                            recalculated = recalculated + 1
-                        end
-                    end
-                end
+                local recalculated = MSR.World.recalcArea(centerX, centerY, centerZ, radius + 1)
                 
                 LOG.debug( "Recalculated " .. recalculated .. " squares for visibility")
             end
@@ -653,7 +602,14 @@ function MSR_Server.HandleExitRequest(player, args)
     -- No cooldown check on exit - player can always leave refuge
     -- Cooldown only applies to ENTERING the refuge
 
-    if MSR.Data.IsPlayerInRefugeCoords and not MSR.Data.IsPlayerInRefugeCoords(player) then
+    local inRefuge = true
+    if MSR.isPlayerInRefuge then
+        inRefuge = MSR.isPlayerInRefuge(player)
+    elseif MSR.Data.IsPlayerInRefugeCoords then
+        inRefuge = MSR.Data.IsPlayerInRefugeCoords(player)
+    end
+
+    if not inRefuge then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = "Not in refuge"
         })
@@ -1064,86 +1020,20 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
     local username = player:getUsername()
     if not username then return end
     
-    local itemId = args.itemId
-    
-    -- Only search player's main inventory (client ensures item is there)
-    local inventory = player:getInventory()
-    if not inventory then
-        LOG.debug( "XPEssenceAbsorb: no inventory for " .. username)
-        return
-    end
-    
-    local item = inventory:getItemById(itemId)
-    if not item then
-        LOG.debug( "XPEssenceAbsorb: item " .. tostring(itemId) .. " not in inventory for " .. username)
-        return
-    end
-    
-    -- Verify it's an essence item
-    local fullType = item:getFullType()
-    if fullType ~= MSR.Config.ESSENCE_ITEM then
-        LOG.debug( "XPEssenceAbsorb: item is not an essence: " .. tostring(fullType))
-        return
-    end
-    
-    -- Get essence data and validate
-    local itemMd = item:getModData()
-    if not itemMd or not itemMd.msrXpEssence then
-        LOG.debug( "XPEssenceAbsorb: not a valid essence for " .. username)
-        return
-    end
-    
-    -- Check ownership
-    local ownerUsername = itemMd.ownerUsername
-    if ownerUsername and ownerUsername ~= username then
-        LOG.debug( "XPEssenceAbsorb: essence belongs to " .. tostring(ownerUsername) .. ", not " .. username)
-        return
-    end
-    
-    local xpMap = itemMd.xp
-    if not xpMap or K.isEmpty(xpMap) then
-        LOG.debug( "XPEssenceAbsorb: empty essence for " .. username)
-        return
-    end
-    
-    -- Calculate XP with retention
-    local retentionPercent = MSR.Config.getEssenceRetentionPercent()
-    local retentionFactor = retentionPercent / 100
-    local xpToApply = {}
-    local totalXp = 0
-    
-    for perkName, amount in pairs(xpMap) do
-        if type(amount) == "number" and amount > 0 then
-            local retainedAmount = amount * retentionFactor
-            xpToApply[perkName] = retainedAmount
-            totalXp = totalXp + retainedAmount
-        end
-    end
-    
-    if totalXp <= 0 then
-        LOG.debug( "XPEssenceAbsorb: no XP to apply for " .. username)
-        return
-    end
-    
-    -- Remove the essence item (server-side)
-    if MSR.XPRetention and MSR.XPRetention.RemoveEssenceItem then
-        MSR.XPRetention.RemoveEssenceItem(item)
-    else
-        inventory:Remove(item)
-    end
-
-    local appliedTotal = 0
-    local appliedPerks = {}
-    if MSR.XPRetention and MSR.XPRetention.ApplyXpMap then
-        appliedTotal, appliedPerks = MSR.XPRetention.ApplyXpMap(player, xpToApply, 1)
-    end
-
-    if appliedTotal <= 0 then
-        LOG.warning( "XPEssenceAbsorb: failed to apply recovered XP for " .. username)
+    if not MSR.XPRetention or not MSR.XPRetention.HandleAbsorbRequest then
+        LOG.warning( "XPEssenceAbsorb: XPRetention handler unavailable for " .. username)
         return
     end
 
-    -- Client only displays feedback; XP is granted server-side via AddXP packet flow.
+    local success, message, appliedTotal, appliedPerks =
+        MSR.XPRetention.HandleAbsorbRequest(player, args.itemId)
+
+    if not success then
+        LOG.debug( "XPEssenceAbsorb failed for " .. username .. ": " .. tostring(message))
+        return
+    end
+
+    -- Client only displays feedback; XP was already granted server-side.
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.XP_ESSENCE_APPLY, {
         appliedPerks = appliedPerks,
         totalXp = appliedTotal
@@ -1228,40 +1118,22 @@ local function OnClientCommand(module, command, player, args)
 end
 
 local function areRefugeChunksLoaded(refugeData)
-    local cell = getCell()
-    if not cell then return false end
-    
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
-    
-    -- Check all corners and center
-    local checkPoints = {
-        {0, 0},           -- Center
-        {-radius, -radius}, -- NW
-        {radius, -radius},  -- NE
-        {-radius, radius},  -- SW
-        {radius, radius}    -- SE
-    }
-    
-    for _, offset in ipairs(checkPoints) do
-        local x = centerX + offset[1]
-        local y = centerY + offset[2]
-        local square = cell:getGridSquare(x, y, centerZ)
-        if not square then return false end
-        local chunk = square:getChunk()
-        if not chunk then return false end
-    end
-    
-    return true
+    if not refugeData then return false end
+    return MSR.World.isAreaLoaded(refugeData.centerX, refugeData.centerY,
+        refugeData.centerZ, refugeData.radius or 1)
 end
 
 function MSR_Server.CheckAndRecoverStrandedPlayer(player)
     if not player then return end
     
-    -- Check if player is at refuge coordinates
-    if not MSR.Data.IsPlayerInRefugeCoords(player) then
+    local inRefuge = false
+    if MSR.isPlayerInRefuge then
+        inRefuge = MSR.isPlayerInRefuge(player)
+    elseif MSR.Data.IsPlayerInRefugeCoords then
+        inRefuge = MSR.Data.IsPlayerInRefugeCoords(player)
+    end
+
+    if not inRefuge then
         return  -- Not in refuge area, nothing to do
     end
     
@@ -1288,13 +1160,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
     local function waitForChunksAndCheck()
         tickCount = tickCount + 1
         
-        local playerValid = false
-        if playerRef then
-            local ok, result = pcall(function() return playerRef:getUsername() end)
-            playerValid = ok and result ~= nil
-        end
-        
-        if not playerValid then
+        if not MSR.isPlayerValid(playerRef) then
             Events.OnTick.Remove(waitForChunksAndCheck)
             LOG.debug( "Player disconnected during stranded check for " .. tostring(usernameRef))
             return
