@@ -257,7 +257,7 @@ function MSR.EnterRefuge(player)
     if vehicleData then
         MSR.Data.SaveReturnPositionWithVehicle(username, returnX, returnY, returnZ, 
             vehicleData.vehicleId, vehicleData.vehicleSeat,
-            vehicleData.vehicleX, vehicleData.vehicleY, vehicleData.vehicleZ)
+            vehicleData.vehicleX, vehicleData.vehicleY, vehicleData.vehicleZ, player)
     else
         MSR.SaveReturnPosition(player, returnX, returnY, returnZ)
     end

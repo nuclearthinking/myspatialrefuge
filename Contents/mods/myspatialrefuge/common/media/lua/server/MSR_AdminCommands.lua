@@ -264,7 +264,7 @@ local function cmdGoto(slotNum, playerOverride)
     local returnY = player:getY()
     local returnZ = player:getZ()
 
-    Data.SaveReturnPositionByUsername(username, returnX, returnY, returnZ)
+    Data.SaveReturnPositionByUsername(username, returnX, returnY, returnZ, player)
 
     player:teleportTo(x, y, 0)
     K.safeCall(player, "setLastX", x)
