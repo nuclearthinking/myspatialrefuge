@@ -177,9 +177,7 @@ local function handleRefugeDataCleanup(args)
     end
     
     -- Clear return position
-    if Data.ClearReturnPositionByUsername then
-        Data.ClearReturnPositionByUsername(username)
-    end
+    Data.ClearReturnPosition(player)
     
     -- Clear player ModData
     clearPlayerModData(player)
@@ -191,7 +189,7 @@ end
 
 --- Main death handler - runs with server authority only
 --- Orchestrates all death-related events
-local function handlePlayerDeath(player, args, reply)
+local function handlePlayerDeath(player, args)
     if not player then return end
     
     local username = args.username
@@ -238,7 +236,7 @@ end
 -----------------------------------------------------------
 
 -- Register server-authoritative OnPlayerDeath handler
--- This automatically handles SP/Coop/MP client→server forwarding
+-- This automatically handles SP/Coop/MP client->server forwarding
 MSR.Events.Server.On("OnPlayerDeath")
     :withArgs(function(player)
         if not player then return {} end

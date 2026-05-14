@@ -94,10 +94,6 @@ local serverCooldowns = {
     relicMove = {}
 }
 
-local function getServerTimestamp()
-    return K.time()
-end
-
 local function isDebugAllowed(player)
     if getDebug and getDebug() then return true end
     if isDebugEnabled and isDebugEnabled() then return true end
@@ -109,7 +105,7 @@ end
 
 local function checkTeleportCooldown(username)
     local lastTeleport = serverCooldowns.teleport[username] or 0
-    local now = getServerTimestamp()
+    local now = K.time()
     local cooldown = MSR.Config.getTeleportCooldown()
     local remaining = cooldown - (now - lastTeleport)
     
@@ -123,26 +119,39 @@ local function updateTeleportCooldown(username, penaltySeconds)
     penaltySeconds = penaltySeconds or 0
     -- Store current time + penalty (same logic as client)
     -- This makes cooldown check: (now + penalty) + cooldown from now
-    serverCooldowns.teleport[username] = getServerTimestamp() + penaltySeconds
+    serverCooldowns.teleport[username] = K.time() + penaltySeconds
     
     if penaltySeconds > 0 then
         LOG.debug( "Applied encumbrance penalty for " .. username .. ": " .. penaltySeconds .. "s")
     end
 end
 
--- Calculate encumbrance penalty for a player (server-side)
--- Penalty is always enabled and scaled by difficulty via D.negativeValue()
-local function getEncumbrancePenalty(player)
-    if not player then return 0 end
-    
-    -- Use the shared validation function (applies difficulty scaling)
-    local penalty = MSR.Validation.GetEncumbrancePenalty(player)
-    return penalty
+local function saveReturnPositionObject(username, returnPos, player)
+    if not returnPos then return false end
+
+    if returnPos.fromVehicle then
+        return MSR.Data.SaveReturnPositionWithVehicle(username, returnPos.x, returnPos.y, returnPos.z,
+            returnPos.vehicleId, returnPos.vehicleSeat, returnPos.vehicleX, returnPos.vehicleY, returnPos.vehicleZ, player)
+    end
+
+    return MSR.Data.SaveReturnPositionByUsername(username, returnPos.x, returnPos.y, returnPos.z, player)
+end
+
+local function getReturnPositionWithRecovery(player, username)
+    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
+    if returnPos then return returnPos end
+
+    returnPos = MSR.Data.GetReturnPosition(player)
+    if not returnPos then return nil end
+
+    LOG.warning("Recovered missing global return position for %s from player ModData backup", tostring(username))
+    saveReturnPositionObject(username, returnPos, player)
+    return returnPos
 end
 
 local function checkRelicMoveCooldown(username)
     local lastMove = serverCooldowns.relicMove[username] or 0
-    local now = getServerTimestamp()
+    local now = K.time()
     local cooldown = MSR.Config.RELIC_MOVE_COOLDOWN or 120
     local remaining = cooldown - (now - lastMove)
     
@@ -153,7 +162,7 @@ local function checkRelicMoveCooldown(username)
 end
 
 local function updateRelicMoveCooldown(username)
-    serverCooldowns.relicMove[username] = getServerTimestamp()
+    serverCooldowns.relicMove[username] = K.time()
 end
 
 local function canProcessRequest(player)
@@ -318,14 +327,6 @@ local function areLockedItemsAvailable(player, lockedItemIds)
     return true
 end
 
-function MSR_Server.ValidateRefugeAccess(player, refugeId)
-    return MSR.Validation.ValidateRefugeAccess(player, refugeId)
-end
-
-function MSR_Server.CanPlayerEnterRefuge(player)
-    return MSR.Validation.CanEnterRefuge(player)
-end
-
 function MSR_Server.HandleModDataRequest(player, args)
     if not player then return end
     
@@ -359,7 +360,7 @@ function MSR_Server.HandleModDataRequest(player, args)
 
     MSR.Data.TouchRefugeActivity(username)
     
-    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
+    local returnPos = getReturnPositionWithRecovery(player, username)
     
     LOG.debug( "Sending ModData to " .. username .. ": refuge at " .. 
           refugeData.centerX .. "," .. refugeData.centerY .. " tier " .. refugeData.tier)
@@ -387,7 +388,7 @@ function MSR_Server.HandleEnterRequest(player, args)
         return
     end
     
-    local canEnter, reason = MSR_Server.CanPlayerEnterRefuge(player)
+    local canEnter, reason = MSR.Validation.CanEnterRefuge(player)
     if not canEnter then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             message = reason
@@ -422,20 +423,30 @@ function MSR_Server.HandleEnterRequest(player, args)
         end
     end
     
-    -- Save return position (with or without vehicle data)
+    -- Save return position (with or without vehicle data). If this fails, do not
+    -- teleport; otherwise the player can be stranded inside the refuge.
+    local savedReturnPosition = false
     if args and args.returnX and args.returnY and args.returnZ then
         if acceptVehicleData then
-            MSR.Data.SaveReturnPositionWithVehicle(username, args.returnX, args.returnY, args.returnZ,
-                args.vehicleId, args.vehicleSeat, args.vehicleX, args.vehicleY, args.vehicleZ)
+            savedReturnPosition = MSR.Data.SaveReturnPositionWithVehicle(username, args.returnX, args.returnY, args.returnZ,
+                args.vehicleId, args.vehicleSeat, args.vehicleX, args.vehicleY, args.vehicleZ, player)
         else
-            MSR.Data.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ)
+            savedReturnPosition = MSR.Data.SaveReturnPositionByUsername(username, args.returnX, args.returnY, args.returnZ, player)
         end
+    end
+
+    if not savedReturnPosition then
+        LOG.warning("Refusing to teleport %s: failed to save return position", tostring(username))
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
+            message = "Could not save return position"
+        })
+        return
     end
     
     LOG.debug( "Phase 1: Sending TeleportTo for " .. username)
     
     -- Calculate encumbrance penalty BEFORE teleport (weight may change after)
-    local encumbrancePenalty = getEncumbrancePenalty(player)
+    local encumbrancePenalty = MSR.Validation.GetEncumbrancePenalty(player)
     updateTeleportCooldown(username, encumbrancePenalty)
     
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.TELEPORT_TO, {
@@ -641,24 +652,38 @@ function MSR_Server.HandleExitRequest(player, args)
     
     -- No cooldown check on exit - player can always leave refuge
     -- Cooldown only applies to ENTERING the refuge
-    
-    local returnPos = MSR.Data.GetReturnPositionByUsername(username)
-    
-    if not returnPos then
+
+    if MSR.Data.IsPlayerInRefugeCoords and not MSR.Data.IsPlayerInRefugeCoords(player) then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
-            message = "Return position not found"
+            message = "Not in refuge"
         })
         return
     end
-    
-    -- Server-side: Save room IDs before player exits
+
     local refugeData = MSR.Data.GetRefugeDataByUsername(username)
+    local returnPos = getReturnPositionWithRecovery(player, username)
+
+    if not returnPos then
+        if refugeData then
+            returnPos = { x = 10000, y = 10000, z = 0 }
+            saveReturnPositionObject(username, returnPos, player)
+            LOG.warning("Return position missing for %s; using emergency fallback 10000,10000,0", tostring(username))
+        else
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
+                message = "Return position not found"
+            })
+            return
+        end
+    end
+
+    -- Server-side: Save room IDs before player exits
     if refugeData and MSR.RoomPersistence and MSR.RoomPersistence.SaveServerOnExit then
         MSR.RoomPersistence.SaveServerOnExit(refugeData)
     end
     
-    -- Don't update cooldown on exit - preserve the penalty from enter
-    MSR.Data.ClearReturnPositionByUsername(username)
+    -- Don't update cooldown on exit - preserve the penalty from enter.
+    -- Keep return position until the next successful enter/death/delete cleanup.
+    -- Clearing it before the client processes ExitReady can strand MP players.
     
     -- Build response with vehicle data if present
     local response = {
