@@ -562,7 +562,7 @@ function UpgradeLogic.showBasementStairsBlockedAlert()
         "<SIZE:medium> <RGB:1,1,1> Clear the surface of your refuge for at least one stairwell. <LINE> <LINE> " ..
         "<SIZE:small> <LEFT> Remove solid objects from the stairwell area (top corner of refuge), then try the upgrade again. <LINE> " ..
         "At least one stairwell must be clear to excavate a basement. "
-    local message = getTextOrDefault and getTextOrDefault("IGUI_BasementStairsBlocked", defaultMsg) or defaultMsg
+    local message = getTextOrNull("IGUI_BasementStairsBlocked") or defaultMsg
     local screenW = getCore():getScreenWidth()
     local screenH = getCore():getScreenHeight()
     local width, height = 520, 280

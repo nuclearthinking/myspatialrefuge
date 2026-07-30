@@ -520,9 +520,18 @@ function MSR_Server.HandleChunksReady(player, args)
                 LOG.debug( "Relic missing - running EnsureRefugeStructures")
                 MSR.RefugeGeneration.EnsureRefugeStructures(refugeDataRef, playerRef)
             else
-                -- Relic exists - refuge is already generated, skip integrity check on normal entry
-                -- Only clear zombies that may have spawned
-                LOG.debug( "Refuge already generated - skipping integrity check")
+                -- Existing saves may still reference the pre-42.20 numeric
+                -- tiledef ID. The sprite name and object data survive, so
+                -- rebind the existing relic rather than replacing it.
+                if MSR.Integrity.CheckNeedsRepair(refugeDataRef) then
+                    LOG.debug( "Refuge integrity check requested on entry")
+                    MSR.Integrity.ValidateAndRepair(refugeDataRef, {
+                        source = "enter_server",
+                        player = playerRef
+                    })
+                end
+
+                -- Clear zombies that may have spawned
                 MSR.ZombieClear.ClearZombiesFromArea(
                     refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
                     refugeDataRef.radius or 1, true, playerRef

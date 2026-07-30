@@ -271,6 +271,43 @@ function World.findObjectsByModData(square, modDataKey, modDataValue)
 end
 
 -----------------------------------------------------------
+-- Sprite Binding
+-----------------------------------------------------------
+
+---Check whether an object is bound to the registered sprite for a name.
+---Matching only by name is insufficient after a tiledef file-number change:
+---old saves can load a standalone sprite with the right name but a stale ID.
+---@param obj IsoObject?
+---@param spriteName string?
+---@return boolean
+function World.hasCanonicalSprite(obj, spriteName)
+    if not obj or not spriteName or not obj.getSprite then return false end
+
+    local currentSprite = obj:getSprite()
+    local canonicalSprite = getSprite(spriteName)
+    if not currentSprite or not canonicalSprite then return false end
+
+    return currentSprite:getName() == spriteName
+        and currentSprite:getID() == canonicalSprite:getID()
+end
+
+---Bind an object to the registered IsoSpriteManager entry for a name.
+---Expected names that must survive another tiledef change belong in ModData:
+---IsoThumpable overrides setSprite(name) and does not serialize spriteName.
+---@param obj IsoObject?
+---@param spriteName string?
+---@return boolean
+function World.bindSpriteByName(obj, spriteName)
+    if not obj or not spriteName or not obj.setSpriteFromName then
+        return false
+    end
+    if not getSprite(spriteName) then return false end
+
+    obj:setSpriteFromName(spriteName)
+    return World.hasCanonicalSprite(obj, spriteName)
+end
+
+-----------------------------------------------------------
 -- Object Add/Remove with Network Sync
 -----------------------------------------------------------
 

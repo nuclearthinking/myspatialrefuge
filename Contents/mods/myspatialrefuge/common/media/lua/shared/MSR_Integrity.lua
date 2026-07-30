@@ -28,7 +28,7 @@ local function findRelicOnSquareByModData(square, refugeId)
     return nil
 end
 
-local function findRelicOnSquareBySprite(square)
+local function findRelicOnSquareBySprite(square, includeVanillaFallback)
     if not square then return nil end
     local objects = square:getObjects()
     if not K.isIterable(objects) then return nil end
@@ -41,7 +41,8 @@ local function findRelicOnSquareBySprite(square)
             local sprite = obj:getSprite()
             if sprite then
                 local spriteName = sprite:getName()
-                if spriteName == relicSprite or spriteName == fallbackSprite then
+                if spriteName == relicSprite or
+                    (includeVanillaFallback and spriteName == fallbackSprite) then
                     return obj
                 end
             end
@@ -63,57 +64,49 @@ local function findRelicReadOnly(centerX, centerY, z, radius, refugeId)
 
     if foundRelic then return foundRelic, foundBy end
 
-    -- Fallback: sprite matching for old saves
+    -- The custom sprite is unique to this mod and is safe to locate in the
+    -- wider refuge area even when old ModData is incomplete.
     MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
         if foundRelic then return end
-        local relic = findRelicOnSquareBySprite(square)
+        local relic = findRelicOnSquareBySprite(square, false)
         if relic then foundRelic, foundBy = relic, "sprite" end
     end)
+
+    if foundRelic then return foundRelic, foundBy end
+
+    -- The fallback gravestone is a vanilla sprite players can place
+    -- themselves. Only trust it at the expected relic square.
+    local expectedSquare = MSR.World.getSquare(centerX, centerY, z)
+    local fallbackRelic = findRelicOnSquareBySprite(expectedSquare, true)
+    if fallbackRelic then return fallbackRelic, "sprite" end
 
     return foundRelic, foundBy
 end
 
-local function findAllRelicsInArea(centerX, centerY, z, radius, refugeId)
+local function getContainerItemCount(obj)
+    if not obj or not obj.getContainer then return 0 end
+    local container = obj:getContainer()
+    if not container then return 0 end
+    local items = container:getItems()
+    return items and K.size(items) or 0
+end
+
+-- Destructive operations must only consider objects positively owned by this
+-- refuge. Sprite-only matches are recovery candidates, never duplicates.
+local function findConfirmedRelicsInArea(centerX, centerY, z, radius, refugeId)
+    if not centerX or not centerY or z == nil or not refugeId then return {} end
+
     local searchRadius = (radius or 1) + 2
     local foundRelics = {}
-    local relicSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local fallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
 
     MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
         MSR.World.iterateObjects(square, function(obj)
             local md = MSR.World.getModData(obj)
-            local isRelic = false
-            local foundBy = nil
-
             if md and md.isSacredRelic and md.refugeId == refugeId then
-                isRelic = true
-                foundBy = "moddata"
-            elseif obj.getSprite then
-                local sprite = obj:getSprite()
-                if sprite then
-                    local spriteName = sprite:getName()
-                    if spriteName == relicSprite or spriteName == fallbackSprite then
-                        isRelic = true
-                        foundBy = "sprite"
-                    end
-                end
-            end
-
-            if isRelic then
-                local itemCount = 0
-                if obj.getContainer then
-                    local container = obj:getContainer()
-                    if container then
-                        local items = container:getItems()
-                        itemCount = items and K.size(items) or 0
-                    end
-                end
-
                 table.insert(foundRelics, {
                     obj = obj,
                     square = square,
-                    foundBy = foundBy,
-                    itemCount = itemCount,
+                    itemCount = getContainerItemCount(obj),
                     x = square:getX(),
                     y = square:getY(),
                     z = square:getZ()
@@ -134,14 +127,12 @@ local function validateRelicModData(relic, refugeId, report)
     if not md.isSacredRelic then
         md.isSacredRelic = true
         repaired = true
-        report.relic.modDataRepaired = true
         LOG.info("Added isSacredRelic flag")
     end
 
     if not md.refugeId or md.refugeId ~= refugeId then
         md.refugeId = refugeId
         repaired = true
-        report.relic.modDataRepaired = true
         LOG.info("Fixed refugeId: %s", tostring(refugeId))
     end
 
@@ -155,6 +146,15 @@ local function validateRelicModData(relic, refugeId, report)
         repaired = true
     end
 
+    local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
+    if md.relicSprite ~= expectedSprite then
+        md.relicSprite = expectedSprite
+        repaired = true
+    end
+
+    if repaired then
+        report.relic.modDataRepaired = true
+    end
     return repaired
 end
 
@@ -162,24 +162,10 @@ local function validateRelicSprite(relic, report)
     if not relic then return false end
 
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local fallbackSprite = MSR.Config.SPRITES.SACRED_RELIC_FALLBACK
     local currentSprite = relic:getSpriteName()
 
-    -- Check if current sprite is valid
-    local spriteValid = false
-    if currentSprite and relic.getSprite then
-        local sprite = relic:getSprite()
-        spriteValid = (sprite ~= nil and sprite:getName() == currentSprite)
-    end
-
-    -- Determine if repair needed
-    local needsRepair = not spriteValid or
-        (currentSprite ~= expectedSprite and currentSprite == fallbackSprite)
-
-    if needsRepair then
-        local newSprite = getSprite(expectedSprite)
-        if newSprite then
-            relic:setSprite(expectedSprite)
+    if not MSR.World.hasCanonicalSprite(relic, expectedSprite) then
+        if MSR.World.bindSpriteByName(relic, expectedSprite) then
             relic:getModData().relicSprite = expectedSprite
             report.relic.spriteRepaired = true
             LOG.info("Repaired relic sprite: %s -> %s", tostring(currentSprite), expectedSprite)
@@ -205,72 +191,129 @@ local function validateRelicProperties(relic)
     return true
 end
 
-local function ensureSingleRelic(refugeData, report)
-    if not refugeData then return nil end
-    if not MSR.Env.canModifyData() then return nil end
-
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
-    local refugeId = refugeData.refugeId
-
-    local allRelics = findAllRelicsInArea(centerX, centerY, centerZ, radius, refugeId)
-
-    if #allRelics == 0 then
-        return nil
-    end
-
-    if #allRelics == 1 then
-        return allRelics[1].obj
-    end
-
-    LOG.info("Found %d relics - removing duplicates", #allRelics)
-
-    -- Find which relic to keep (prefer stored position, then most items)
+local function selectRelicToKeep(allRelics, refugeData)
     local keepIndex = 1
     local keepRelic = allRelics[1]
 
     if refugeData.relicX and refugeData.relicY then
         for i, relicData in ipairs(allRelics) do
-            if relicData.x == refugeData.relicX and relicData.y == refugeData.relicY then
-                keepIndex = i
-                keepRelic = relicData
-                break
-            end
-        end
-    else
-        local maxItems = -1
-        for i, relicData in ipairs(allRelics) do
-            if relicData.itemCount > maxItems then
-                maxItems = relicData.itemCount
-                keepIndex = i
-                keepRelic = relicData
+            if relicData.x == refugeData.relicX and
+                relicData.y == refugeData.relicY and
+                (refugeData.relicZ == nil or relicData.z == refugeData.relicZ) then
+                return i, relicData
             end
         end
     end
 
-    -- Remove duplicates
-    local removed = 0
+    for i, relicData in ipairs(allRelics) do
+        if relicData.itemCount > keepRelic.itemCount then
+            keepIndex = i
+            keepRelic = relicData
+        end
+    end
+
+    return keepIndex, keepRelic
+end
+
+local function transferRelicContents(sourceRelic, targetRelic)
+    local sourceContainer = sourceRelic and sourceRelic.getContainer and sourceRelic:getContainer()
+    local targetContainer = targetRelic and targetRelic.getContainer and targetRelic:getContainer()
+    local sourceItems = sourceContainer and sourceContainer:getItems()
+    local sourceCount = sourceItems and K.size(sourceItems) or 0
+
+    if sourceCount == 0 then return true, 0 end
+    if not sourceContainer or not targetContainer or not sourceItems then return false, 0 end
+
+    local moved = 0
+    local complete = true
+    while K.size(sourceItems) > 0 do
+        local before = K.size(sourceItems)
+        local item = sourceItems:get(0)
+        if not item then
+            complete = false
+            break
+        end
+
+        -- AddItem(existingItem) removes the item from its current container.
+        -- Verify the source count as well: a duplicate item ID can make
+        -- AddItem return an existing target item without moving this one.
+        local added = targetContainer:AddItem(item)
+        if not added or K.size(sourceItems) >= before then
+            complete = false
+            break
+        end
+        moved = moved + 1
+    end
+
+    if moved > 0 and MSR.Env.needsClientSync() and targetRelic.sendObjectChange then
+        targetRelic:sendObjectChange("containers")
+    end
+    if moved > 0 and not complete and MSR.Env.needsClientSync() and sourceRelic.sendObjectChange then
+        sourceRelic:sendObjectChange("containers")
+    end
+
+    return complete, moved
+end
+
+local function updateStoredRelicPosition(refugeData, relicData, report)
+    if not relicData or not relicData.x or not relicData.y then return end
+    if refugeData.relicX == relicData.x and
+        refugeData.relicY == relicData.y and
+        refugeData.relicZ == relicData.z then
+        return
+    end
+
+    refugeData.relicX = relicData.x
+    refugeData.relicY = relicData.y
+    refugeData.relicZ = relicData.z
+    table.insert(report.modData.fieldsRepaired, "relicPosition")
+end
+
+local function deduplicateConfirmedRelics(refugeData, report)
+    if not refugeData or not MSR.Env.canModifyData() then return nil end
+
+    local allRelics = findConfirmedRelicsInArea(
+        refugeData.centerX,
+        refugeData.centerY,
+        refugeData.centerZ,
+        refugeData.radius or 1,
+        refugeData.refugeId
+    )
+
+    if #allRelics == 0 then return nil end
+
+    local keepIndex, keepRelic = selectRelicToKeep(allRelics, refugeData)
+    if #allRelics == 1 then
+        updateStoredRelicPosition(refugeData, keepRelic, report)
+        return keepRelic.obj
+    end
+
+    LOG.info("Found %d confirmed relics for %s", #allRelics, tostring(refugeData.refugeId))
+
     for i, relicData in ipairs(allRelics) do
         if i ~= keepIndex then
-            removeObjectFromSquare(relicData.square, relicData.obj)
-            removed = removed + 1
+            local transferred, moved = transferRelicContents(relicData.obj, keepRelic.obj)
+            report.relic.duplicateItemsTransferred = report.relic.duplicateItemsTransferred + moved
+
+            if not transferred then
+                report.relic.duplicatesSkipped = report.relic.duplicatesSkipped + 1
+                LOG.warning(
+                    "Kept duplicate relic at %d,%d,%d because its contents could not be transferred safely",
+                    relicData.x, relicData.y, relicData.z
+                )
+            elseif removeObjectFromSquare(relicData.square, relicData.obj) then
+                report.relic.duplicatesRemoved = report.relic.duplicatesRemoved + 1
+            else
+                report.relic.duplicatesSkipped = report.relic.duplicatesSkipped + 1
+                LOG.warning(
+                    "Kept empty duplicate relic at %d,%d,%d because object removal failed",
+                    relicData.x, relicData.y, relicData.z
+                )
+            end
         end
     end
 
-    report.relic.duplicatesRemoved = removed
-
-    -- Update stored position
-    if keepRelic and keepRelic.x and keepRelic.y then
-        if refugeData.relicX ~= keepRelic.x or refugeData.relicY ~= keepRelic.y then
-            refugeData.relicX = keepRelic.x
-            refugeData.relicY = keepRelic.y
-            refugeData.relicZ = keepRelic.z
-            table.insert(report.modData.fieldsRepaired, "relicPosition")
-        end
-    end
-
+    updateStoredRelicPosition(refugeData, keepRelic, report)
     return keepRelic.obj
 end
 
@@ -280,33 +323,74 @@ local function isBasementEnabled(refugeData)
     return level > 0
 end
 
+local function getRefugeZLevels(refugeData)
+    local zLevels = { refugeData.centerZ }
+    if isBasementEnabled(refugeData) then
+        table.insert(zLevels, refugeData.centerZ - 1)
+    end
+    return zLevels
+end
+
+local function visitBoundaryObjects(refugeData, visitor)
+    if not refugeData then return false end
+    local stopped = false
+    for _, z in ipairs(getRefugeZLevels(refugeData)) do
+        MSR.World.iterateArea(
+            refugeData.centerX,
+            refugeData.centerY,
+            z,
+            (refugeData.radius or 1) + 2,
+            function(square)
+                if stopped then return end
+                local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+                for _, obj in ipairs(walls) do
+                    if visitor(obj) then
+                        stopped = true
+                        return
+                    end
+                end
+            end
+        )
+        if stopped then return true end
+    end
+
+    return false
+end
+
+local function hasNonCanonicalBoundarySprite(refugeData)
+    return visitBoundaryObjects(refugeData, function(obj)
+        local md = MSR.World.getModData(obj)
+        local expectedSprite = md and md.refugeBoundarySprite
+        return expectedSprite and not MSR.World.hasCanonicalSprite(obj, expectedSprite)
+    end)
+end
+
 local function validateWalls(refugeData, report)
     if not refugeData then return 0 end
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
     local repaired = 0
 
-    local zLevels = { centerZ }
-    if isBasementEnabled(refugeData) then
-        table.insert(zLevels, centerZ - 1)
-    end
-
-    for _, z in ipairs(zLevels) do
-        MSR.World.iterateArea(centerX, centerY, z, radius + 2, function(square)
-            local walls = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
-            for _, obj in ipairs(walls) do
-                if obj.setIsThumpable then obj:setIsThumpable(false) end
-                if obj.setIsHoppable then obj:setIsHoppable(false) end
-                if obj.setCanBarricade then obj:setCanBarricade(false) end
-                if obj.setIsDismantable then obj:setIsDismantable(false) end
-                if obj.setCanBePlastered then obj:setCanBePlastered(false) end
+    visitBoundaryObjects(refugeData, function(obj)
+        local md = MSR.World.getModData(obj)
+        local expectedSprite = md and md.refugeBoundarySprite
+        if expectedSprite and not MSR.World.hasCanonicalSprite(obj, expectedSprite) then
+            if MSR.World.bindSpriteByName(obj, expectedSprite) then
                 repaired = repaired + 1
+                if MSR.Env.needsClientSync() and obj.transmitUpdatedSpriteToClients then
+                    obj:transmitUpdatedSpriteToClients()
+                end
+            else
+                LOG.warning("Cannot rebind boundary sprite '%s'", tostring(expectedSprite))
             end
-        end)
-    end
+        end
+
+        if obj.setIsThumpable then obj:setIsThumpable(false) end
+        if obj.setIsHoppable then obj:setIsHoppable(false) end
+        if obj.setCanBarricade then obj:setCanBarricade(false) end
+        if obj.setIsDismantable then obj:setIsDismantable(false) end
+        if obj.setCanBePlastered then obj:setCanBePlastered(false) end
+        return false
+    end)
 
     report.walls.repaired = repaired
     return repaired
@@ -346,12 +430,39 @@ local function createReport(source)
             spriteRepaired = false,
             modDataRepaired = false,
             duplicatesRemoved = 0,
+            duplicatesSkipped = 0,
+            duplicateItemsTransferred = 0,
             spriteLoadFailed = false
         },
         walls = { repaired = 0 },
         modData = { synced = false, fieldsRepaired = {} },
         errors = {}
     }
+end
+
+local function findRelicForRefuge(refugeData)
+    local relicX = refugeData.relicX or refugeData.centerX
+    local relicY = refugeData.relicY or refugeData.centerY
+    local relicZ = refugeData.relicZ or refugeData.centerZ
+    local relic, foundBy = findRelicReadOnly(
+        relicX,
+        relicY,
+        relicZ,
+        refugeData.radius or 1,
+        refugeData.refugeId
+    )
+
+    if not relic and (relicX ~= refugeData.centerX or relicY ~= refugeData.centerY) then
+        relic, foundBy = findRelicReadOnly(
+            refugeData.centerX,
+            refugeData.centerY,
+            refugeData.centerZ,
+            refugeData.radius or 1,
+            refugeData.refugeId
+        )
+    end
+
+    return relic, foundBy
 end
 
 function Integrity.ValidateAndRepair(refugeData, context)
@@ -368,24 +479,7 @@ function Integrity.ValidateAndRepair(refugeData, context)
     LOG.debug("ValidateAndRepair triggered by: %s", source)
 
     local canRepair = MSR.Env.canModifyData()
-
-    -- Find or deduplicate relics
-    local relic
-    if canRepair then
-        relic = ensureSingleRelic(refugeData, report)
-    end
-
-    if not relic then
-        local relicX = refugeData.relicX or refugeData.centerX
-        local relicY = refugeData.relicY or refugeData.centerY
-        local relicZ = refugeData.relicZ or refugeData.centerZ
-        relic = findRelicReadOnly(relicX, relicY, relicZ, refugeData.radius or 1, refugeData.refugeId)
-
-        if not relic and (relicX ~= refugeData.centerX or relicY ~= refugeData.centerY) then
-            relic = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ,
-                refugeData.radius or 1, refugeData.refugeId)
-        end
-    end
+    local relic = findRelicForRefuge(refugeData)
 
     if relic then
         report.relic.found = true
@@ -400,12 +494,16 @@ function Integrity.ValidateAndRepair(refugeData, context)
     end
 
     if canRepair then
+        if refugeData.pendingSpriteMigration ~= nil then
+            refugeData.pendingSpriteMigration = nil
+            table.insert(report.modData.fieldsRepaired, "pendingSpriteMigration")
+        end
         validateWalls(refugeData, report)
     end
 
     -- Sync if anything was repaired
     if canRepair and (report.relic.modDataRepaired or report.relic.spriteRepaired or
-            report.relic.duplicatesRemoved > 0 or #report.modData.fieldsRepaired > 0) then
+            report.walls.repaired > 0 or #report.modData.fieldsRepaired > 0) then
         syncAll(refugeData, relic, report)
     end
 
@@ -415,36 +513,57 @@ function Integrity.ValidateAndRepair(refugeData, context)
     return report
 end
 
+---Explicitly remove confirmed duplicate relics for one refuge.
+---Routine repair never calls this: deletion is opt-in and sprite-only recovery
+---candidates are excluded. Contents must transfer before an object is removed.
+function Integrity.DeduplicateRelics(refugeData, context)
+    context = context or {}
+    local report = createReport(context.source or "explicit_deduplication")
+
+    if not refugeData then
+        table.insert(report.errors, "No refuge data provided")
+        report.success = false
+        return report
+    end
+    if not refugeData.refugeId then
+        table.insert(report.errors, "No refuge ID provided")
+        report.success = false
+        return report
+    end
+    if not MSR.Env.canModifyData() then
+        table.insert(report.errors, "No authority to deduplicate relics")
+        report.success = false
+        return report
+    end
+
+    local relic = deduplicateConfirmedRelics(refugeData, report)
+    report.relic.found = relic ~= nil
+
+    if report.relic.duplicatesRemoved > 0 or #report.modData.fieldsRepaired > 0 then
+        syncAll(refugeData, relic, report)
+    end
+
+    LOG.debug(
+        "Deduplication complete: removed=%d skipped=%d items=%d",
+        report.relic.duplicatesRemoved,
+        report.relic.duplicatesSkipped,
+        report.relic.duplicateItemsTransferred
+    )
+    return report
+end
+
 function Integrity.CheckNeedsRepair(refugeData)
     if not refugeData then return true end
 
-    local relic, foundBy = findRelicReadOnly(
-        refugeData.centerX, refugeData.centerY, refugeData.centerZ,
-        refugeData.radius or 1, refugeData.refugeId)
+    local relic, foundBy = findRelicForRefuge(refugeData)
 
     if not relic then return true end
     if foundBy == "sprite" then return true end -- Found by sprite = missing ModData
 
-    -- Check sprite is correct
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local currentSprite = relic:getSpriteName()
+    if not MSR.World.hasCanonicalSprite(relic, expectedSprite) then return true end
 
-    if not currentSprite or currentSprite ~= expectedSprite then
-        -- Allow fallback sprite only if it has valid sprite object
-        if currentSprite == MSR.Config.SPRITES.SACRED_RELIC_FALLBACK then
-            return true -- Needs migration to new sprite
-        end
-        local sprite = relic:getSprite()
-        if not sprite or not sprite:getName() then
-            return true
-        end
-    end
-
-    -- Check for duplicate relics
-    local allRelics = findAllRelicsInArea(
-        refugeData.centerX, refugeData.centerY, refugeData.centerZ,
-        refugeData.radius or 1, refugeData.refugeId)
-    if #allRelics > 1 then return true end
+    if hasNonCanonicalBoundarySprite(refugeData) then return true end
 
     return false
 end
@@ -454,19 +573,9 @@ function Integrity.ClientSpriteRepair(relic)
     if isServer() then return false end
 
     local expectedSprite = MSR.Config.SPRITES.SACRED_RELIC
-    local currentSprite = relic:getSpriteName()
 
-    -- Check if repair needed
-    local spriteValid = false
-    if currentSprite and relic.getSprite then
-        local sprite = relic:getSprite()
-        spriteValid = (sprite ~= nil and sprite:getName() == currentSprite)
-    end
-
-    if not spriteValid or currentSprite ~= expectedSprite then
-        local newSprite = getSprite(expectedSprite)
-        if newSprite then
-            relic:setSprite(expectedSprite)
+    if not MSR.World.hasCanonicalSprite(relic, expectedSprite) then
+        if MSR.World.bindSpriteByName(relic, expectedSprite) then
             relic:getModData().isSacredRelic = true
             relic:getModData().relicSprite = expectedSprite
             LOG.info("Client sprite repair applied")
@@ -479,19 +588,15 @@ end
 
 function Integrity.FindRelic(refugeData)
     if not refugeData then return nil, nil end
+    return findRelicForRefuge(refugeData)
+end
 
-    local relicX = refugeData.relicX or refugeData.centerX
-    local relicY = refugeData.relicY or refugeData.centerY
-    local relicZ = refugeData.relicZ or refugeData.centerZ
+function Integrity.FindRelicOnSquare(square, refugeId)
+    return findRelicOnSquareByModData(square, refugeId)
+end
 
-    local relic, foundBy = findRelicReadOnly(relicX, relicY, relicZ, refugeData.radius or 1, refugeData.refugeId)
-
-    if not relic then
-        relic, foundBy = findRelicReadOnly(refugeData.centerX, refugeData.centerY, refugeData.centerZ,
-            refugeData.radius or 1, refugeData.refugeId)
-    end
-
-    return relic, foundBy
+function Integrity.FindRelicInArea(centerX, centerY, z, radius, refugeId)
+    return findRelicReadOnly(centerX, centerY, z, radius, refugeId)
 end
 
 -----------------------------------------------------------
@@ -501,7 +606,7 @@ end
 local MODDATA_READY_EVENT = MSR.Events.Names.MODDATA_READY
 
 local function onModDataReady(args)
-    if not MSR.Env.isMultiplayerClient() then return end
+    if not MSR.Env.isClientProcess() then return end
     local player = args and args.player or getPlayer()
     if not player then return end
     if not MSR.Data.IsPlayerInRefugeCoords(player) then return end
