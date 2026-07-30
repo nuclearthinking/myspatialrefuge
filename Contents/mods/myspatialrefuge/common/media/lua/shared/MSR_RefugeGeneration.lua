@@ -243,7 +243,7 @@ local function createRelicObject(square, refugeId)
 
     local createdSprite = relic:getSprite()
     if not createdSprite or not createdSprite:getName() then
-        relic:setSprite(spriteName)
+        MSR.World.bindSpriteByName(relic, spriteName)
         createdSprite = relic:getSprite()
         if not createdSprite or not createdSprite:getName() then
             LOG.error("Failed to repair relic sprite - removing invalid relic")
@@ -407,6 +407,14 @@ function RG.EnsureRefugeStructures(refugeData, player)
         refugeId, radius
     )
 
+    -- Generation is the only automatic path allowed to remove duplicates.
+    -- Integrity's routine entry/reconnect repair is intentionally non-destructive.
+    if MSR.Env.canModifyData() then
+        MSR.Integrity.DeduplicateRelics(refugeData, {
+            source = "generation"
+        })
+    end
+
     local report = MSR.Integrity.ValidateAndRepair(refugeData, {
         source = "generation",
         player = player
@@ -459,7 +467,7 @@ function RG.StepEnterPreparation(ctx)
         ctx.centerSquareSeen = true
     end
 
-    if not MSR.Env.isMultiplayerClient() then
+    if not MSR.Env.isClientProcess() then
         -- Check if refuge already initialized
         if not ctx.refugeInitialized and chunkLoaded then
             local existingRelic = MSR.Shared.FindRelicInRefuge(
@@ -535,7 +543,7 @@ function RG.StepEnterPreparation(ctx)
         end
     end
 
-    if ctx.buildingsRecalculated and not ctx.basementChecked and not MSR.Env.isMultiplayerClient() then
+    if ctx.buildingsRecalculated and not ctx.basementChecked and not MSR.Env.isClientProcess() then
         ctx.basementChecked = true
         local basementLevel = MSR.UpgradeData.getPlayerUpgradeLevel(ctx.player, MSR.Config.UPGRADES.REFUGE_BASEMENT)
         if basementLevel > 0 and not MSR.BasementGeneration.IsBasementPresent(ctx.refugeData) then
@@ -563,7 +571,7 @@ local function onPeriodicIntegrityCheck()
 
     -- Only run repairs on server/host (SP, coop host, dedicated server)
     -- Pure MP clients should not attempt repairs - server will handle it
-    if MSR.Env.isMultiplayerClient() then
+    if MSR.Env.isClientProcess() then
         -- MP client: only do local visual fixes, no authoritative repairs
         if MSR.Integrity.CheckNeedsRepair(refugeData) then
             local relic = MSR.Integrity.FindRelic(refugeData)

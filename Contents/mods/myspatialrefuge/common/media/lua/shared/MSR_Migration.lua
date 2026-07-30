@@ -8,6 +8,7 @@
 -- Version 6: Added lastActiveTime for refuge decay and reclamation
 
 require "00_core/00_MSR"
+require "helpers/World"
 
 local Migration = MSR.register("Migration")
 if not Migration then return MSR.Migration end
@@ -20,18 +21,6 @@ local LOG = L.logger("Migration")
 
 -- Use version from config to keep it in sync
 Migration.CURRENT_VERSION = Config.CURRENT_DATA_VERSION
-
------------------------------------------------------------
--- Environment Helpers (delegated to MSR.Env)
------------------------------------------------------------
-
-local function getCachedIsServer()
-    return Env.isServer()
-end
-
-local function canModifyData()
-    return Env.canModifyData()
-end
 
 -----------------------------------------------------------
 -- Migration: v1 -> v2
@@ -114,93 +103,75 @@ end
 local function migrate_2_to_3(player)
     local username = player:getUsername()
     local refugeData = Data.GetRefugeDataByUsername(username)
-    
+
     if not refugeData then
         return true, "No refuge data - nothing to migrate"
     end
-    
-    -- Get the new sprite name from config
+
     local newSpriteName = Config.SPRITES.SACRED_RELIC
-    local oldSpriteName = "location_community_cemetary_01_11"  -- Old angel gravestone
-    
-    -- Find the relic at the refuge center
     local centerX = refugeData.centerX
     local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ or 0
-    
+
+    refugeData.dataVersion = 3
+    refugeData.pendingSpriteMigration = nil
+
     if not centerX or not centerY then
-        return true, "No center coordinates - skipping sprite migration"
+        Data.SaveRefugeData(refugeData)
+        return true, "No center coordinates - deferred to integrity repair"
     end
-    
-    -- Try to find the square and relic
+
     local cell = getCell()
     if not cell then
-        -- Cell not loaded yet - mark for later migration
-        refugeData.pendingSpriteMigration = true
-        refugeData.dataVersion = 3
         Data.SaveRefugeData(refugeData)
-        return true, "Cell not loaded - marked for deferred sprite migration"
+        return true, "Cell not loaded - deferred to integrity repair"
     end
-    
+
     local square = cell:getGridSquare(centerX, centerY, centerZ)
     if not square then
-        -- Square not loaded - mark for later
-        refugeData.pendingSpriteMigration = true
-        refugeData.dataVersion = 3
         Data.SaveRefugeData(refugeData)
-        return true, "Square not loaded - marked for deferred sprite migration"
+        return true, "Square not loaded - deferred to integrity repair"
     end
-    
-    -- Find the relic on this square
+
     local objects = square:getObjects()
     local relicFound = false
-    
+
     for i = 0, objects:size() - 1 do
         local obj = objects:get(i)
         if obj then
             local md = obj:getModData()
             if md and md.isSacredRelic then
-                -- Found the relic - update its sprite
-                local currentSprite = obj:getSpriteName()
-                
-                if currentSprite == oldSpriteName or currentSprite ~= newSpriteName then
-                    -- Update to new sprite
-                    local newSprite = getSprite(newSpriteName)
-                    if newSprite then
-                        obj:setSprite(newSpriteName)
+                relicFound = true
+                if not MSR.World.hasCanonicalSprite(obj, newSpriteName) then
+                    if MSR.World.bindSpriteByName(obj, newSpriteName) then
                         md.relicSprite = newSpriteName
-                        
-                        -- Transmit changes in MP
-                        if getCachedIsServer() and obj.transmitModData then
+
+                        if Env.needsClientSync() and obj.transmitModData then
                             obj:transmitModData()
                         end
-                        if getCachedIsServer() and obj.transmitUpdatedSpriteToClients then
+                        if Env.needsClientSync() and obj.transmitUpdatedSpriteToClients then
                             obj:transmitUpdatedSpriteToClients()
                         end
-                        
-                        LOG.info("Updated relic sprite for %s: %s -> %s", username, tostring(currentSprite), newSpriteName)
+
+                        LOG.info("Updated relic sprite for %s to %s", username, newSpriteName)
                     else
-                        LOG.warning("New sprite '%s' not found - keeping old sprite", newSpriteName)
+                        LOG.warning(
+                            "Sprite '%s' is unavailable for %s - deferred to integrity repair",
+                            newSpriteName,
+                            username
+                        )
                     end
+                elseif md.relicSprite ~= newSpriteName then
+                    md.relicSprite = newSpriteName
                 end
-                
-                relicFound = true
                 break
             end
         end
     end
-    
-    if not relicFound then
-        -- Relic might not exist yet or be on a different square
-        refugeData.pendingSpriteMigration = true
-    end
-    
-    -- Update data version
-    refugeData.dataVersion = 3
-    refugeData.pendingSpriteMigration = nil  -- Clear if we found and updated
+
     Data.SaveRefugeData(refugeData)
-    
-    return true, relicFound and "Updated relic sprite" or "Relic not found - will update on next load"
+
+    return true, relicFound and "Checked relic sprite" or "Relic not found - deferred to integrity repair"
 end
 
 -----------------------------------------------------------
@@ -316,7 +287,7 @@ function Migration.MigratePlayer(player)
         return false, "No player" 
     end
     
-    if not canModifyData() then
+    if not Env.canModifyData() then
         return false, "MP client - server handles migration"
     end
     
@@ -351,50 +322,6 @@ function Migration.MigratePlayer(player)
     
     LOG.info("%s: v%d -> v%d", username, startVersion, version)
     return true, "Migrated v" .. startVersion .. " -> v" .. version
-end
-
--- Check and apply pending sprite migration when relic becomes accessible
--- Call this when player enters refuge or when relic is loaded
-function Migration.CheckPendingSpriteMigration(username, square)
-    if not username or not square then return false end
-    
-    local refugeData = Data.GetRefugeDataByUsername(username)
-    if not refugeData or not refugeData.pendingSpriteMigration then
-        return false  -- No pending migration
-    end
-    
-    local newSpriteName = Config.SPRITES.SACRED_RELIC
-    local objects = square:getObjects()
-    
-    for i = 0, objects:size() - 1 do
-        local obj = objects:get(i)
-        if obj then
-            local md = obj:getModData()
-            if md and md.isSacredRelic then
-                local newSprite = getSprite(newSpriteName)
-                if newSprite then
-                    obj:setSprite(newSpriteName)
-                    md.relicSprite = newSpriteName
-                    
-                    if getCachedIsServer() and obj.transmitModData then
-                        obj:transmitModData()
-                    end
-                    if getCachedIsServer() and obj.transmitUpdatedSpriteToClients then
-                        obj:transmitUpdatedSpriteToClients()
-                    end
-                    
-                    -- Clear pending flag
-                    refugeData.pendingSpriteMigration = nil
-                    Data.SaveRefugeData(refugeData)
-                    
-                    LOG.info("Deferred sprite update completed for %s", username)
-                    return true
-                end
-            end
-        end
-    end
-    
-    return false
 end
 
 function Migration.DebugPrintState(player)

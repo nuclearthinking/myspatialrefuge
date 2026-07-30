@@ -39,65 +39,11 @@ function Shared.ResolveRelicSprite()
 end
 
 function Shared.FindRelicOnSquare(square, refugeId)
-    if not square then return nil end
-
-    local relics = MSR.World.findObjects(square, function(obj)
-        local md = MSR.World.getModData(obj)
-        return md and md.isSacredRelic and md.refugeId == refugeId
-    end)
-
-    return relics[1] -- Return first match or nil
-end
-
--- Sprite cache (resolved once per session)
-local _cachedRelicSprite = nil
-local _cachedResolvedSprite = nil
-local _spritesCached = false
-
-local function getCachedRelicSprites()
-    if not _spritesCached then
-        _cachedRelicSprite = MSR.Config.SPRITES.SACRED_RELIC
-        _cachedResolvedSprite = Shared.ResolveRelicSprite()
-        _spritesCached = true
-    end
-    return _cachedRelicSprite, _cachedResolvedSprite
-end
-
--- Fallback for old saves without ModData
-local function findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
-    local relics = MSR.World.findObjects(square, function(obj)
-        if not obj.getSprite then return false end
-        local sprite = obj:getSprite()
-        if not sprite then return false end
-        local spriteName = sprite:getName()
-        return spriteName == relicSprite or spriteName == resolvedSprite
-    end)
-
-    return relics[1] -- Return first match or nil
+    return MSR.Integrity.FindRelicOnSquare(square, refugeId)
 end
 
 function Shared.FindRelicInRefuge(centerX, centerY, z, radius, refugeId)
-    local relicSprite, resolvedSprite = getCachedRelicSprites()
-    local searchRadius = (radius or 1) + 1
-    local foundRelic = nil
-
-    -- Try ModData first (preferred)
-    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
-        if foundRelic then return end
-        local relic = Shared.FindRelicOnSquare(square, refugeId)
-        if relic then foundRelic = relic end
-    end)
-
-    if foundRelic then return foundRelic end
-
-    -- Fallback: sprite matching for old saves
-    MSR.World.iterateArea(centerX, centerY, z, searchRadius, function(square)
-        if foundRelic then return end
-        local relic = findRelicOnSquareBySprite(square, relicSprite, resolvedSprite)
-        if relic then foundRelic = relic end
-    end)
-
-    return foundRelic
+    return MSR.Integrity.FindRelicInArea(centerX, centerY, z, radius, refugeId)
 end
 
 function Shared.SyncRelicPositionToModData(refugeData)
@@ -275,10 +221,10 @@ function Shared.RepairRefugeProperties(refugeData)
     return report.walls.repaired + (report.relic.found and 1 or 0)
 end
 
---- @deprecated Delegates to MSR.Integrity.ValidateAndRepair
-function Shared.RemoveDuplicateRelics(centerX, centerY, centerZ, radius, refugeId, refugeData)
+--- @deprecated Delegates to MSR.Integrity.DeduplicateRelics
+function Shared.RemoveDuplicateRelics(_centerX, _centerY, _centerZ, _radius, _refugeId, refugeData)
     if not refugeData then return 0 end
-    local report = MSR.Integrity.ValidateAndRepair(refugeData, { source = "legacy_duplicate_removal" })
+    local report = MSR.Integrity.DeduplicateRelics(refugeData, { source = "legacy_duplicate_removal" })
     return report.relic.duplicatesRemoved
 end
 
