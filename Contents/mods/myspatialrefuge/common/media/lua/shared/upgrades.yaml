@@ -639,6 +639,42 @@ upgrades:
             substitutes:
               - $vehicle_tires
 
+  automatic_core_pickup:
+    id: automatic_core_pickup
+    name: UI_Upgrade_AutomaticCorePickup
+    icon: Item_MotionSensor
+    category: general
+    maxLevel: 3
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_AutomaticCorePickup_L1
+        effects:
+          corePickupRadius: 1.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 5
+          - type: Base.ElectronicsScrap
+            count: 2
+      2:
+        description: UI_Upgrade_AutomaticCorePickup_L2
+        effects:
+          corePickupRadius: 1.5
+        requirements:
+          - type: Base.MagicalCore
+            count: 12
+          - type: Base.ElectronicsScrap
+            count: 5
+      3:
+        description: UI_Upgrade_AutomaticCorePickup_L3
+        effects:
+          corePickupRadius: 2.0
+        requirements:
+          - type: Base.MagicalCore
+            count: 36
+          - type: Base.Speaker
+            count: 3
+
   sanctuary_healing:
     id: sanctuary_healing
     name: UI_Upgrade_SanctuaryHealing

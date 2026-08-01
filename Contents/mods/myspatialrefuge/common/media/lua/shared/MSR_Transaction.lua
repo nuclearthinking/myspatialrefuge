@@ -19,6 +19,7 @@ require "00_core/Env"
 require "helpers/Inventory"
 require "00_core/Config"
 require "MSR_PlayerMessage"
+require "MSR_InventoryAuthority"
 
 if MSR and MSR.Transaction and MSR.Transaction._loaded then
     return MSR.Transaction
@@ -262,36 +263,14 @@ local function consumeLockedItems(player, itemType, itemIds)
     if not player or not itemType or not itemIds then return false end
     player = resolvePlayer(player)
     if not player then return false end
-    
+
     local sources = getItemSources(player, true)
     if #sources == 0 then return false end
-    
-    local consumeSet = {}
-    for _, itemId in ipairs(itemIds) do consumeSet[itemId] = true end
-    
-    local needsSync = MSR.Env.needsClientSync() and sendRemoveItemFromContainer
-    local totalRemoved = 0
-    
-    for _, container in ipairs(sources) do
-        local items = container and container.getItems and container:getItems()
-        if K.isIterable(items) then
-            local toRemove = {}
-            for _, item in K.iter(items) do
-                if item and item:getFullType() == itemType and consumeSet[item:getID()] then
-                    table.insert(toRemove, item)
-                    consumeSet[item:getID()] = nil
-                end
-            end
-            for _, item in ipairs(toRemove) do
-                container:Remove(item)
-                if needsSync then sendRemoveItemFromContainer(container, item) end
-                totalRemoved = totalRemoved + 1
-            end
-        end
-    end
-    
+
+    local success, totalRemoved = MSR.InventoryAuthority.consumeByIds(sources, {
+        [itemType] = itemIds
+    })
     unlockItems(player, itemType, itemIds)
-    local success = totalRemoved == #itemIds
     if not success then
         LOG.debug("consumeLockedItems: Partial removal - " .. totalRemoved .. "/" .. #itemIds .. " " .. itemType)
     end

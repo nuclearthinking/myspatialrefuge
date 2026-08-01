@@ -428,6 +428,19 @@ function SRU_UpgradeDetails:formatEffect(name, value)
     end
     
     if type(value) == "number" then
+        if name == "corePickupRadius" then
+            local formattedValue
+            if value % 1 == 0 then
+                formattedValue = string.format("%d", value)
+            else
+                formattedValue = string.format("%.1f", value)
+            end
+            local formatKey = value == 1 and "UI_Effect_TileFormat" or "UI_Effect_TilesFormat"
+            local radiusText = getTextFormatted(formatKey, formattedValue)
+                or string.format(value == 1 and "%s tile" or "%s tiles", formattedValue)
+            return string.format("%s: %s", displayName, radiusText)
+        end
+
         -- Time multipliers (lower = faster) - apply difficulty scaling
         if name == "readingSpeedMultiplier" or name == "refugeCastTimeMultiplier" then
             local scaledValue = D.positiveEffect(value)

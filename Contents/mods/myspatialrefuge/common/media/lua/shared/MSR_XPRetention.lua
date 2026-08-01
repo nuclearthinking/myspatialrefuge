@@ -7,6 +7,7 @@ require "00_core/Config"
 require "helpers/Inventory"
 require "helpers/World"
 require "MSR_PlayerMessage"
+require "MSR_InventoryAuthority"
 
 local XPR = MSR.register("XPRetention")
 local LOG = L.logger("XPRetention")
@@ -288,12 +289,9 @@ local function placeEssenceItem(corpse, x, y, z, essence)
 
     if corpse and corpse.getContainer then
         local container = corpse:getContainer()
-        if container and container.AddItem then
-            local added = container:AddItem(essence)
+        if container then
+            local added = MSR.InventoryAuthority.addItem(container, essence)
             if added then
-                if MSR.Env.isServer() and sendAddItemToContainer then
-                    sendAddItemToContainer(container, added)
-                end
                 return added, "corpse inventory"
             end
         end
@@ -432,10 +430,7 @@ local function removeEssenceItem(item)
 
     local container = item:getContainer()
     if container then
-        container:DoRemoveItem(item)
-        if MSR.Env.isServer() and sendRemoveItemFromContainer then
-            sendRemoveItemFromContainer(container, item)
-        end
+        MSR.InventoryAuthority.removeItem(container, item)
     end
 end
 

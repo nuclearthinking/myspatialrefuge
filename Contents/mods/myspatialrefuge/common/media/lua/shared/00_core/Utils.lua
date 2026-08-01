@@ -115,6 +115,196 @@ function Utils.scalePositiveValue(baseValue)
     return baseValue
 end
 
+-- Dynamic keyed scheduler
+-----------------------------------------------------------
+
+local Scheduler = {}
+local scheduledByKey = {}
+local scheduledTasks = {}
+local dueTasks = {}
+local freeTasks = {}
+local freeTaskCount = 0
+local scheduledTaskCount = 0
+local activeTaskCount = 0
+local schedulerActive = false
+local getTimeMs = getTimestampMs
+
+local function stopSchedulerIfIdle()
+    if activeTaskCount == 0 and schedulerActive then
+        schedulerActive = false
+        Events.OnTick.Remove(Scheduler._process)
+        for index = 1, scheduledTaskCount do
+            scheduledTasks[index] = nil
+        end
+        scheduledTaskCount = 0
+    end
+end
+
+function Scheduler._process()
+    local nowMs = nil
+    local dueTaskCount = 0
+    local writeIndex = 1
+
+    for readIndex = 1, scheduledTaskCount do
+        local task = scheduledTasks[readIndex]
+        if task and task.key and scheduledByKey[task.key] == task then
+            if task.ticksRemaining then
+                task.ticksRemaining = task.ticksRemaining - 1
+            end
+
+            local ticksReady = not task.ticksRemaining or task.ticksRemaining <= 0
+            local timeReady = true
+            if task.dueAtMs then
+                nowMs = nowMs or getTimeMs()
+                timeReady = nowMs >= task.dueAtMs
+            end
+            if ticksReady and timeReady then
+                scheduledByKey[task.key] = nil
+                activeTaskCount = activeTaskCount - 1
+                dueTaskCount = dueTaskCount + 1
+                dueTasks[dueTaskCount] = task
+            else
+                scheduledTasks[writeIndex] = task
+                writeIndex = writeIndex + 1
+            end
+        end
+    end
+
+    for index = writeIndex, scheduledTaskCount do
+        scheduledTasks[index] = nil
+    end
+    scheduledTaskCount = writeIndex - 1
+    stopSchedulerIfIdle()
+
+    -- Run callbacks after compacting the queue. A callback can safely schedule
+    -- the same key again without mutating the queue currently being traversed.
+    for index = 1, dueTaskCount do
+        local task = dueTasks[index]
+        dueTasks[index] = nil
+        local callback = task.callback
+        local callbackArg = task.callbackArg
+        task.key = nil
+        task.callback = nil
+        task.callbackArg = nil
+        local ok, err
+        if callbackArg == nil then
+            ok, err = pcall(callback)
+        else
+            ok, err = pcall(callback, callbackArg)
+        end
+        if not ok and L then
+            LOG.error("Scheduler callback error: " .. tostring(err))
+        end
+
+        freeTaskCount = freeTaskCount + 1
+        freeTasks[freeTaskCount] = task
+    end
+end
+
+local function scheduleTask(key, delayTicks, delayMs, callback, callbackArg)
+    local existingTask = scheduledByKey[key]
+    if existingTask then
+        existingTask.callback = callback
+        existingTask.callbackArg = callbackArg
+        existingTask.ticksRemaining = delayTicks
+        existingTask.dueAtMs = delayMs and (getTimeMs() + delayMs) or nil
+        return false
+    end
+
+    local task = {}
+    if freeTaskCount > 0 then
+        local pooledTask = freeTasks[freeTaskCount]
+        freeTasks[freeTaskCount] = nil
+        freeTaskCount = freeTaskCount - 1
+        if pooledTask then task = pooledTask end
+    end
+    task.key = key
+    task.callback = callback
+    task.callbackArg = callbackArg
+    task.ticksRemaining = delayTicks
+    task.dueAtMs = delayMs and (getTimeMs() + delayMs) or nil
+    scheduledByKey[key] = task
+    scheduledTaskCount = scheduledTaskCount + 1
+    scheduledTasks[scheduledTaskCount] = task
+    activeTaskCount = activeTaskCount + 1
+
+    if not schedulerActive then
+        schedulerActive = true
+        Events.OnTick.Add(Scheduler._process)
+    end
+    return true
+end
+
+--- Schedule or replace one keyed task. Only one shared OnTick dispatcher is
+--- active regardless of the number of callers.
+--- @param key any Stable key used for coalescing
+--- @param opts table? Supports delayTicks and delayMs
+--- @param callback function
+--- @param callbackArg any?
+--- @return boolean
+function Scheduler.schedule(key, opts, callback, callbackArg)
+    if key == nil or type(callback) ~= "function" then return false end
+    opts = opts or {}
+
+    local delayTicks = tonumber(opts.delayTicks)
+    if delayTicks ~= nil and delayTicks < 1 then delayTicks = 1 end
+    local delayMs = tonumber(opts.delayMs)
+    if delayMs ~= nil and delayMs < 0 then delayMs = 0 end
+
+    return scheduleTask(key, delayTicks, delayMs, callback, callbackArg)
+end
+
+--- Schedule a keyed callback after a number of ticks without allocating an
+--- options table in recurring callers such as poll.
+--- @param key any
+--- @param delayTicks number
+--- @param callback function
+--- @param callbackArg any?
+--- @return boolean
+function Scheduler.afterTicks(key, delayTicks, callback, callbackArg)
+    if key == nil or type(callback) ~= "function" then return false end
+    delayTicks = tonumber(delayTicks) or 1
+    if delayTicks < 1 then delayTicks = 1 end
+    return scheduleTask(key, delayTicks, nil, callback, callbackArg)
+end
+
+--- Coalesce repeated work by key and run it no earlier than the next tick.
+--- @param key any
+--- @param delayMs number
+--- @param callback function
+--- @param callbackArg any?
+--- @return boolean
+function Scheduler.coalesce(key, delayMs, callback, callbackArg)
+    if key == nil or type(callback) ~= "function" then return false end
+    delayMs = tonumber(delayMs) or 0
+    if delayMs < 0 then delayMs = 0 end
+    return scheduleTask(key, 1, delayMs, callback, callbackArg)
+end
+
+--- @param key any
+--- @return boolean
+function Scheduler.isScheduled(key)
+    return key ~= nil and scheduledByKey[key] ~= nil
+end
+
+--- @param key any
+--- @return boolean
+function Scheduler.cancel(key)
+    local task = key ~= nil and scheduledByKey[key] or nil
+    if not task then return false end
+
+    scheduledByKey[key] = nil
+    activeTaskCount = activeTaskCount - 1
+    task.key = nil
+    task.callback = nil
+    task.callbackArg = nil
+    stopSchedulerIfIdle()
+    return true
+end
+
+Utils.Scheduler = Scheduler
+MSR.Scheduler = Scheduler
+
 -----------------------------------------------------------
 -- Delayed Execution Utilities
 -----------------------------------------------------------
@@ -127,30 +317,12 @@ function Utils.delay(ticks, callback)
     if type(callback) ~= "function" then return function() end end
     ticks = tonumber(ticks) or 1
     if ticks < 1 then ticks = 1 end
-    
-    local tickCount = 0
-    local cancelled = false
-    
-    local function onTick()
-        if cancelled then
-            Events.OnTick.Remove(onTick)
-            return
-        end
-        
-        tickCount = tickCount + 1
-        if tickCount < ticks then return end
-        
-        Events.OnTick.Remove(onTick)
-        local ok, err = pcall(callback)
-        if not ok and L then
-            LOG.error( "delay callback error: " .. tostring(err))
-        end
-    end
-    
-    Events.OnTick.Add(onTick)
-    
+
+    local key = {}
+    Scheduler.afterTicks(key, ticks, callback)
+
     return function()
-        cancelled = true
+        Scheduler.cancel(key)
     end
 end
 
@@ -194,25 +366,21 @@ function Utils.poll(opts)
     if not opts.maxTicks or opts.maxTicks <= 0 then return function() end end
     
     local tickCount = 0
-    local cancelled = false
     local completed = false
     local minTicks = tonumber(opts.minTicks) or 0
     if minTicks < 0 then minTicks = 0 end
     local maxTicks = opts.maxTicks
     local tag = opts.tag
     
-    local function onTick()
-        if cancelled or completed then
-            Events.OnTick.Remove(onTick)
-            return
-        end
-        
+    local key = {}
+    local function pollOnce()
+        if completed then return end
+
         tickCount = tickCount + 1
-        
+
         -- Check timeout first
         if tickCount >= maxTicks then
             completed = true
-            Events.OnTick.Remove(onTick)
             if tag and L then
                 LOG.debug( "poll timeout: " .. tag .. " after " .. tickCount .. " ticks")
             end
@@ -224,20 +392,23 @@ function Utils.poll(opts)
             end
             return
         end
-        
+
         -- Skip condition check if below minTicks
-        if tickCount < minTicks then return end
-        
+        if tickCount < minTicks then
+            Scheduler.afterTicks(key, 1, pollOnce)
+            return
+        end
+
         -- Check condition
         local ok, success, result = pcall(opts.condition)
         if not ok then
             if L then LOG.error( "poll condition error: " .. tostring(success)) end
+            Scheduler.afterTicks(key, 1, pollOnce)
             return
         end
-        
+
         if success then
             completed = true
-            Events.OnTick.Remove(onTick)
             if tag and L then
                 LOG.debug( "poll success: " .. tag .. " after " .. tickCount .. " ticks")
             end
@@ -245,13 +416,17 @@ function Utils.poll(opts)
             if not callOk and L then
                 LOG.error( "poll onSuccess error: " .. tostring(err))
             end
+            return
         end
+
+        Scheduler.afterTicks(key, 1, pollOnce)
     end
-    
-    Events.OnTick.Add(onTick)
-    
+
+    Scheduler.afterTicks(key, 1, pollOnce)
+
     return function()
-        cancelled = true
+        completed = true
+        Scheduler.cancel(key)
     end
 end
 
