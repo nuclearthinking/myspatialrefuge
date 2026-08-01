@@ -9,6 +9,7 @@ require "MSR_RefugeExpansion"
 require "MSR_BasementGeneration"
 require "helpers/World"
 require "MSR_PlayerMessage"
+require "MSR_InventoryAuthority"
 local PM = MSR.PlayerMessage
 if MSR and MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
     return MSR.UpgradeLogic
@@ -27,6 +28,15 @@ local function invalidateItemCountCaches(player)
         Cache.invalidate(player)
     end
 end
+
+local function onUpgradeLevelChanged(player)
+    invalidateItemCountCaches(player)
+    if MSR.EffectSystem and MSR.EffectSystem.markDirty then
+        MSR.EffectSystem.markDirty(player)
+    end
+end
+
+MSR.UpgradeEvents.OnLevelChanged.Add(onUpgradeLevelChanged)
 
 local function resolvePlayer(player)
     return MSR.resolvePlayer(player)
@@ -113,6 +123,9 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player" end
 
+    local refugeData = MSR.Data and MSR.Data.GetRefugeData and MSR.Data.GetRefugeData(playerObj)
+    if not refugeData then return false, "Refuge data unavailable" end
+
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return false, "Unknown upgrade" end
     if upgrade.debugOnly and not (MSR.Env and MSR.Env.isDebugEnabled and MSR.Env.isDebugEnabled()) then
@@ -180,7 +193,19 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
             handler.onSuccess(player, targetLevel, resultData)
         end
     else
-        MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+        if transaction then
+            local committed = MSR.Transaction.Commit(player, transaction.id)
+            if not committed then
+                LOG.debug("Transaction commit failed for " .. tostring(transaction.id))
+                return false, "Failed to consume upgrade requirements"
+            end
+            transaction = nil
+        end
+
+        local levelSaved = MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+        if not levelSaved then
+            return false, "Failed to save upgrade level"
+        end
         UpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
     end
 
@@ -191,7 +216,10 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
         end
     end
     
-    invalidateItemCountCaches(player)
+    -- Expansion level is managed by refuge tier and bypasses setPlayerUpgradeLevel.
+    if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
+        invalidateItemCountCaches(player)
+    end
 
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
     local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
@@ -233,29 +261,7 @@ function UpgradeLogic.consumeItems(player, requirements)
     local sources = MSR.Transaction.GetItemSources(playerObj)
     if not sources or #sources == 0 then return false end
 
-    local needsSync = MSR.Env.needsClientSync() and sendRemoveItemFromContainer
-
-    for itemType, count in pairs(resolved) do
-        local remaining = count
-        for _, container in ipairs(sources) do
-            if remaining <= 0 then break end
-            local items = container and container:getItems()
-            if K.isIterable(items) then
-                for i = K.size(items) - 1, 0, -1 do
-                    if remaining <= 0 then break end
-                    local item = items:get(i)
-                    if item and item:getFullType() == itemType and MSR.Transaction.IsItemAvailable(item, container) then
-                        container:Remove(item)
-                        if needsSync then sendRemoveItemFromContainer(container, item) end
-                        remaining = remaining - 1
-                    end
-                end
-            end
-        end
-        if remaining > 0 then return false end
-    end
-
-    return true
+    return MSR.InventoryAuthority.consumeByType(sources, resolved, MSR.Transaction.IsItemAvailable)
 end
 
 function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
@@ -313,14 +319,14 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player" end
 
-    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
-
     local refugeData = MSR.Data.GetRefugeData(playerObj)
     if not refugeData then return false, "Refuge data not found" end
     local relic = MSR.Integrity and MSR.Integrity.FindRelic and MSR.Integrity.FindRelic(refugeData)
     if not relic then
         -- No relic exists - safe to set level, capacity will apply on next creation
-        MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
+        if not MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level) then
+            return false, "Failed to save upgrade level"
+        end
         LOG.info("Relic not found, capacity will apply on next creation")
         return true, nil
     end
@@ -335,7 +341,9 @@ function UpgradeLogic.applyStorageUpgrade(player, level)
     end
 
     -- Validation passed - now commit the upgrade
-    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level)
+    if not MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level) then
+        return false, "Failed to save upgrade level"
+    end
 
     container:setCapacity(newCapacity)
     local md = relic:getModData()
@@ -486,9 +494,8 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
         end
     end
     
-    invalidateItemCountCaches(playerObj)
-    
     if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
+        invalidateItemCountCaches(playerObj)
         if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(playerObj) end
     end
 
@@ -498,7 +505,10 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     end
     MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
 
-    if MSR.EffectSystem and MSR.EffectSystem.markDirty then
+    if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE
+        and MSR.EffectSystem
+        and MSR.EffectSystem.markDirty
+    then
         MSR.EffectSystem.markDirty(playerObj)
     end
 

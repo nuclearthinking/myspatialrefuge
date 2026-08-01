@@ -19,6 +19,7 @@ require "MSR_RefugeExpansion"
 require "MSR_ZombieClear"
 require "MSR_Death"
 require "MSR_XPRetention"
+require "MSR_InventoryAuthority"
 
 MSR_Server = MSR_Server or {}
 
@@ -183,149 +184,53 @@ local function canProcessRequest(player)
 end
 
 -----------------------------------------------------------
--- ID-Based Item Consumption (Server-Authoritative)
--- Uses game-aligned patterns from ISTransferAction, ISCraftAction
+-- Upgrade item sources and authoritative consumption
 -----------------------------------------------------------
 
--- Consume specific items by ID with network sync
--- @param player: The player whose items to consume
--- @param lockedItemIds: Table of {itemType = {itemId1, itemId2, ...}}
--- @return: true if all items consumed, false if any item not found
-local function consumeItemsByIds(player, lockedItemIds)
-    if not player or not lockedItemIds then return false end
-    
-    -- Only need ROOT containers - getItemById searches recursively through nested containers
-    -- This is more efficient than iterating all nested containers
+local function getUpgradeItemRoots(player)
     local sources = {}
     local inv = MSR.safePlayerCall(player, "getInventory")
     if inv then table.insert(sources, inv) end
-    
+
     -- Sacred Relic container (if available)
     local getRelicContainer = MSR.GetRelicContainer or (MSR_Server and MSR_Server.GetRelicContainer)
     if getRelicContainer then
         local rc = getRelicContainer(player, true)
         if rc then table.insert(sources, rc) end
     end
-    
-    if #sources == 0 then 
-        LOG.debug( "[DEBUG] consumeItemsByIds: No item sources found")
-        return false 
-    end
-    
-    LOG.debug( "[DEBUG] consumeItemsByIds: Processing " .. K.count(lockedItemIds) .. " item types from " .. #sources .. " root sources")
-    
-    local totalConsumed = 0
-    local totalExpected = 0
-    
-    for itemType, itemIds in pairs(lockedItemIds) do
-        LOG.debug( "[DEBUG] consumeItemsByIds: Processing " .. #itemIds .. " IDs for " .. itemType)
-        totalExpected = totalExpected + #itemIds
-        
-        for _, targetId in ipairs(itemIds) do
-            local found = false
-            
-            for _, container in ipairs(sources) do
-                if not container then break end
-                
-                -- Use getItemById for fast lookup (game pattern from ISCraftAction, ISMoveableCursor)
-                -- Note: getItemById searches recursively through nested containers
-                local item = container:getItemById(targetId)
-                
-                if item then
-                    -- Get the ACTUAL container the item is in (may be nested - bag inside inventory)
-                    -- getItemById finds items recursively, so item may not be directly in 'container'
-                    local actualContainer = item:getContainer()
-                    if not actualContainer then
-                        LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " has no container (orphaned)")
-                        break
-                    end
-                    
-                    -- Verify item still in its actual container (game pattern from ISInventoryTransferAction:85)
-                    if not actualContainer:contains(item) then
-                        LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " found but not in actual container (race condition)")
-                        break
-                    end
-                    
-                    -- Verify item type matches (safety check)
-                    if item:getFullType() ~= itemType then
-                        LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " type mismatch: expected " .. itemType .. ", got " .. item:getFullType())
-                        break
-                    end
-                    
-                    LOG.debug( "[DEBUG] consumeItemsByIds: Consuming item " .. targetId .. " (" .. itemType .. ") from " .. tostring(actualContainer:getType()))
-                    
-                    -- Use DoRemoveItem for proper removal (game pattern from ISTransferAction:98)
-                    actualContainer:DoRemoveItem(item)
-                    
-                    -- Sync removal to clients (game pattern from ISTransferAction:99-101)
-                    sendRemoveItemFromContainer(actualContainer, item)
-                    
-                    found = true
-                    totalConsumed = totalConsumed + 1
-                    break
-                end
-            end
-            
-            if not found then
-                LOG.debug( "[DEBUG] consumeItemsByIds: Item " .. targetId .. " (" .. itemType .. ") NOT FOUND - may have been moved/consumed")
-                -- Don't fail immediately - continue processing other items
-                -- Final success is determined by total consumed count
-            end
-        end
-    end
-    
-    LOG.debug( "[DEBUG] consumeItemsByIds: Consumed " .. totalConsumed .. "/" .. totalExpected .. " items")
-    
-    return totalConsumed == totalExpected
+    return sources
 end
 
--- Validate specific items by ID without consuming
--- @param player: The player whose items to validate
--- @param lockedItemIds: Table of {itemType = {itemId1, itemId2, ...}}
--- @return: true if all items are present and available, false otherwise
+local function consumeItemsByIds(player, lockedItemIds)
+    if not player or not lockedItemIds then return false end
+    local sources = getUpgradeItemRoots(player)
+    if #sources == 0 then return false end
+
+    local success, consumed, expected = MSR.InventoryAuthority.consumeByIds(sources, lockedItemIds)
+    LOG.debug("consumeItemsByIds: Consumed %d/%d items", consumed, expected)
+    return success
+end
+
 local function areLockedItemsAvailable(player, lockedItemIds)
     if not player or not lockedItemIds then return false end
+    local sources = getUpgradeItemRoots(player)
+    if #sources == 0 then return false end
 
-    local sources = {}
-    local inv = MSR.safePlayerCall(player, "getInventory")
-    if inv then table.insert(sources, inv) end
+    return MSR.InventoryAuthority.validateAllocation(
+        sources,
+        lockedItemIds,
+        MSR.Transaction.IsItemAvailable
+    )
+end
 
-    local getRelicContainer = MSR.GetRelicContainer or (MSR_Server and MSR_Server.GetRelicContainer)
-    if getRelicContainer then
-        local rc = getRelicContainer(player, true)
-        if rc then table.insert(sources, rc) end
+local function consumeUpgradeRequirements(player, requirements, lockedItemIds)
+    if #requirements == 0 then return true end
+
+    if lockedItemIds and not K.isEmpty(lockedItemIds) then
+        return consumeItemsByIds(player, lockedItemIds)
     end
 
-    if #sources == 0 then
-        LOG.debug( "[DEBUG] areLockedItemsAvailable: No item sources found")
-        return false
-    end
-
-    for itemType, itemIds in pairs(lockedItemIds) do
-        for _, targetId in ipairs(itemIds) do
-            local found = false
-            for _, container in ipairs(sources) do
-                if not container then break end
-                local item = container:getItemById(targetId)
-                if item then
-                    local actualContainer = item:getContainer()
-                    if not actualContainer then break end
-                    if not actualContainer:contains(item) then break end
-                    if item:getFullType() ~= itemType then break end
-                    local available = MSR.Transaction.IsItemAvailable(item, actualContainer)
-                    if not available then break end
-                    found = true
-                    break
-                end
-            end
-            if not found then
-                LOG.debug( "[DEBUG] areLockedItemsAvailable: Missing item " .. tostring(targetId) .. " (" .. tostring(itemType) .. ")")
-                return false
-            end
-        end
-    end
-
-    return true
+    return MSR.UpgradeLogic.consumeItems(player, requirements)
 end
 
 function MSR_Server.HandleModDataRequest(player, args)
@@ -541,23 +446,16 @@ function MSR_Server.HandleChunksReady(player, args)
             -- Simple square recalculation for visibility/lighting updates
             -- Room IDs were already restored by RoomPersistence.RestoreServer() above
             -- We only need a single RecalcAllWithNeighbours pass for proper rendering
-            local recalcTickCount = 0
             local RECALC_DELAY_TICKS = 60  -- 1 second delay for chunks to fully initialize
-            local function delayedBuildingRecalc()
-                recalcTickCount = recalcTickCount + 1
-                if recalcTickCount < RECALC_DELAY_TICKS then return end
-                
-                Events.OnTick.Remove(delayedBuildingRecalc)
-                
+            MSR.delay(RECALC_DELAY_TICKS, function()
                 local centerX = refugeDataRef.centerX
                 local centerY = refugeDataRef.centerY
                 local centerZ = refugeDataRef.centerZ
                 local radius = refugeDataRef.radius or 1
                 local recalculated = MSR.World.recalcArea(centerX, centerY, centerZ, radius + 1)
-                
+
                 LOG.debug( "Recalculated " .. recalculated .. " squares for visibility")
-            end
-            Events.OnTick.Add(delayedBuildingRecalc)
+            end)
             
             -- Room IDs are saved by client on exit, synced to server for persistence
             -- No periodic save needed - game handles room discovery properly
@@ -854,6 +752,15 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         })
         return
     end
+
+    if not MSR.Data.GetRefugeData(player) then
+        clearPendingLock()
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = "Refuge data unavailable"
+        })
+        return
+    end
     
     local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     
@@ -948,8 +855,18 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     if handler then
         success, errorMsg, resultData = handler.apply(player, targetLevel)
     else
-        -- Generic upgrade: just set level
-        MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+        -- Generic upgrades have no world mutation to roll back. Consume their
+        -- requirements before saving the level so a failed consume cannot grant
+        -- a free upgrade.
+        if not consumeUpgradeRequirements(player, requirements, lockedItemIds) then
+            success = false
+            errorMsg = "Failed to consume upgrade requirements"
+        else
+            success = MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
+            if not success then
+                errorMsg = "Failed to save upgrade level"
+            end
+        end
     end
     
     if not success then
@@ -962,23 +879,11 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         return
     end
 
-    if #requirements > 0 then
-        local consumed = false
-        
-        -- Prefer ID-based consumption (more precise, prevents wrong item consumption)
-        if lockedItemIds and not K.isEmpty(lockedItemIds) then
-            LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: Using ID-based consumption (post-apply)")
-            consumed = consumeItemsByIds(player, lockedItemIds)
-            
-            if not consumed then
-                LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: ID-based consumption failed, some items may have been moved")
-            end
-        else
-            -- Fallback to type-based consumption (backwards compatibility)
-            LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: Using type-based consumption (fallback, post-apply)")
-            consumed = MSR.UpgradeLogic.consumeItems(player, requirements)
-        end
-        
+    if handler and #requirements > 0 then
+        -- Special handlers retain their legacy apply-before-consume order because
+        -- their world mutations cannot be rolled back generically here.
+        local consumed = consumeUpgradeRequirements(player, requirements, lockedItemIds)
+
         if not consumed then
             LOG.debug( "HandleFeatureUpgradeRequest: Post-apply consumption failed for " .. username)
         else
@@ -1101,19 +1006,8 @@ local function OnClientCommand(module, command, player, args)
         if not inv then return end
         local itemType = MSR.Config.CORE_ITEM or "Base.MagicalCore"
         local count = 1000
-        if sendAddItemToContainer then
-            for _ = 1, count do
-                local item = inv:AddItem(itemType)
-                if item then
-                    sendAddItemToContainer(inv, item)
-                end
-            end
-        elseif inv.AddItems then
-            inv:AddItems(itemType, count)
-        else
-            for _ = 1, count do
-                inv:AddItem(itemType)
-            end
+        for _ = 1, count do
+            MSR.InventoryAuthority.addItem(inv, itemType)
         end
     elseif command == MSR.Config.COMMANDS.ADMIN_COMMAND then
         -- Handled by MSR_AdminHandler.lua
@@ -1248,15 +1142,9 @@ local function OnPlayerFullyConnected(player)
     
     LOG.debug( "OnPlayerFullyConnected called for: " .. playerUsername)
     
-    local tickCount = 0
-    local function delayedTransmit()
-        tickCount = tickCount + 1
-        if tickCount < 30 then return end
-        
-        Events.OnTick.Remove(delayedTransmit)
-        
+    MSR.delay(30, function()
         MSR.Data.TransmitModData()
-        
+
         if L.isDebug() then
             LOG.debug( "Transmitted ModData to " .. playerUsername)
             local registry = MSR.Data.GetRefugeRegistry()
@@ -1270,9 +1158,7 @@ local function OnPlayerFullyConnected(player)
                 LOG.warning("Registry is nil!")
             end
         end
-    end
-    
-    Events.OnTick.Add(delayedTransmit)
+    end)
 end
 
 local function OnPlayerConnect(player)

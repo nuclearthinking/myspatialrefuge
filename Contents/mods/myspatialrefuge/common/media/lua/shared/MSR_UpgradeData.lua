@@ -5,6 +5,7 @@ require "CUI_YamlParser"
 require "00_core/Config"
 require "00_core/Data"
 require "00_core/Events"
+require "MSR_UpgradeEvents"
 
 if MSR and MSR.UpgradeData and MSR.UpgradeData._loaded then
     return MSR.UpgradeData
@@ -324,12 +325,17 @@ function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     
     local upgradeData, refugeData = getRefugeUpgradeData(playerObj)
     if not upgradeData or not refugeData then return false end
-    
+
+    local previousLevel = upgradeData[upgradeId] or 0
     upgradeData[upgradeId] = level
-    
+
     LOG.debug( "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level))
     if MSR.Data and MSR.Data.SaveRefugeData then MSR.Data.SaveRefugeData(refugeData) end
-    
+
+    if previousLevel ~= level then
+        MSR.UpgradeEvents.OnLevelChanged.Fire(playerObj, upgradeId, previousLevel, level)
+    end
+
     return true
 end
 

@@ -76,6 +76,7 @@ MSR.Config = {
         FASTER_READING = "faster_reading",
         FASTER_CAST = "faster_refuge_cast",
         VEHICLE_TELEPORT = "vehicle_teleport",
+        AUTOMATIC_CORE_PICKUP = "automatic_core_pickup",
         SANCTUARY_HEALING = "sanctuary_healing",
         RESTFUL_SLUMBER = "restful_slumber",
         INNER_PEACE = "inner_peace",
