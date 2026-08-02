@@ -1,0 +1,321 @@
+versions:
+- version: '1.24'
+  date: August 2026
+  status: candidate
+  added:
+  - Added an upgrade that automatically collects nearby Zombie Cores.
+  fixed: []
+  changed: []
+  removed: []
+- version: 1.23.2
+  date: July 2026
+  status: candidate
+  added: []
+  fixed:
+  - Added compatibility with Project Zomboid 42.20
+  - Improved compatibility with refuges created in earlier versions
+  changed: []
+  removed: []
+- version: 1.18.2
+  date: February 2026
+  status: released
+  added: []
+  fixed: []
+  changed: []
+  removed: []
+- version: 1.18.1
+  date: January 2026
+  status: released
+  added: []
+  fixed: []
+  changed:
+  - Fixed some Chinese translation issues
+  - Improved refuge core position handling to reduce the chance of it resetting after re-entering
+  removed: []
+- version: '1.18'
+  date: January 2026
+  status: released
+  added:
+  - New upgrade "Sanctuary Healing" - wounds heal faster while resting in your refuge. Up to 2x healing speed at max level
+    (5 levels)
+  - New upgrade "Restful Slumber" - sleeping in your refuge is more restorative. Up to 2x fatigue recovery at max level (5
+    levels)
+  - New upgrade "Inner Peace" - your refuge becomes a sanctuary for your mind. Boredom, stress, and unhappiness fade much
+    faster. Up to 4x mental recovery at max level (5 levels)
+  - New upgrade "Muscle Recovery" - stiffness and soreness from exercise fade faster while in your refuge. Up to 2.5x stiffness
+    recovery at max level (5 levels)
+  - New upgrade "Refuge Basement" - dig out a basement level beneath your refuge. Requires maxed "Expand Refuge" upgrade first
+  - Experience Essence system now has sandbox settings - you can disable the system entirely or adjust the base XP retention
+    percentage
+  fixed: []
+  changed: []
+  removed: []
+- version: 1.17.2
+  date: January 2026
+  status: released
+  added: []
+  fixed:
+  - Fixed mod failing to load on dedicated servers - reorganized internal file structure to ensure all modules load in the
+    correct order regardless of server configuration
+  changed: []
+  removed: []
+- version: 1.17.1
+  date: January 2026
+  status: released
+  added: []
+  fixed: []
+  changed:
+  - Improved Chinese translation (thanks to player 树皮)
+  removed: []
+- version: '1.17'
+  date: January 2026
+  status: released
+  added:
+  - Experience Essence system - when you die, an Experience Essence item is created on your corpse containing a portion of
+    the XP you earned during your life. Your next character can absorb this essence to recover some lost experience (right-click
+    the item). Only XP earned through gameplay is tracked - profession and starting skills are not included.
+  - Icons for context menu options - "Upgrade Refuge" and "Move Relic" now display visual icons for easier recognition
+  - Directional icons in the "Move Relic" submenu - Up, Down, Left, Right, and Center options now have distinct arrow icons
+  - Icon in the Upgrade Window header for visual consistency
+  - Death in refuge protection - if you die inside your refuge, your corpse is protected from the periodic zombie cleanup.
+    Your corpse remains as a memorial that your next character can loot, bury, or burn. A reminder of past lives
+  changed:
+  - Updated icons for "Expand Refuge" and "Faster Portal Cast" upgrades
+  - Animal corpses are now preserved in the refuge - periodic cleanup only removes zombie and human corpses, so your hunted
+    game stays where you left it
+  fixed:
+  - Improved vehicle re-entry reliability after exiting refuge - increased search area and timeout to better handle multiplayer
+    latency and chunk loading delays
+  - Fixed tile conflicts with Ammomaker mod - refuge tiles no longer overlap with each other or other mods' tiles
+  - Upgrades no longer consume equipped or worn items - your wristwatch stays on your wrist even when upgrading with watches
+    as materials
+  - Fixed zombie corpses not being removed from refuge area on multiplayer servers - corpses are now properly cleared during
+    periodic cleanup instead of being counted but not actually removed
+  - Fixed "Faster Reading" upgrade not working correctly for magazines in multiplayer - the progress bar now matches the actual
+    reading time for all readable items
+  - Fixed "Refuge Core Storage" upgrade incorrectly blocking upgrades - the capacity check was comparing item count instead
+    of weight, causing false "cannot reduce capacity" errors even when upgrading to higher storage
+  removed:
+  - Removed tooltip from "Upgrade Refuge" context menu option for cleaner interface
+- version: 1.16.2
+  date: January 2026
+  status: released
+  fixed:
+  - Fixed "Expand Refuge" upgrade consuming cores but not actually expanding the refuge on multiplayer and coop servers -
+    the upgrade now works correctly in all game modes
+- version: 1.16.1
+  date: January 2026
+  status: released
+  fixed:
+  - Fixed crash on dedicated server startup caused by upgrade system initializing too early - the mod now waits for all components
+    to load before registering upgrades
+- version: '1.16'
+  date: January 2026
+  status: released
+  added:
+  - New upgrade "Vehicle Teleport" - enter your refuge while sitting in a parked vehicle and return to the same seat when
+    you exit. Perfect for using your refuge as a mobile base during long road trips. This is a new feature - please report
+    any issues in the bug-report discussion
+  fixed:
+  - Fixed inheritance message not appearing immediately when creating a new character after death - you now see the "inherited
+    refuge" notification right away instead of only after restarting the game
+- version: 1.15.1
+  date: January 2026
+  status: released
+  fixed:
+  - Improved cutaway visibility fix from v1.15 - room features (sinks, lights) now work correctly in large or expanded refuges
+  - Reduced save file size for large refuges - room data is now stored more efficiently
+- version: '1.15'
+  date: January 2026
+  status: released
+  added:
+  - New upgrade "Refuge Core Storage" - expand the storage capacity of your Refuge Core from 20 slots up to 100 slots
+  - Warning popup now appears if the mod fails to load properly - shows clear instructions on how to fix load order or mod
+    conflicts, with links to log files and bug report page
+  fixed:
+  - Fixed roof and upper floor tiles blocking your view after teleporting into the refuge - the cutaway view now works correctly
+    every time you enter
+  changed:
+  - Improved mod stability - internal systems now load in a guaranteed order, reducing the chance of errors when playing with
+    many other mods
+- version: 1.14.1
+  date: January 2026
+  status: candidate
+  fixed:
+  - Improved error messages when mod fails to load on dedicated servers - the mod now prints detailed diagnostic info to help
+    identify configuration issues
+- version: '1.14'
+  date: January 2026
+  status: released
+  added:
+  - Automatic zombie cleanup inside refuge - zombies that spawn or wander into your refuge are now automatically removed every
+    in-game minute (this is the only way to prevent zombie respawns in the refuge due to game engine limitations)
+  fixed:
+  - Fixed items in containers and nested containers (bags inside bags) not being found for upgrades - cores stored in pouches,
+    backpacks, or other containers are now correctly recognized and spent
+  changed:
+  - Upgrade window now closes automatically when you walk away from the Refuge Core
+  - Favorite items are now protected from being consumed by upgrades - mark your items as favorites (right-click > Favorite)
+    to keep them safe
+- version: '1.13'
+  date: January 2026
+  status: released
+  added:
+  - Debug console commands for refuge recovery and administration - if you lost access to your refuge, enable debug mode,
+    open console (~) and type msrHelp() to see available commands
+  fixed:
+  - Fixed crash on dedicated server startup - added explicit module loading to ensure all required components are available
+    before server initialization
+  - Fixed rare issue where players could lose access to their refuge and items after server restart - the mod now properly
+    waits for save data to load before allowing refuge creation
+- version: '1.12'
+  date: January 2026
+  status: released
+  fixed:
+  - Fixed crash on dedicated server startup caused by module loading order issue
+- version: '1.11'
+  date: January 2026
+  status: released
+  added:
+  - New Difficulty setting in sandbox options - choose from Very Easy, Easy, Normal, Hard, or Very Hard to adjust the overall
+    challenge
+  - Easy difficulties reduce core costs, shorten cooldowns, and boost upgrade effects
+  - Hard difficulties increase core costs, extend cooldowns, and reduce upgrade effects
+  - Upgrade effects now display their actual values based on your difficulty setting
+  fixed: []
+  changed:
+  - Simplified sandbox options - replaced multiple individual settings with a single Difficulty selector for easier configuration
+  - Upgrade descriptions now use thematic text instead of showing specific percentages (actual values are shown in the Effects
+    section)
+  removed:
+  - Removed individual sandbox options for teleport cooldown, cast time, combat block time, and encumbrance penalty toggle
+    (now controlled by Difficulty setting)
+- version: '1.10'
+  date: January 2026
+  status: released
+  added:
+  - New encumbrance penalty mechanic - instead of blocking teleportation when carrying heavy loads, entering the refuge now
+    adds extra cooldown time before your next entry. The heavier you are, the longer you wait. Can be configured or disabled
+    in sandbox settings.
+  fixed: []
+  changed:
+  - You can now exit the refuge at any time without waiting for cooldown - the penalty only applies when entering
+  removed: []
+- version: '1.9'
+  date: January 2026
+  status: released
+  added: []
+  fixed:
+  - Fixed crash when loading the mod with "Faster Reading" upgrade enabled - the upgrade now works correctly in both singleplayer
+    and multiplayer
+  changed:
+  - Improved room recognition for player-built structures after teleporting - sinks, lights, and other room features should
+    now persist correctly (please report if you still experience issues)
+  removed: []
+- version: '1.8'
+  date: January 2026
+  status: released
+  added:
+  - New upgrade "Faster Teleportation Cast" - enter and exit your refuge up to 50% faster (5 levels, requires wristwatches
+    and alarm clocks)
+  - Your refuge is now inherited when you die (singleplayer) - after respawning with a new character, you keep your refuge
+    with all upgrades, size, and stored items intact
+  fixed:
+  - Fixed items stored in the Relic not being consumed when upgrading in multiplayer/coop - cores spent on upgrades are now
+    correctly removed
+  - Fixed Relic container showing wrong item count after upgrading in multiplayer - the display now updates immediately to
+    reflect consumed items
+  - Fixed singleplayer mode not being correctly detected, which could cause some features to behave as if you were in multiplayer
+  - Fixed upgrade icon badges having inconsistent sizes - the max level checkmark badge now matches the size of the level
+    number badge
+  changed:
+  - Compressed texture and image files to reduce mod size without visible quality loss
+  removed: []
+- version: '1.7'
+  date: January 2026
+  status: released
+  added: []
+  fixed:
+  - Completed missing translations for new refuge UI messages (RU/CN/ES/PTBR)
+  - Fixed relic sometimes becoming invisible when leaving and returning to refuge
+  - Fixed refuge structures being regenerated every time you enter - now only repairs when needed, making entry/exit much
+    faster
+  - Fixed old gravestone sprite not being recognized - relics using the old sprite are now automatically updated to the new
+    appearance
+  - Improved multiplayer sync - relic and refuge data now syncs properly between server and clients
+  changed:
+  - Renamed "Sacred Relic" to "Relic" in UI text (better fits sci-fi theme)
+  - Refuge integrity system now runs automatic checks every in-game minute to catch and fix issues before they become problems
+  removed: []
+- version: '1.6'
+  date: January 2026
+  status: released
+  added:
+  - New upgrade "Faster Reading" - read skill books up to 75% faster while in your refuge (5 levels, requires skill books
+    of matching tier to upgrade)
+  fixed:
+  - Fixed inconsistent mouse wheel scrolling in upgrade window - both panels now scroll in the same direction
+  - Fixed upgrade system not recognizing items stored in the Sacred Relic container - you can now use items from the relic
+    for upgrades
+  - Fixed upgrade window not showing which dependencies need to be maxed out - now displays missing dependencies with their
+    current level (e.g., "Upgrade Name (Level 1/3)")
+  - Fixed upgrade validation incorrectly counting items when using substitutes - now correctly prevents upgrades when there
+    aren't enough items available
+  - Fixed tree branches and leaves clipping through refuge walls - trees near the refuge are now automatically cleared when
+    the refuge is created or expanded
+  - Fixed Sacred Relic movement ignoring furniture and containers - relic can no longer be moved to a tile occupied by player-placed
+    objects like boxes, beds, or tables
+  - Fixed encumbrance strain incorrectly blocking teleport - being overweight no longer triggers the "in combat" cooldown
+  changed: []
+  removed: []
+- version: '1.5'
+  date: December 2025
+  status: released
+  added:
+  - Russian translation (Русский)
+  - Chinese Simplified translation (简体中文)
+  - Spanish translation (Español)
+  - Portuguese Brazilian translation (Português do Brasil)
+  fixed: []
+  changed: []
+  removed: []
+- version: '1.4'
+  date: December 2025
+  status: released
+  added: []
+  fixed: []
+  changed:
+  - New custom appearance for the Refuge Core (Sacred Relic) - replaces the old gravestone with new custom tileset sprite
+  - Reworked upgrade system with new custom interface - easier to see available upgrades and requirements
+  removed: []
+- version: '1.3'
+  date: December 2025
+  status: released
+  added: []
+  fixed:
+  - Fixed crash when upgrading refuge in multiplayer ("Object tried to call nil" error)
+  changed: []
+  removed: []
+- version: '1.2'
+  date: December 2025
+  status: released
+  added:
+  - 'Save compatibility: existing saves from older versions are automatically upgraded'
+  fixed: []
+  changed: []
+  removed: []
+- version: '1.1'
+  date: December 2025
+  status: released
+  added:
+  - Multiplayer/Coop support
+  fixed:
+  - Fixed duplicate 'Entering Spatial Refuge' message
+- version: '1.0'
+  date: December 2025
+  status: released
+  added:
+  - Personal dimensional refuge for each player
+  - 5 tiers of upgradeable space
+  - Social menu integration (Hold Q)
+  - Zombie Core upgrade currency
