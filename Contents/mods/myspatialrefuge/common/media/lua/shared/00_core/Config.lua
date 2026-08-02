@@ -81,6 +81,7 @@ MSR.Config = {
         RESTFUL_SLUMBER = "restful_slumber",
         INNER_PEACE = "inner_peace",
         MUSCLE_RECOVERY = "muscle_recovery",
+        FERTILE_RESONANCE = "fertile_resonance",
         DEBUG_FAIL_UPGRADE = "debug_fail_upgrade",
     },
     

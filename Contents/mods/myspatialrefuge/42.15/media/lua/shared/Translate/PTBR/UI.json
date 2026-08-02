@@ -12,6 +12,7 @@
     "UI_RefugeUpgrade_Category_shelter": "Abrigo",
     "UI_RefugeUpgrade_Category_general": "Geral",
     "UI_RefugeUpgrade_Category_comfort": "Conforto",
+    "UI_RefugeUpgrade_Category_ecology": "Ecologia",
     "UI_RefugeUpgrade_Category_debug": "Depuração",
     "UI_Upgrade_ExpandRefuge": "Expandir área do refúgio",
     "UI_Upgrade_ExpandRefuge_L1": "Expandir refúgio para 5x5 blocos.",
@@ -78,6 +79,10 @@
     "UI_Effect_corePickupRadius": "Raio de coleta de nucleos",
     "UI_Effect_TileFormat": "%1 quadrado",
     "UI_Effect_TilesFormat": "%1 quadrados",
+    "UI_Upgrade_FertileResonance": "Ressonancia Fertil",
+    "UI_Upgrade_FertileResonance_L1": "O fluxo temporal alterado do refugio reduz a duracao base dos estagios de crescimento de culturas saudaveis. Agua, doencas e apodrecimento nao sao acelerados.",
+    "UI_Upgrade_FertileResonance_L2": "A ressonancia fertil reduz ainda mais a duracao base dos estagios de crescimento de culturas saudaveis. Agua, doencas e apodrecimento nao sao acelerados.",
+    "UI_Upgrade_FertileResonance_L3": "O refugio leva culturas saudaveis a uma harmonia temporal quase perfeita, reduzindo bastante seus estagios base de crescimento. Agua, doencas e apodrecimento nao sao acelerados.",
     "UI_Effect_refugeSize": "Tamanho do refúgio",
     "UI_Effect_readingSpeedMultiplier": "Velocidade de leitura",
     "UI_Effect_refugeCastTimeMultiplier": "Velocidade de teleporte",
@@ -91,5 +96,6 @@
     "UI_Effect_refugeWoundRecoveryMultiplier": "Recuperacao de ferimentos",
     "UI_Effect_refugeSleepFatigueMultiplier": "Qualidade do sono",
     "UI_Effect_refugeMentalRecoveryMultiplier": "Recuperacao mental",
-    "UI_Effect_refugeStiffnessRecoveryMultiplier": "Recuperacao muscular"
+    "UI_Effect_refugeStiffnessRecoveryMultiplier": "Recuperacao muscular",
+    "UI_Effect_refugeCropGrowthTimeMultiplier": "Velocidade de crescimento"
 }

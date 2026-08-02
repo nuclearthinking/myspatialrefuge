@@ -447,7 +447,8 @@ function SRU_UpgradeDetails:formatEffect(name, value)
         end
 
         -- Time multipliers (lower = faster) - apply difficulty scaling
-        if name == "readingSpeedMultiplier" or name == "refugeCastTimeMultiplier" then
+        if name == "readingSpeedMultiplier" or name == "refugeCastTimeMultiplier" or
+           name == "refugeCropGrowthTimeMultiplier" then
             local scaledValue = D.positiveEffect(value)
             local speedBonus = math.floor((1 - scaledValue) * 100 + 0.5)
             local sign = speedBonus > 0 and "+" or ""

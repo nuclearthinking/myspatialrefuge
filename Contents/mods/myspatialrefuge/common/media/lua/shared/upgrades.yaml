@@ -963,6 +963,44 @@ upgrades:
             substitutes:
               - $pain_relief_tier2
 
+  fertile_resonance:
+    id: fertile_resonance
+    name: UI_Upgrade_FertileResonance
+    icon: Item_TZ_IndieStoneNPK
+    category: ecology
+    maxLevel: 3
+    dependencies: []
+    levels:
+      1:
+        description: UI_Upgrade_FertileResonance_L1
+        effects:
+          refugeCropGrowthTimeMultiplier: 0.85
+        requirements:
+          - type: Base.MagicalCore
+            count: 15
+          - type: Base.CompostBag
+            count: 2
+      2:
+        description: UI_Upgrade_FertileResonance_L2
+        effects:
+          refugeCropGrowthTimeMultiplier: 0.70
+        requirements:
+          - type: Base.MagicalCore
+            count: 35
+          - type: Base.Fertilizer
+            count: 4
+      3:
+        description: UI_Upgrade_FertileResonance_L3
+        effects:
+          refugeCropGrowthTimeMultiplier: 0.55
+        requirements:
+          - type: Base.MagicalCore
+            count: 75
+          - type: Base.Fertilizer
+            count: 8
+          - type: Base.BookFarming5
+            count: 1
+
 # =============================================================================
 # EXAMPLE UPGRADE (uncomment and modify to add new upgrades)
 # =============================================================================

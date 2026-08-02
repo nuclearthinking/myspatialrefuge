@@ -239,6 +239,42 @@ function Data.GetRefugeCoordinatesForSlot(slot)
            Config.REFUGE_BASE_Z
 end
 
+---Resolve the exact refuge containing world coordinates without loading its chunk.
+---The refuge grid is sparse, so the coarse slot calculation is followed by an
+---exact radius check against the authoritative refuge registry.
+---@param x number
+---@param y number
+---@param _z number|nil Reserved for future vertical bounds; refuges currently own their full column.
+---@return table|nil refugeData
+function Data.GetRefugeDataAtPosition(x, y, _z)
+    local slot = Data.GetRefugeSlotFromCoordinates(x, y)
+    if slot == nil then return nil end
+
+    local expectedX, expectedY = Data.GetRefugeCoordinatesForSlot(slot)
+    if expectedX == nil or expectedY == nil then return nil end
+
+    local registry = Data.GetRefugeRegistry()
+    if not registry then return nil end
+
+    for _, refugeData in pairs(registry) do
+        if refugeData and refugeData.centerX == expectedX and refugeData.centerY == expectedY then
+            local radius = tonumber(refugeData.radius)
+            if not radius then
+                local tier = Config.TIERS[tonumber(refugeData.tier) or 0]
+                radius = tier and tier.radius or 1
+            end
+
+            if x >= refugeData.centerX - radius and x <= refugeData.centerX + radius and
+               y >= refugeData.centerY - radius and y <= refugeData.centerY + radius then
+                return refugeData
+            end
+            return nil
+        end
+    end
+
+    return nil
+end
+
 function Data.GetRefugeSlotStats()
     local registry = Data.GetRefugeRegistry()
     local usedSlots = registry and K.count(registry) or 0
