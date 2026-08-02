@@ -1,4 +1,11 @@
 versions:
+- version: 1.24.1
+  date: August 2026
+  added: []
+  fixed: []
+  changed:
+  - Automatic Zombie Core pickup now prefers suitable equipped bags.
+  removed: []
 - version: '1.24'
   date: August 2026
   status: candidate
