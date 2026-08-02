@@ -3,6 +3,7 @@ LuaEventManager.AddEvent("MSR_OnInventoryChange")
 
 local DEBOUNCE_MS = 100  -- fires after inactivity to batch rapid operations
 local pendingEvent = nil
+---@type number
 local lastEventTime = 0
 local tickListenerActive = false
 

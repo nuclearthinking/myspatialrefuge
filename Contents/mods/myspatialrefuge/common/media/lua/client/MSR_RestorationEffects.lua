@@ -60,7 +60,7 @@ local function logEffect(player, fmt, ...)
     end
 end
 
-local function updateBaseline(player, stats, bodyDamage, state)
+local function updateBaseline(_player, stats, bodyDamage, state)
     state.fatigue = stats:get(CharacterStat.FATIGUE)
     state.stress = stats:get(CharacterStat.STRESS)
     state.panic = stats:get(CharacterStat.PANIC)
@@ -195,7 +195,9 @@ local function applyPeriodicEffects(player)
     if woundMultiplier > 1.0 then
         local parts = bodyDamage and bodyDamage.getBodyParts and bodyDamage:getBodyParts()
         if woundMultiplier > 1.0 and K.isIterable(parts) then
+            ---@type number
             local expectedTotal = 0
+            ---@type number
             local appliedTotal = 0
             local totalWoundTime = 0
             for i = 0, K.size(parts) - 1 do
@@ -312,7 +314,9 @@ local function applyPeriodicEffects(player)
     local stiffnessMultiplier = getScaledMultiplier(EffectSystem.getEffect(player, "refugeStiffnessRecoveryMultiplier", 1.0))
     local parts = bodyDamage and bodyDamage.getBodyParts and bodyDamage:getBodyParts()
     if stiffnessMultiplier > 1.0 and K.isIterable(parts) then
+        ---@type number
         local expectedTotal = 0
+        ---@type number
         local appliedTotal = 0
         local totalStiffness = 0
         local directDecay = 0.001 * (stiffnessMultiplier - 1.0)

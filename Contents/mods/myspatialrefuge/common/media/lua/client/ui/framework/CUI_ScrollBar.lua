@@ -10,6 +10,10 @@
 
 require "ISUI/ISScrollBar"
 
+---@class CUI_ScrollBar : ISScrollBar
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field pos number
+---@field barheight number
 CUI_ScrollBar = ISScrollBar:derive("CUI_ScrollBar")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -47,7 +51,9 @@ function CUI_ScrollBar:instantiate()
     self.javaObject:setScrollWithParent(false)
 end
 
+---@return CUI_ScrollBar
 function CUI_ScrollBar:new(parent, vertical)
+    ---@type CUI_ScrollBar
     local o = ISScrollBar:new(parent, vertical)
     setmetatable(o, self)
     self.__index = self

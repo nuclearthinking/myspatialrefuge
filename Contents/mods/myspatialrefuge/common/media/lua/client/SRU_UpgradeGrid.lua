@@ -5,10 +5,10 @@
 require "ISUI/ISPanel"
 require "MSR_UpgradeData"
 
+---@class SRU_UpgradeGrid : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field slots SRU_UpgradeSlot[]
 SRU_UpgradeGrid = ISPanel:derive("SRU_UpgradeGrid")
-
-local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
-local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 
 -----------------------------------------------------------
 -- Configuration
@@ -20,7 +20,9 @@ local Config = require "ui/framework/CUI_Config"
 -- Constructor
 -----------------------------------------------------------
 
+---@return SRU_UpgradeGrid
 function SRU_UpgradeGrid:new(x, y, width, height, parentWindow)
+    ---@type SRU_UpgradeGrid
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -168,6 +170,7 @@ function SRU_UpgradeGrid:refreshSlots()
             if upgradeIndex <= #self.upgrades then
                 local slot = self.slots[slotIndex]
                 local upgrade = self.upgrades[upgradeIndex]
+                if not slot then break end
                 
                 -- Position slot
                 local x = self.padding + col * (self.slotSize + self.slotSpacing)
@@ -306,9 +309,13 @@ end
 -- Upgrade Slot Component
 -----------------------------------------------------------
 
+---@class SRU_UpgradeSlot : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 SRU_UpgradeSlot = ISPanel:derive("SRU_UpgradeSlot")
 
+---@return SRU_UpgradeSlot
 function SRU_UpgradeSlot:new(x, y, width, height, grid, index)
+    ---@type SRU_UpgradeSlot
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -346,7 +353,7 @@ function SRU_UpgradeSlot:setSelected(selected)
     self.isSelected = selected
 end
 
-function SRU_UpgradeSlot:onMouseDown(x, y)
+function SRU_UpgradeSlot:onMouseDown(_x, _y)
     -- Allow clicking locked upgrades so users can see their requirements
     if self.upgrade then
         self.grid:selectUpgrade(self.upgradeIndex)
@@ -354,11 +361,11 @@ function SRU_UpgradeSlot:onMouseDown(x, y)
     return true
 end
 
-function SRU_UpgradeSlot:onMouseMove(dx, dy)
+function SRU_UpgradeSlot:onMouseMove(_dx, _dy)
     self.isHovered = true
 end
 
-function SRU_UpgradeSlot:onMouseMoveOutside(dx, dy)
+function SRU_UpgradeSlot:onMouseMoveOutside(_dx, _dy)
     self.isHovered = false
 end
 

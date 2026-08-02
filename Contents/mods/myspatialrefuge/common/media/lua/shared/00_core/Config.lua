@@ -193,6 +193,7 @@ function MSR.Config.getEssenceEnabled()
 end
 
 function MSR.Config.getEssenceRetentionPercent()
+    ---@type number
     local baseValue = MSR.Config.ESSENCE_RETENTION_PERCENT
     local sandbox = SandboxVars and SandboxVars.MySpatialRefuge
     
@@ -223,6 +224,7 @@ end
 
 function MSR.Config.getDecayMinDays()
     local sandbox = SandboxVars and SandboxVars.MySpatialRefuge
+    ---@type number
     local value = MSR.Config.DECAY_MIN_DAYS
 
     if sandbox and type(sandbox.DecayMinDays) == "number" then
@@ -248,12 +250,13 @@ function MSR.Config.getDecayTriggerPercent()
 end
 
 function MSR.Config.getDecayTriggerSlotCount()
+    ---@type number
     local slotCount = MSR.Config.getRefugeSlotCount()
     local triggerSlots = math.floor(slotCount * (MSR.Config.getDecayTriggerPercent() / 100))
     if triggerSlots < 1 then
         triggerSlots = 1
     elseif triggerSlots > slotCount then
-        triggerSlots = slotCount
+        triggerSlots = math.floor(slotCount)
     end
     return triggerSlots
 end

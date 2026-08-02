@@ -185,7 +185,7 @@ local function buildZombieIdLookup(ids)
     return idLookup
 end
 
-local function handleClearZombies(args, player)
+local function handleClearZombies(args, _player)
     if not args or not K.isIterable(args.zombieIDs) or K.size(args.zombieIDs) == 0 then return end
 
     local cell = getCell()

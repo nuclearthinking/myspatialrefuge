@@ -233,7 +233,7 @@ local function consumeUpgradeRequirements(player, requirements, lockedItemIds)
     return MSR.UpgradeLogic.consumeItems(player, requirements)
 end
 
-function MSR_Server.HandleModDataRequest(player, args)
+function MSR_Server.HandleModDataRequest(player, _args)
     if not player then return end
     
     local username = player:getUsername()
@@ -359,7 +359,7 @@ function MSR_Server.HandleEnterRequest(player, args)
     })
 end
 
-function MSR_Server.HandleChunksReady(player, args)
+function MSR_Server.HandleChunksReady(player, _args)
     if not player then return end
     
     local username = player:getUsername()
@@ -448,11 +448,11 @@ function MSR_Server.HandleChunksReady(player, args)
             -- We only need a single RecalcAllWithNeighbours pass for proper rendering
             local RECALC_DELAY_TICKS = 60  -- 1 second delay for chunks to fully initialize
             MSR.delay(RECALC_DELAY_TICKS, function()
-                local centerX = refugeDataRef.centerX
-                local centerY = refugeDataRef.centerY
-                local centerZ = refugeDataRef.centerZ
-                local radius = refugeDataRef.radius or 1
-                local recalculated = MSR.World.recalcArea(centerX, centerY, centerZ, radius + 1)
+                local recalcX = refugeDataRef.centerX
+                local recalcY = refugeDataRef.centerY
+                local recalcZ = refugeDataRef.centerZ
+                local recalcRadius = refugeDataRef.radius or 1
+                local recalculated = MSR.World.recalcArea(recalcX, recalcY, recalcZ, recalcRadius + 1)
 
                 LOG.debug( "Recalculated " .. recalculated .. " squares for visibility")
             end)
@@ -466,7 +466,7 @@ function MSR_Server.HandleChunksReady(player, args)
                 local registry = MSR.Data.GetRefugeRegistry()
                 local count = 0
                 if registry then
-                    for k, v in pairs(registry) do
+                    for k in pairs(registry) do
                         count = count + 1
                         LOG.debug( "ModData contains refuge: " .. tostring(k))
                     end
@@ -500,7 +500,7 @@ function MSR_Server.HandleChunksReady(player, args)
     Events.OnTick.Add(waitForServerChunks)
 end
 
-function MSR_Server.HandleExitRequest(player, args)
+function MSR_Server.HandleExitRequest(player, _args)
     if not player then return end
     
     local username = player:getUsername()
@@ -1150,7 +1150,7 @@ local function OnPlayerFullyConnected(player)
             local registry = MSR.Data.GetRefugeRegistry()
             if registry then
                 local count = 0
-                for k, v in pairs(registry) do
+                for _ in pairs(registry) do
                     count = count + 1
                 end
                 LOG.debug( "ModData has " .. count .. " refuge entries")
@@ -1194,7 +1194,7 @@ if Events.OnPlayerConnect then
 end
 
 if Events.OnCreatePlayer then
-    Events.OnCreatePlayer.Add(function(playerIndex, player)
+    Events.OnCreatePlayer.Add(function(_playerIndex, player)
         if MSR.Env.isServer() then
             OnPlayerConnect(player)
             OnPlayerFullyConnected(player)

@@ -25,6 +25,11 @@
 require "ISUI/ISUIElement"
 require "ui/framework/CUI_ScrollBar"
 
+---@class CUI_VirtualScrollView : ISUIElement
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field itemPool ISUIElement[]
+---@field maxScrollOffset number
+---@field scrollOffset number
 CUI_VirtualScrollView = ISUIElement:derive("CUI_VirtualScrollView")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -33,7 +38,9 @@ local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 -- INITIALIZATION
 --==============================================================================
 
+---@return CUI_VirtualScrollView
 function CUI_VirtualScrollView:new(x, y, w, h)
+    ---@type CUI_VirtualScrollView
     local o = ISUIElement:new(x, y, w, h)
     setmetatable(o, self)
     self.__index = self
@@ -274,6 +281,7 @@ function CUI_VirtualScrollView:refreshItems()
         if dataIndex <= #self.dataSource then
             local item = self.itemPool[poolIndex]
             local data = self.dataSource[dataIndex]
+            if not item then break end
             
             if needReassignData then
                 self.onUpdateItem(item, data)

@@ -6,6 +6,15 @@
 require "ISUI/ISPanel"
 require "MSR_UpgradeItemCache"
 
+---@class SRU_IngredientList : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field scrollOffset number
+---@field maxScroll number
+---@field _sbDragOffsetY number
+---@field _sbThumbY number
+---@field _sbThumbH number
+---@field _sbTrackY number
+---@field _sbTrackH number
 SRU_IngredientList = ISPanel:derive("SRU_IngredientList")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -16,12 +25,15 @@ local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 -----------------------------------------------------------
 
 local Config = require "ui/framework/CUI_Config"
+local SCROLLBAR_WIDTH = 10
 
 -----------------------------------------------------------
 -- Constructor
 -----------------------------------------------------------
 
+---@return SRU_IngredientList
 function SRU_IngredientList:new(x, y, width, height, parentWindow)
+    ---@type SRU_IngredientList
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -63,6 +75,7 @@ function SRU_IngredientList:initialise()
     ISPanel.initialise(self)
 end
 
+---@diagnostic disable-next-line: unused -- ISPanel override required by PZ.
 function SRU_IngredientList:createChildren()
     -- No children needed - we render everything manually
 end
@@ -89,7 +102,7 @@ function SRU_IngredientList:invalidateItemCache()
     end
 end
 
-function SRU_IngredientList:getItemMeta(itemType, sampleItem)
+function SRU_IngredientList:getItemMeta(itemType, _sampleItem)
     return MSR.UpgradeItemCache.getItemMeta(itemType, self.player)
 end
 
@@ -267,6 +280,7 @@ function SRU_IngredientList:onMouseDown(x, y)
         if targetThumbY > maxThumbY then targetThumbY = maxThumbY end
 
         local denom = (self._sbTrackH - self._sbThumbH)
+        ---@type number
         local ratio = 0
         if denom > 0 then
             ratio = (targetThumbY - self._sbTrackY) / denom
@@ -278,7 +292,7 @@ function SRU_IngredientList:onMouseDown(x, y)
     return false
 end
 
-function SRU_IngredientList:onMouseUp(x, y)
+function SRU_IngredientList:onMouseUp(_x, _y)
     if self._sbDragging then
         self._sbDragging = false
         if Events and Events.OnTick and self._sbTickFn then
@@ -290,7 +304,7 @@ function SRU_IngredientList:onMouseUp(x, y)
     return false
 end
 
-function SRU_IngredientList:onMouseUpOutside(x, y)
+function SRU_IngredientList:onMouseUpOutside(_x, _y)
     if self._sbDragging then
         self._sbDragging = false
         if Events and Events.OnTick and self._sbTickFn then
@@ -302,7 +316,7 @@ function SRU_IngredientList:onMouseUpOutside(x, y)
     return false
 end
 
-function SRU_IngredientList:onMouseMove(dx, dy)
+function SRU_IngredientList:onMouseMove(_dx, _dy)
     if not self._sbDragging then
         return false
     end
@@ -321,6 +335,7 @@ function SRU_IngredientList:updateScrollFromThumbY(targetThumbY)
     if targetThumbY > maxThumbY then targetThumbY = maxThumbY end
 
     local denom = (self._sbTrackH - self._sbThumbH)
+    ---@type number
     local ratio = 0
     if denom > 0 then
         ratio = (targetThumbY - self._sbTrackY) / denom
@@ -358,7 +373,7 @@ function SRU_IngredientList:render()
     local listWidth = self.width - padding * 2
 
     -- Reserve space for scrollbar so it doesn't overlap the count column.
-    local scrollbarW = self:getScrollbarWidth()
+    local scrollbarW = SCROLLBAR_WIDTH
     local showScrollbar = self.maxScroll and self.maxScroll > 0
     if showScrollbar then
         listWidth = listWidth - (scrollbarW + 4)
@@ -382,9 +397,6 @@ function SRU_IngredientList:render()
     
     -- Draw each item
     local itemY = listTop - self.scrollOffset
-    local iconPadding = 4
-    local iconSize = self.itemHeight - iconPadding * 2
-    
     for i, itemInfo in ipairs(self.availableItems) do
         -- Only draw if visible
         if itemY + self.itemHeight > listTop and itemY < listTop + listHeight then
@@ -400,10 +412,6 @@ function SRU_IngredientList:render()
     if showScrollbar then
         self:drawScrollbar(padding + listWidth + 4, listTop, listHeight)
     end
-end
-
-function SRU_IngredientList:getScrollbarWidth()
-    return 10
 end
 
 function SRU_IngredientList:drawIngredientItem(x, y, width, height, itemInfo, index)
@@ -472,7 +480,7 @@ function SRU_IngredientList:drawIngredientItem(x, y, width, height, itemInfo, in
 end
 
 function SRU_IngredientList:drawScrollbar(scrollbarX, listTop, listHeight)
-    local scrollbarWidth = self:getScrollbarWidth()
+    local scrollbarWidth = SCROLLBAR_WIDTH
     
     -- Track
     self:drawRect(scrollbarX, listTop, scrollbarWidth, listHeight, 0.5, 0.1, 0.1, 0.15)
@@ -480,6 +488,7 @@ function SRU_IngredientList:drawScrollbar(scrollbarX, listTop, listHeight)
     -- Calculate thumb size and position
     local contentHeight = #self.availableItems * self.itemHeight
     local thumbRatio = listHeight / contentHeight
+    ---@type number
     local thumbHeight = math.max(20, listHeight * thumbRatio)
     local scrollRatio = self.scrollOffset / self.maxScroll
     local thumbY = listTop + (listHeight - thumbHeight) * scrollRatio

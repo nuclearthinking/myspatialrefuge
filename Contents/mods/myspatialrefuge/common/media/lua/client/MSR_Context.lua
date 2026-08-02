@@ -135,7 +135,7 @@ local function isSacredRelicObject(obj)
     return false
 end
 
-local function OnFillWorldObjectContextMenu(player, context, worldObjects, test)
+local function OnFillWorldObjectContextMenu(player, context, worldObjects, _test)
     if not context then return end
 
     local playerObj = player

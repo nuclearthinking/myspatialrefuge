@@ -119,7 +119,11 @@ local function tryEnterRefuge(player)
 
     local canEnter, reason = MSR.CanEnterRefuge(player)
     if not canEnter then
-        PM.SayRaw(player, reason)
+        if reason then
+            PM.SayRaw(player, reason)
+        else
+            PM.Say(player, PM.REFUGE_ERROR)
+        end
         return
     end
     if MSR.BeginTeleportCast then

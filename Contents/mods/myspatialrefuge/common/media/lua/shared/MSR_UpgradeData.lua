@@ -158,7 +158,7 @@ end
 
 -- Initialization
 
-local function processUpgrade(id, upgrade, source)
+local function processUpgrade(id, upgrade, _source)
     upgrade.id = id
     upgrade.name = upgrade.name or ("Upgrade_" .. id)
     upgrade.icon = upgrade.icon or "media/ui/upgrades/default.png"

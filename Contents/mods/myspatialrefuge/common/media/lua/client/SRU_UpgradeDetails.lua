@@ -8,6 +8,8 @@ require "MSR_UpgradeData"
 require "MSR_UpgradeLogic"
 require "MSR_UpgradeItemCache"
 
+---@class SRU_UpgradeDetails : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 SRU_UpgradeDetails = ISPanel:derive("SRU_UpgradeDetails")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -36,7 +38,9 @@ local Config = require "ui/framework/CUI_Config"
 -- Constructor
 -----------------------------------------------------------
 
+---@return SRU_UpgradeDetails
 function SRU_UpgradeDetails:new(x, y, width, height, parentWindow)
+    ---@type SRU_UpgradeDetails
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -186,7 +190,7 @@ function SRU_UpgradeDetails:updateUpgradeButton()
     end
     
     -- Check if can upgrade
-    local canUpgrade, err = MSR.UpgradeData.canUpgrade(self.player, self.upgrade.id)
+    local canUpgrade = MSR.UpgradeData.canUpgrade(self.player, self.upgrade.id)
     
     -- Check if has required items
     local hasItems = self:checkHasRequiredItems()
@@ -387,6 +391,7 @@ end
 -- Helpers
 -----------------------------------------------------------
 
+---@diagnostic disable-next-line: unused -- Kept as an overridable panel helper.
 function SRU_UpgradeDetails:wrapText(text, maxWidth, font)
     local lines = {}
     local currentLine = ""
@@ -457,6 +462,7 @@ function SRU_UpgradeDetails:formatEffect(name, value)
     end
 end
 
+---@diagnostic disable-next-line: unused -- Kept as an overridable panel helper.
 function SRU_UpgradeDetails:isAbstractEffect(name)
     return ABSTRACT_EFFECTS[name] == true
 end

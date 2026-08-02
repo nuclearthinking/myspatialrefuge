@@ -11,10 +11,22 @@
 
 require "00_core/00_MSR"
 
+---@class MSRPlayerMessage
+---@field [any] any Message keys and extension pools are registered dynamically.
+---@field Say fun(player: IsoPlayer, messageKey: string, ...): boolean
+---@field SayRaw fun(player: IsoPlayer, text: string): boolean
+---@field SayRandom fun(player: IsoPlayer, poolKey: string): boolean
+---@field GetText fun(messageKey: string): string
+---@field GetFormattedText fun(messageKey: string, ...): string
+---@field Register fun(messageKey: string, translationKey: string)
+---@field RegisterPool fun(poolKey: string, translationKeys: string[])
+
+---@type MSRPlayerMessage|nil
 local PlayerMessage = MSR.register("PlayerMessage")
 if not PlayerMessage then return MSR.PlayerMessage end
 
 -- Short alias for internal use
+---@type MSRPlayerMessage
 local PM = MSR.PlayerMessage
 
 local function getTextFormatted(key, ...)
@@ -114,6 +126,7 @@ PM.PROTECTED_OBJECT = "PROTECTED_OBJECT"
 -- Maps message keys to IGUI translation keys
 -----------------------------------------------------------
 
+---@type table<string, string>
 local MessageToTranslationKey = {
     -- Teleportation
     [PM.ENTERED_REFUGE] = "IGUI_EnteredRefuge",
@@ -179,6 +192,7 @@ local MessageToTranslationKey = {
 -- Internal: Message Pools for Random Selection
 -----------------------------------------------------------
 
+---@type table<string, string[]>
 local MessagePools = {
     [PM.PROTECTED_OBJECT] = {
         "IGUI_ProtectedObject_1",
@@ -332,6 +346,7 @@ function PM.SayRandom(player, poolKey)
     -- Pick random from pool (1-based indexing)
     local index = ZombRand(#pool) + 1
     local translationKey = pool[index]
+    if not translationKey then return false end
     local text = getText and getText(translationKey) or translationKey
     
     player:Say(text)

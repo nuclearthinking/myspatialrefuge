@@ -14,16 +14,19 @@
 require "ISUI/ISPanel"
 require "ISUI/ISTextEntryBox"
 
+---@class CUI_SearchBox : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 CUI_SearchBox = ISPanel:derive("CUI_SearchBox")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
-local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 
 --==============================================================================
 -- CONSTRUCTOR
 --==============================================================================
 
+---@return CUI_SearchBox
 function CUI_SearchBox:new(x, y, width, height)
+    ---@type CUI_SearchBox
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -68,8 +71,7 @@ function CUI_SearchBox:createChildren()
     -- Text entry box
     local entryX = self.padding + self.searchIconSize + self.padding
     local entryWidth = self.width - entryX - self.clearButtonSize - self.padding
-    local entryY = (self.height - FONT_HGT_SMALL) / 2
-    
+
     self.textEntry = ISTextEntryBox:new(
         "", 
         entryX, 

@@ -4,6 +4,7 @@ local ZombieClear = MSR.register("ZombieClear")
 if not ZombieClear then return MSR.ZombieClear end
 local LOG = L.logger("ZombieClear")
 
+---@type number
 local clearingPausedUntil = 0
 local PAUSE_DURATION = 10 -- seconds
 local ZOMBIE_CLEAR_BUFFER = 3
