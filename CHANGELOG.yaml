@@ -1,4 +1,12 @@
 versions:
+- version: '1.25'
+  date: August 2026
+  added:
+  - Added the three-level Fertile Resonance upgrade, which accelerates healthy crop growth inside the refuge without accelerating
+    water use, disease, or decay.
+  fixed: []
+  changed: []
+  removed: []
 - version: 1.24.1
   date: August 2026
   added: []
