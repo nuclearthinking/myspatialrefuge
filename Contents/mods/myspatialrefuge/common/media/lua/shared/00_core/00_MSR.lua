@@ -1,3 +1,5 @@
+---@param modId string
+---@return ModInfo
 local function resolveModInfo(modId)
     local variants = { modId }
     if modId:sub(1, 1) ~= "\\" then
@@ -9,7 +11,7 @@ local function resolveModInfo(modId)
             return getModInfoByID(candidate)
         end)
         if ok and modInfo then
-            return modInfo
+            return modInfo --[[@as ModInfo]]
         end
     end
 
@@ -17,6 +19,10 @@ local function resolveModInfo(modId)
 end
 
 local modInfo = resolveModInfo("myspatialrefuge")
+---@class MSRNamespace
+---@field PlayerMessage MSRPlayerMessage
+---@field [any] any Modules are registered dynamically through MSR.register.
+---@type MSRNamespace
 MSR = {
     ---@diagnostic disable-next-line: undefined-field
     VERSION = modInfo:getModVersion(),

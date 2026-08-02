@@ -11,6 +11,7 @@ function ISEnterRefugeAction:isValid()
     return true
 end
 
+---@diagnostic disable-next-line: unused -- Timed-action override required by PZ.
 function ISEnterRefugeAction:update() end
 
 function ISEnterRefugeAction:start()

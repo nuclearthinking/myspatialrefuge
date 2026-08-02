@@ -7,6 +7,7 @@ function ISExitRefugeAction:isValid()
     return self.character ~= nil
 end
 
+---@diagnostic disable-next-line: unused -- Timed-action override required by PZ.
 function ISExitRefugeAction:update() end
 
 function ISExitRefugeAction:start()

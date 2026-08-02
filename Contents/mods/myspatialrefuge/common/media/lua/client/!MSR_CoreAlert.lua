@@ -49,6 +49,7 @@ end
 
 local function delayedCheck(ticks, callback)
     local count = 0
+    ---@type function
     local checkFunc
     checkFunc = function()
         count = count + 1

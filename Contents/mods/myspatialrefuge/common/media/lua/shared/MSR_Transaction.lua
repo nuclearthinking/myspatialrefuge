@@ -364,9 +364,6 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     
     LOG.debug("BEGIN: " .. transactionId .. " for " .. username)
     
-    -- Start timeout handler
-    Transaction._startTimeoutHandler(playerObj, transactionType, transactionId)
-    
     return transaction, nil
 end
 
@@ -588,12 +585,6 @@ end
 
 -- Note: TIMEOUT_SECONDS is defined at top of file for use in Begin() immediate expiry check
 
--- No-op: timeout info is in transaction.createdAt, checked by periodic handler
-function Transaction._startTimeoutHandler(player, transactionType, transactionId)
-    -- Timeout is checked by _checkAllTransactionTimeouts() periodically
-    -- Transaction.createdAt is set in Transaction.Begin()
-end
-
 -- Batch check all pending transactions for timeout
 -- Called by EveryTenSeconds event handler
 function Transaction._checkAllTransactionTimeouts()
@@ -672,7 +663,7 @@ local function OnPlayerDisconnect(player)
     -- Rollback any pending transactions
     local playerTransactions = activeTransactions[username]
     if playerTransactions then
-        for transactionType, transaction in pairs(playerTransactions) do
+        for _, transaction in pairs(playerTransactions) do
             if transaction.status == Transaction.STATE.PENDING then
                 Transaction.Rollback(playerObj, transaction.id)
             end
@@ -737,7 +728,7 @@ function Transaction.ForceCleanup()
     local count = 0
     local playerTransactions = activeTransactions[username]
     if playerTransactions then
-        for transactionType, transaction in pairs(playerTransactions) do
+        for _, transaction in pairs(playerTransactions) do
             if transaction then
                 LOG.debug("FORCE CLEANUP: " .. tostring(transaction.id) .. " (status=" .. tostring(transaction.status) .. ")")
                 -- Unlock any locked items
@@ -964,7 +955,7 @@ function Transaction.ResolveSubstitutions(player, requirements)
             local alreadyResolved = resolved[req.type] or 0
             local actuallyAvailable = initialCounts[req.type] - alreadyResolved
             if actuallyAvailable > 0 then
-                local toUse = math.min(remaining, actuallyAvailable)
+                local toUse = math.floor(math.min(remaining, actuallyAvailable))
                 resolved[req.type] = alreadyResolved + toUse
                 remaining = remaining - toUse
             end
@@ -979,7 +970,7 @@ function Transaction.ResolveSubstitutions(player, requirements)
                     local alreadyResolved = resolved[subType] or 0
                     local actuallyAvailable = initialCounts[subType] - alreadyResolved
                     if actuallyAvailable > 0 then
-                        local toUse = math.min(remaining, actuallyAvailable)
+                        local toUse = math.floor(math.min(remaining, actuallyAvailable))
                         if toUse > 0 then
                             resolved[subType] = alreadyResolved + toUse
                             remaining = remaining - toUse

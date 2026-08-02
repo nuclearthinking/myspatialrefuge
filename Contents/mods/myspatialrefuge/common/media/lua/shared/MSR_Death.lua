@@ -23,6 +23,7 @@ local processedDeaths = {}
 
 local function summarizeXpMap(xpMap)
     local count = 0
+    ---@type number
     local total = 0
     for _, amount in pairs(xpMap or {}) do
         if type(amount) == "number" then
@@ -65,7 +66,7 @@ end
 --- @return boolean
 function Death.IsProtected(body)
     local md = MSR.World.getModData(body)
-    return md and md[Death.PROTECTED_KEY] == true
+    return md ~= nil and md[Death.PROTECTED_KEY] == true
 end
 
 

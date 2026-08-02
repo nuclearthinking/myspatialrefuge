@@ -121,7 +121,8 @@ function Env.isSingleplayer()
     return not Env.isServer() and not Env.isClient()
 end
 
---- @deprecated Use isServerProcess() instead - clearer naming
+--- Returns true in a dedicated or co-op server process.
+--- Compatibility alias for isServerProcess(); co-op server and client run as separate processes.
 function Env.isDedicatedServer()
     return Env.isServer() and not Env.isClient()
 end
@@ -131,8 +132,8 @@ function Env.isServerProcess()
     return Env.isServer()
 end
 
---- Returns true if this is a client process in multiplayer
---- @deprecated Use isClientProcess() instead - clearer naming
+--- Returns true in a remote or co-op multiplayer client process.
+--- Compatibility alias for isClientProcess(); co-op server and client run as separate processes.
 function Env.isMultiplayerClient()
     return Env.isClient() and not Env.isServer()
 end

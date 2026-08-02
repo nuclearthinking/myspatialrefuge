@@ -9,11 +9,11 @@ function require(modname) end
 
 -- Time functions
 ---Returns current Unix timestamp in seconds
----@return integer
+---@return number
 function getTimestamp() end
 
 ---Returns current Unix timestamp in milliseconds
----@return integer
+---@return number
 function getTimestampMs() end
 
 -- World/Game state
@@ -57,6 +57,15 @@ function instanceof(obj, className) end
 ---@field isLocalPlayer fun(self: IsoPlayer): boolean
 ---@field DistToProper fun(self: IsoPlayer, other: IsoObject|IsoPlayer): number
 ---@field getInventory fun(self: IsoPlayer): ItemContainer Get player's inventory container
+---@field getCurrentSquare fun(self: IsoPlayer): IsoGridSquare|nil
+---@field getVehicle fun(self: IsoPlayer): BaseVehicle|nil
+---@field isSeatedInVehicle fun(self: IsoPlayer): boolean
+---@field setX fun(self: IsoPlayer, x: number)
+---@field setLastX fun(self: IsoPlayer, x: number)
+---@field setY fun(self: IsoPlayer, y: number)
+---@field setLastY fun(self: IsoPlayer, y: number)
+---@field setZ fun(self: IsoPlayer, z: number)
+---@field setLastZ fun(self: IsoPlayer, z: number)
 IsoPlayer = {}
 
 ---@param playerNum? integer
@@ -69,6 +78,9 @@ function getSpecificPlayer(playerNum) end
 ---@return integer
 function getNumActivePlayers() end
 
+---@return ArrayList
+function getOnlinePlayers() end
+
 -- World access
 ---@return IsoWorld
 function getWorld() end
@@ -78,6 +90,7 @@ function getWorld() end
 ---@field getCell fun(self: IsoWorld): IsoCell Get the world cell
 ---@field isHydroPowerOn fun(self: IsoWorld): boolean Check if hydro power is on
 ---@field setHydroPowerOn fun(self: IsoWorld, on: boolean)
+---@field getMetaGrid fun(self: IsoWorld): IsoMetaGrid
 IsoWorld = {}
 
 ---@class IsoGridSquare
@@ -96,14 +109,33 @@ IsoWorld = {}
 ---@field removeCorpse fun(self: IsoGridSquare, corpse: IsoObject, b: boolean) Remove corpse from square
 ---@field RecalcAllWithNeighbours fun(self: IsoGridSquare, b: boolean) Recalculate all with neighbours
 ---@field AddSpecialObject fun(self: IsoGridSquare, obj: IsoObject)
+---@field has fun(self: IsoGridSquare, flag: IsoFlagType): boolean
+---@field getRoomID fun(self: IsoGridSquare): number
+---@field setRoomID fun(self: IsoGridSquare, roomId: number)
+---@field setPlayerCutawayFlag fun(self: IsoGridSquare, playerIndex: number, value: number, timestamp: number)
+---@field setSquareChanged fun(self: IsoGridSquare)
+---@field invalidateRenderChunkLevel fun(self: IsoGridSquare, flags: integer)
+---@field AddWorldInventoryItem fun(self: IsoGridSquare, item: InventoryItem|string, xoff: number, yoff: number, zoff: number, transmit?: boolean): InventoryItem|nil
+---@field getVehicleContainer fun(self: IsoGridSquare): BaseVehicle|nil
+---@field EnsureSurroundNotNull fun(self: IsoGridSquare)
+---@field RecalcProperties fun(self: IsoGridSquare)
 IsoGridSquare = {}
+
+---@param cell IsoCell
+---@param slice unknown
+---@param x number
+---@param y number
+---@param z number
+---@return IsoGridSquare
+function IsoGridSquare.new(cell, slice, x, y, z) end
 
 ---@class IsoChunk
 IsoChunk = {}
 
 ---@class IsoCell
----@field getGridSquare fun(self: IsoCell, x: integer, y: integer, z: integer): IsoGridSquare|nil
+---@field getGridSquare fun(self: IsoCell, x: number, y: number, z: number): IsoGridSquare|nil
 ---@field getZombieList fun(self: IsoCell): ArrayList Get list of zombies in this cell
+---@field ConnectNewSquare fun(self: IsoCell, square: IsoGridSquare, recalc: boolean)
 IsoCell = {}
 
 ---@return IsoCell
@@ -114,6 +146,16 @@ function getGameTime() end
 
 ---@return ClimateManager
 function getClimateManager() end
+
+---@class IsoMetaGrid
+---@field getRoomByID fun(self: IsoMetaGrid, roomId: number): IsoRoom|nil
+IsoMetaGrid = {}
+
+---@class IsoRoom
+---@field addSquare fun(self: IsoRoom, square: IsoGridSquare)
+---@field waterSources ArrayList
+---@field lightSwitches ArrayList
+IsoRoom = {}
 
 -- Script/Item access
 ---@param fullType string
@@ -143,7 +185,21 @@ InventoryItem = {}
 ---@field AddItem fun(self: ItemContainer, item: InventoryItem|string): InventoryItem|nil Add item to container
 ---@field Remove fun(self: ItemContainer, item: InventoryItem) Remove item from container
 ---@field getItemCount fun(self: ItemContainer): integer Get total item count
+---@field getItemsFromCategory fun(self: ItemContainer, category: string): ArrayList
+---@field getCountType fun(self: ItemContainer, itemType: string): integer
+---@field getItemById fun(self: ItemContainer, itemId: number): InventoryItem|nil
+---@field getItemWithIDRecursiv fun(self: ItemContainer, itemId: number): InventoryItem|nil
+---@field DoRemoveItem fun(self: ItemContainer, item: InventoryItem)
+---@field hasRoomFor fun(self: ItemContainer, character: IsoPlayer, item: InventoryItem): boolean
 ItemContainer = {}
+
+---@param container ItemContainer
+---@param item InventoryItem
+function sendAddItemToContainer(container, item) end
+
+---@param container ItemContainer
+---@param item InventoryItem
+function sendRemoveItemFromContainer(container, item) end
 
 -- Mod functions
 ---@return ArrayList
@@ -152,6 +208,19 @@ function getActivatedMods() end
 ---@param modId string
 ---@return ModInfo|nil
 function getModInfoByID(modId) end
+
+---@class ModInfo
+---@field getModVersion fun(self: ModInfo): string
+---@field getName fun(self: ModInfo): string
+---@field getDir fun(self: ModInfo): string
+---@field getVersionDir fun(self: ModInfo): string
+---@field getCommonDir fun(self: ModInfo): string
+ModInfo = {}
+
+---@class BufferedReader
+---@field readLine fun(self: BufferedReader): string|nil
+---@field close fun(self: BufferedReader)
+BufferedReader = {}
 
 ---@param modId string
 ---@param path string
@@ -177,6 +246,7 @@ function getFileWriter(filename, createIfNull, append) end
 ---@field getScreenHeight fun(self: Core): integer
 ---@field getOptionFontSize fun(self: Core): integer
 ---@field getKey fun(self: Core, name: string): integer
+---@field getDebug fun(self: Core): boolean
 Core = {}
 
 ---@return Core
@@ -188,6 +258,10 @@ function getUIManager() end
 ---@return SoundManager
 function getSoundManager() end
 
+---@class SoundManager
+---@field playUISound fun(self: SoundManager, name: string)
+SoundManager = {}
+
 ---@return TextManager
 function getTextManager() end
 
@@ -196,6 +270,13 @@ function getScreenWidth() end
 
 ---@return integer
 function getScreenHeight() end
+
+---@return number
+function getMouseY() end
+
+---@param button integer
+---@return boolean
+function isMouseButtonDown(button) end
 
 -- UI Font enum
 ---@class UIFont
@@ -226,6 +307,17 @@ UIFont = {}
 ---@field MeasureStringY fun(self: TextManager, font: UIFont, text: string): integer
 TextManager = {}
 
+---@class Texture
+---@field javaObject unknown
+---@field getWidth fun(self: Texture): integer
+---@field getHeight fun(self: Texture): integer
+Texture = {}
+
+---@class NinePatchTexture
+---@field getSharedTexture fun(path: string): NinePatchTexture|nil
+---@field render fun(self: NinePatchTexture, x: number, y: number, width: number, height: number, r: number, g: number, b: number, a: number)
+NinePatchTexture = {}
+
 -- UI Base Classes
 ---@class ISUIElement
 ---@field x number
@@ -239,12 +331,14 @@ TextManager = {}
 ---@field moveWithMouse boolean
 ---@field resizable boolean
 ---@field drawFrame boolean
+---@field javaObject unknown
 ---@field backgroundColor table
 ---@field borderColor table
 ---@field backgroundColorMouseOver table
 ---@field addChild fun(self: ISUIElement, child: ISUIElement)
 ---@field removeChild fun(self: ISUIElement, child: ISUIElement)
 ---@field setVisible fun(self: ISUIElement, visible: boolean)
+---@field setAlwaysOnTop fun(self: ISUIElement, alwaysOnTop: boolean)
 ---@field isVisible fun(self: ISUIElement): boolean
 ---@field getX fun(self: ISUIElement): number
 ---@field getY fun(self: ISUIElement): number
@@ -267,6 +361,9 @@ TextManager = {}
 ---@field prerender fun(self: ISUIElement)
 ---@field getScreenWidth fun(self: ISUIElement): integer
 ---@field getScreenHeight fun(self: ISUIElement): integer
+---@field getAbsoluteX fun(self: ISUIElement): number
+---@field getAbsoluteY fun(self: ISUIElement): number
+---@field isMouseOver fun(self: ISUIElement): boolean
 ---@field drawRect fun(self: ISUIElement, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
 ---@field drawRectBorder fun(self: ISUIElement, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
 ---@field drawText fun(self: ISUIElement, text: string, x: number, y: number, r: number, g: number, b: number, a: number, font: UIFont)
@@ -276,6 +373,13 @@ TextManager = {}
 ---@field drawTextureScaled fun(self: ISUIElement, texture: Texture, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
 ---@field drawTextureScaledAspect fun(self: ISUIElement, texture: Texture, x: number, y: number, w: number, h: number, a: number, r: number, g: number, b: number)
 ISUIElement = {}
+
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@return ISUIElement
+function ISUIElement:new(x, y, width, height) end
 
 ---@param name string
 ---@return ISUIElement
@@ -316,6 +420,45 @@ ISButton = {}
 ---@return ISButton
 function ISButton:new(x, y, width, height, title, target, onclick) end
 
+---@class ISScrollBar : ISUIElement
+---@field [any] any
+ISScrollBar = {}
+
+---@param parent ISUIElement
+---@param vertical boolean
+---@return ISScrollBar
+function ISScrollBar:new(parent, vertical) end
+
+---@param name string
+---@return table
+function ISScrollBar:derive(name) end
+
+---@class ISTextEntryBox : ISUIElement
+---@field [any] any
+ISTextEntryBox = {}
+
+---@param title string
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@return ISTextEntryBox
+function ISTextEntryBox:new(title, x, y, width, height) end
+
+---@class UIElementInstance
+---@field setHeight fun(self: UIElementInstance, height: number)
+---@field setWidth fun(self: UIElementInstance, width: number)
+---@field setAnchorLeft fun(self: UIElementInstance, value: boolean)
+---@field setAnchorRight fun(self: UIElementInstance, value: boolean)
+---@field setAnchorTop fun(self: UIElementInstance, value: boolean)
+---@field setAnchorBottom fun(self: UIElementInstance, value: boolean)
+---@field setScrollWithParent fun(self: UIElementInstance, value: boolean)
+
+---@class UIElementStatic
+---@field new fun(table: table): UIElementInstance
+---@type UIElementStatic
+UIElement = {}
+
 ---@class ISResizeWidget : ISUIElement
 ---@field resizeFunction function
 ---@field [any] any Allow arbitrary fields
@@ -345,6 +488,7 @@ function ISResizeWidget:new(x, y, width, height, target, ...) end
 ---@field KEY_LCONTROL integer
 ---@field KEY_RCONTROL integer
 Keyboard = {}
+Keyboard.KEY_F9 = 0
 
 ---@param key integer
 ---@return boolean
@@ -363,6 +507,18 @@ function lerp(a, b, t) end
 ---@return number
 function clamp(value, min, max) end
 
+---@param num number
+---@param decimalPlaces? integer
+---@return number
+function round(num, decimalPlaces) end
+
+---@generic K, V
+---@param value table<K, V>
+---@return fun(table<K, V>, K?): K?, V?, table<K, V>
+---@return table<K, V>
+---@return nil
+function xpairs(value) end
+
 -- Texture loading
 ---@param path string
 ---@return Texture|nil
@@ -380,6 +536,7 @@ function getSprite(spriteName) end
 ---@field getProperties fun(self: IsoSprite): SpriteProperties Get sprite properties
 ---@field getSpriteGrid fun(self: IsoSprite): IsoSpriteGrid|nil Get sprite grid if this is a multi-sprite
 ---@field getParentSprite fun(self: IsoSprite): IsoSprite|nil Get parent sprite
+---@field getID fun(self: IsoSprite): integer
 IsoSprite = {}
 
 ---@class SpriteProperties
@@ -460,6 +617,12 @@ function writeLog(loggerName, text) end
 ---@field Energy DebugType Energy logging channel
 ---@field Physics DebugType Physics logging channel
 DebugType = {}
+
+---@class IsoFlagType
+---@field solid IsoFlagType
+---@field solidtrans IsoFlagType
+---@field solidfloor IsoFlagType
+IsoFlagType = {}
 
 -- Log Severity enum
 ---@class LogSeverity
@@ -588,6 +751,38 @@ ISWorldObjectContextMenu = {}
 ---@type table
 ISInventoryPaneContextMenu = {}
 
+---@class ISModalRichText : ISUIElement
+---@field [any] any
+ISModalRichText = {}
+
+---@param x number
+---@param y number
+---@param width number
+---@param height number
+---@param text string
+---@param yesNo boolean
+---@return ISModalRichText
+function ISModalRichText:new(x, y, width, height, text, yesNo) end
+
+---@class ISInventoryPage
+---@field dirtyUI fun()
+ISInventoryPage = {}
+
+---@class ISVehicleMenu
+---@field showRadialMenu fun(player: IsoPlayer, ...)
+---@field getVehicleToInteractWith fun(player: IsoPlayer): BaseVehicle|nil
+ISVehicleMenu = {}
+
+---@class ISInventoryTransferUtil
+---@field newInventoryTransferAction fun(player: IsoPlayer, item: InventoryItem, source: ItemContainer, destination: ItemContainer): ISBaseTimedAction
+ISInventoryTransferUtil = {}
+
+---@class HaloTextHelperStatic
+---@field addText fun(player: IsoPlayer, text: string, separator?: string, color?: HaloTextHelper.ColorRGB)
+---@field getColorGreen fun(): HaloTextHelper.ColorRGB
+---@type HaloTextHelperStatic
+HaloTextHelper = {}
+
 -- Moveable system
 ---@type table
 ISMoveableSpriteProps = {}
@@ -642,7 +837,16 @@ MSR = {}
 ---@field setSprite fun(self: IsoObject, spriteName: string) Set sprite by name
 ---@field getModData fun(self: IsoObject): table Get mod data table
 ---@field toppleTree fun(self: IsoObject) Topple tree (if this is a tree object)
+---@field setSpriteFromName fun(self: IsoObject, spriteName: string)
+---@field sendObjectChange fun(self: IsoObject, change: string)
+---@field transmitModData fun(self: IsoObject)
 IsoObject = {}
+
+---@param cell IsoCell
+---@param square IsoGridSquare
+---@param spriteName string
+---@return IsoObject
+function IsoObject.new(cell, square, spriteName) end
 
 -- Object type enum (global table)
 ---@type table<string, integer>
@@ -670,6 +874,66 @@ IsoObjectType = {
 ---@field isEmpty fun(self: ArrayList): boolean Check if list is empty
 ---@field indexOf fun(self: ArrayList, obj: any): integer Get index of object, returns -1 if not found
 ArrayList = {}
+
+---@class BaseVehicle
+---@field getCurrentSpeedKmHour fun(self: BaseVehicle): number
+---@field getCurrentSquare fun(self: BaseVehicle): IsoGridSquare|nil
+---@field getId fun(self: BaseVehicle): integer
+---@field getSeat fun(self: BaseVehicle, player: IsoPlayer): number
+---@field getX fun(self: BaseVehicle): number
+---@field getY fun(self: BaseVehicle): number
+---@field getZ fun(self: BaseVehicle): number
+---@field exit fun(self: BaseVehicle, player: IsoPlayer)
+---@field enter fun(self: BaseVehicle, seat: number, player: IsoPlayer): boolean
+---@field setCharacterPosition fun(self: BaseVehicle, player: IsoPlayer, seat: number, position: string)
+---@field transmitCharacterPosition fun(self: BaseVehicle, seat: number, position: string)
+---@field playPassengerAnim fun(self: BaseVehicle, seat: number, animation: string)
+BaseVehicle = {}
+
+---@class IsoZombie : IsoGameCharacter
+---@field addItemToSpawnAtDeath fun(self: IsoZombie, item: InventoryItem)
+IsoZombie = {}
+
+---@class IsoDeadBody : IsoObject
+IsoDeadBody = {}
+
+---@class IsoGameCharacter : IsoObject
+IsoGameCharacter = {}
+
+---@class Perk
+---@field getId fun(self: Perk): string
+Perk = {}
+
+---@class PerkFactory
+---@field PerkList ArrayList
+---@field getPerkFromName fun(name: string): Perk|nil
+PerkFactory = {}
+
+---@type table<string, Perk>
+Perks = {}
+
+---@param player IsoPlayer
+---@param perk Perk
+---@param amount number
+function addXpNoMultiplier(player, perk, amount) end
+
+---@class ScriptItem
+---@field getDisplayName fun(self: ScriptItem): string
+---@field getNormalTexture fun(self: ScriptItem): Texture|nil
+ScriptItem = {}
+
+---@class ScriptManager
+---@field instance ScriptManager
+---@field getItem fun(self: ScriptManager, fullType: string): ScriptItem|nil
+ScriptManager = {}
+
+---@class UIManager
+---@field getMillisSinceLastRender fun(): number
+UIManager = {}
+
+---@class LuaUtils
+---@field stringStarts fun(value: string, prefix: string): boolean
+luautils = {}
 
 -- Character traits enum (global table)
 ---@type table<string, integer>

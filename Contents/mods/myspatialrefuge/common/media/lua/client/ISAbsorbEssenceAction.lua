@@ -41,6 +41,7 @@ function ISAbsorbEssenceAction:start()
     self:setActionAnim("Loot")
 end
 
+---@diagnostic disable-next-line: unused -- Timed-action override required by PZ.
 function ISAbsorbEssenceAction:update()
 end
 

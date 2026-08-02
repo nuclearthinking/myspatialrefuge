@@ -5,6 +5,8 @@
 require "ISUI/ISPanel"
 require "MSR_UpgradeItemCache"
 
+---@class SRU_RequiredItems : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 SRU_RequiredItems = ISPanel:derive("SRU_RequiredItems")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -20,7 +22,9 @@ local Config = require "ui/framework/CUI_Config"
 -- Constructor
 -----------------------------------------------------------
 
+---@return SRU_RequiredItems
 function SRU_RequiredItems:new(x, y, width, height, parentPanel)
+    ---@type SRU_RequiredItems
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -52,6 +56,7 @@ end
 -- Slot Creation
 -----------------------------------------------------------
 
+---@diagnostic disable-next-line: unused -- ISPanel override required by PZ.
 function SRU_RequiredItems:createChildren()
     -- Slots are created dynamically when requirements are set
 end
@@ -171,9 +176,13 @@ end
 -- Item Slot Component
 -----------------------------------------------------------
 
+---@class SRU_ItemSlot : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 SRU_ItemSlot = ISPanel:derive("SRU_ItemSlot")
 
+---@return SRU_ItemSlot
 function SRU_ItemSlot:new(x, y, width, height, parent, index)
+    ---@type SRU_ItemSlot
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -226,18 +235,18 @@ function SRU_ItemSlot:setSelected(selected)
     self.isSelected = selected
 end
 
-function SRU_ItemSlot:onMouseDown(x, y)
+function SRU_ItemSlot:onMouseDown(_x, _y)
     if self.requirement then
         self.parentPanel:selectSlot(self.index)
     end
     return true
 end
 
-function SRU_ItemSlot:onMouseMove(dx, dy)
+function SRU_ItemSlot:onMouseMove(_dx, _dy)
     self.isHovered = true
 end
 
-function SRU_ItemSlot:onMouseMoveOutside(dx, dy)
+function SRU_ItemSlot:onMouseMoveOutside(_dx, _dy)
     self.isHovered = false
 end
 
@@ -306,30 +315,6 @@ function SRU_ItemSlot:render()
     
     self:drawText(countText, countX, countY, countColor.r, countColor.g, countColor.b, 1, UIFont.Small)
     
-    -- Draw item name (truncated)
-    local itemName = ""
-    if item then
-        itemName = item:getDisplayName()
-    else
-        -- Extract short name from type
-        itemName = itemType:match("%.(.+)$") or itemType
-    end
-    
-    -- Truncate if needed
-    local maxWidth = self.width - padding * 2
-    local nameWidth = getTextManager():MeasureStringX(UIFont.Small, itemName)
-    if nameWidth > maxWidth then
-        while nameWidth > maxWidth - 10 and #itemName > 3 do
-            itemName = itemName:sub(1, -2)
-            nameWidth = getTextManager():MeasureStringX(UIFont.Small, itemName .. "...")
-        end
-        itemName = itemName .. "..."
-    end
-    
-    -- Draw name below icon (centered)
-    nameWidth = getTextManager():MeasureStringX(UIFont.Small, itemName)
-    local nameX = (self.width - nameWidth) / 2
-    -- Name is drawn as part of tooltip on hover, not here to avoid clutter
 end
 
 return SRU_RequiredItems

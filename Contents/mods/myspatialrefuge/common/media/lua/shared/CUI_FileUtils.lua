@@ -74,6 +74,8 @@ end
 -- Get mod info, handling B42+ backslash prefix automatically
 -- @param modId: The mod ID from mod.info
 -- @return: ChooseGameInfo.Mod object or nil
+---@param modId string
+---@return ModInfo|nil
 function CUI_FileUtils.getModInfo(modId)
     if not modId then return nil end
     if not getModInfoByID then return nil end
@@ -86,7 +88,7 @@ function CUI_FileUtils.getModInfo(modId)
             return getModInfoByID(tryId)
         end)
         if ok and modInfo then
-            return modInfo
+            return modInfo --[[@as ModInfo]]
         end
     end
     
@@ -134,19 +136,21 @@ function CUI_FileUtils.readModFile(modId, filePath)
         log("FAILED: Could not open file: " .. filePath)
         return nil
     end
+
+    local safeReader = reader --[[@as BufferedReader]]
     
     -- Read all lines
     local lines = {}
-    local ok, err = pcall(function()
-        local line = reader:readLine()
+    local readOk, err = pcall(function()
+        local line = safeReader:readLine()
         while line ~= nil do
             table.insert(lines, line)
-            line = reader:readLine()
+            line = safeReader:readLine()
         end
-        reader:close()
+        safeReader:close()
     end)
     
-    if not ok then
+    if not readOk then
         log("ERROR reading file: " .. tostring(err))
         return nil
     end
@@ -191,16 +195,18 @@ function CUI_FileUtils.readCacheFile(filePath)
         log("FAILED: Could not open cache file: " .. filePath)
         return nil
     end
+
+    local safeReader = reader --[[@as BufferedReader]]
     
     -- Read all lines
     local lines = {}
     local readOk, err = pcall(function()
-        local line = reader:readLine()
+        local line = safeReader:readLine()
         while line ~= nil do
             table.insert(lines, line)
-            line = reader:readLine()
+            line = safeReader:readLine()
         end
-        reader:close()
+        safeReader:close()
     end)
     
     if not readOk then
@@ -241,7 +247,8 @@ function CUI_FileUtils.getActivatedModIds()
         return {}
     end
     
-    return result or {}
+    if type(result) ~= "table" then return {} end
+    return result
 end
 
 -----------------------------------------------------------
@@ -285,14 +292,17 @@ function CUI_FileUtils.diagnose(modId, filePath)
         local ok, name = pcall(function() return modInfo:getName() end)
         print("  Name: " .. (ok and tostring(name) or "(error)"))
         
+        local dir
         ok, dir = pcall(function() return modInfo:getDir() end)
         print("  Dir: " .. (ok and tostring(dir) or "(error)"))
         
         if modInfo.getVersionDir then
+            local vdir
             ok, vdir = pcall(function() return modInfo:getVersionDir() end)
             print("  VersionDir: " .. (ok and tostring(vdir) or "(error)"))
         end
         if modInfo.getCommonDir then
+            local cdir
             ok, cdir = pcall(function() return modInfo:getCommonDir() end)
             print("  CommonDir: " .. (ok and tostring(cdir) or "(error)"))
         end

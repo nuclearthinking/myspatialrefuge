@@ -12,17 +12,19 @@ MSR.TeleportFlow._loaded = true
 
 local Flow = MSR.TeleportFlow
 
+---@class TeleportWaitOptions
+---@field player IsoPlayer|nil
+---@field centerX number
+---@field centerY number
+---@field centerZ number
+---@field minTicks number|nil
+---@field maxTicks number
+---@field rotateTicks number|nil
+---@field onReady function
+---@field onTimeout function|nil
+
 ---Wait for the center square chunk to load with optional rotation and timeout
----@param opts table
----  - player: IsoPlayer
----  - centerX: number
----  - centerY: number
----  - centerZ: number
----  - minTicks: number? (default 0)
----  - maxTicks: number (required)
----  - rotateTicks: number? (default 0)
----  - onReady: function() (required)
----  - onTimeout: function()? (optional)
+---@param opts TeleportWaitOptions
 ---@return function cancel
 function Flow.waitForCenterChunk(opts)
     if type(opts) ~= "table" then return function() end end

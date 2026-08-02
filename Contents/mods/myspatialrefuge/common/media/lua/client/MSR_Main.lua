@@ -120,6 +120,12 @@ function MSR.UpdateDamageTime(player)
     player:getModData().spatialRefuge_lastDamage = K.time()
 end
 
+---@class RelicContainerCache
+---@field container ItemContainer|nil
+---@field refugeId string|nil
+---@field cacheTime number
+---@field CACHE_DURATION number
+---@type RelicContainerCache
 local _relicContainerCache = {
     container = nil,
     refugeId = nil,
@@ -181,7 +187,7 @@ function MSR.GetRelicContainer(player, bypassCache)
     return container
 end
 
-local function OnPlayerDamage(character, damageType, damage)
+local function OnPlayerDamage(character, damageType, _damage)
     if character and damageType == "WEAPONHIT" then
         MSR.UpdateDamageTime(character)
     end
@@ -250,7 +256,7 @@ local function OnInitWorld()
 end
 
 -- Check inheritance when new character is created (same session after death)
-local function OnCreatePlayer(playerIndex, player)
+local function OnCreatePlayer(_playerIndex, player)
     if not player then return end
     if not MSR.Env.isSingleplayer() then return end
     

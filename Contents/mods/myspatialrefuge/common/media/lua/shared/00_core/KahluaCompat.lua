@@ -143,7 +143,7 @@ function K.size(obj)
     -- Try Java :size() method
     if obj.size then
         local ok, result = pcall(function() return obj:size() end)
-        if ok then return result end
+        if ok and type(result) == "number" then return result --[[@as number]] end
     end
     return 0
 end

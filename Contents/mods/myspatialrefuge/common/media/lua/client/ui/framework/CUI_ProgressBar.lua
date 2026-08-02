@@ -15,6 +15,8 @@
 
 require "ISUI/ISPanel"
 
+---@class CUI_ProgressBar : ISPanel
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 CUI_ProgressBar = ISPanel:derive("CUI_ProgressBar")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -23,9 +25,11 @@ local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 -- CONSTRUCTOR
 --==============================================================================
 
+---@return CUI_ProgressBar
 function CUI_ProgressBar:new(x, y, width, height)
     height = height or math.floor(FONT_HGT_SMALL * 0.8)
-    
+
+    ---@type CUI_ProgressBar
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self

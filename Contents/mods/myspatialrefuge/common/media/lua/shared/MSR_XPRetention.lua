@@ -34,6 +34,7 @@ local suppressXpRecording = 0
 
 local function summarizeXpMap(xpMap)
     local count = 0
+    ---@type number
     local total = 0
     for _, amount in pairs(xpMap or {}) do
         if type(amount) == "number" then
@@ -46,6 +47,7 @@ end
 
 local function copyPositiveXpMap(source)
     local xpMap = {}
+    ---@type number
     local total = 0
 
     for perkName, amount in pairs(source or {}) do
@@ -225,6 +227,7 @@ function XPR.RecordXp(player, perk, amount)
     local perkName = getPerkName(perk)
     if not perkName then return false end
 
+    ---@type number
     local current = record.xp[perkName] or 0
     local nextAmount = math.max(0, current + amount)
     record.xp[perkName] = nextAmount

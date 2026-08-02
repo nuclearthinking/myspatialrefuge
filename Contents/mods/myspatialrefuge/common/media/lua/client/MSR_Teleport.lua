@@ -47,6 +47,7 @@ function MSR.CanEnterRefuge(player)
     return TC.canEnterRefuge(player)
 end
 
+---@type fun(player: IsoPlayer, returnPos: table): boolean
 local doSingleplayerExit
 
 local function doSingleplayerEnter(player, refugeData)
@@ -206,7 +207,11 @@ function MSR.EnterRefuge(player)
     
     local canEnter, reason = MSR.CanEnterRefuge(player)
     if not canEnter then
-        PM.SayRaw(player, reason)
+        if reason then
+            PM.SayRaw(player, reason)
+        else
+            PM.Say(player, PM.REFUGE_ERROR)
+        end
         return false
     end
     

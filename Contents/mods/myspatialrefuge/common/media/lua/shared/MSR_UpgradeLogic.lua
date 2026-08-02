@@ -264,7 +264,7 @@ function UpgradeLogic.consumeItems(player, requirements)
     return MSR.InventoryAuthority.consumeByType(sources, resolved, MSR.Transaction.IsItemAvailable)
 end
 
-function UpgradeLogic.applyUpgradeEffects(player, upgradeId, level)
+function UpgradeLogic.applyUpgradeEffects(_player, upgradeId, level)
     local effects = MSR.UpgradeData.getLevelEffects(upgradeId, level)
     if not effects then return end
 
@@ -441,7 +441,7 @@ local function registerBuiltinHandlers()
     })
 
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.EXPAND_REFUGE, {
-        apply = function(player, level)
+        apply = function(player, _level)
             local refugeData = MSR.Data.GetRefugeData(player)
             if not refugeData then return false, "Refuge data not found" end
 
@@ -459,7 +459,7 @@ local function registerBuiltinHandlers()
                 newTier = resultData.newTier
             }
         end,
-        onSuccess = function(player, level, resultData)
+        onSuccess = function(player, _level, resultData)
             if resultData and resultData.tierConfig then
                 PM.Say(player, PM.REFUGE_UPGRADED_TO, resultData.tierConfig.displayName)
             end
@@ -468,7 +468,7 @@ local function registerBuiltinHandlers()
     })
 
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.DEBUG_FAIL_UPGRADE, {
-        apply = function(player, level)
+        apply = function(_player, _level)
             return false, "Debug upgrade failed intentionally"
         end,
         invalidatesCache = false

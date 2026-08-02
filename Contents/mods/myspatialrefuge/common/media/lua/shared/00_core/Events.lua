@@ -316,10 +316,19 @@ local pendingServerCallbacks = {} -- transactionId -> callback
 local SERVER_EVENT_CMD = "MSR_ServerEvent"
 local SERVER_EVENT_REPLY_CMD = "MSR_ServerEventReply"
 
+---@class ServerEventBuilder
+---@field eventName string
+---@field _argBuilder function|nil
+---@field _serverHandler function|nil
+---@field _clientCallback function|nil
+---@field _filter function|nil
 local ServerEventBuilder = {}
 ServerEventBuilder.__index = ServerEventBuilder
 
-function ServerEventBuilder:new(eventName)
+---@param eventName string
+---@return ServerEventBuilder
+function ServerEventBuilder.new(eventName)
+    ---@type ServerEventBuilder
     local builder = setmetatable({}, ServerEventBuilder)
     builder.eventName = eventName
     builder._argBuilder = nil
@@ -371,7 +380,7 @@ function ServerEventBuilder:register()
         filter = self._filter
     }
     
-    local pzEvent = Events[self.eventName]
+    local pzEvent = rawget(Events, self.eventName)
     if not pzEvent then
         LOG.warning("Server.On: PZ event not found: %s", self.eventName)
         return
@@ -388,7 +397,7 @@ end
 --- @param eventName string PZ event name
 --- @return ServerEventBuilder
 function E.Server.On(eventName)
-    return ServerEventBuilder:new(eventName)
+    return ServerEventBuilder.new(eventName)
 end
 
 --- @param eventName string
@@ -486,7 +495,7 @@ local function onServerEventCommand(module, command, player, cmdArgs)
         
         -- Debug: check if args came through
         local argsCount = 0
-        for k in pairs(args) do argsCount = argsCount + 1 end
+        for _ in pairs(args) do argsCount = argsCount + 1 end
         LOG.debug("cmdArgs.args has %d keys", argsCount)
         
         local config = serverEventHandlers[eventName]

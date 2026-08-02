@@ -25,13 +25,15 @@ function Utils.resolvePlayer(player)
     end
     
     -- Re-resolve to avoid stale references in MP
-    if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum then
-        local ok, num = pcall(function() return player:getPlayerNum() end)
+    if type(player) == "userdata" or type(player) == "table" then
+        local playerRef = player --[[@as IsoPlayer]]
+        if not playerRef.getPlayerNum then return nil end
+        local ok, num = pcall(function() return playerRef:getPlayerNum() end)
         if ok and num ~= nil and getSpecificPlayer then
             local resolved = getSpecificPlayer(num)
             if resolved then return resolved end
         end
-        return player
+        return playerRef
     end
     return nil
 end

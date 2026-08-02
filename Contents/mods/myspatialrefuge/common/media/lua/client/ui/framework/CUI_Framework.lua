@@ -46,7 +46,7 @@
 ]]
 
 -- Load configuration first
-require "ui/framework/CUI_Config"
+local Config = require "ui/framework/CUI_Config"
 
 -- Load utilities
 require "ui/framework/CUI_Tools"
@@ -91,12 +91,11 @@ end
 
 --- Get the configuration object
 function CUI_Framework.getConfig()
-    return require "ui/framework/CUI_Config"
+    return Config
 end
 
 --- Get theme colors from config
 function CUI_Framework.getColors()
-    local Config = require "ui/framework/CUI_Config"
     return Config.colors
 end
 

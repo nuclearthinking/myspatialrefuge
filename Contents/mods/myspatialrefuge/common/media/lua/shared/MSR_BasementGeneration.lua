@@ -323,7 +323,7 @@ local function removeFloorFromSquare(square)
                 isFloor = true
             elseif obj.isFloor then
                 local ok, result = pcall(function() return obj:isFloor() end)
-                isFloor = ok and result or false
+                isFloor = ok and result == true
             end
             if isFloor then
                 MSR.World.removeObject(square, obj, false)

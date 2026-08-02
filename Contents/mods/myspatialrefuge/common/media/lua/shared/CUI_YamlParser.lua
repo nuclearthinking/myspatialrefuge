@@ -170,6 +170,10 @@ function CUI_YamlParser.parseLines(lines)
     log("Parsing " .. #lines .. " lines")
     
     local result = {}
+    ---@class YamlStackFrame
+    ---@field obj table
+    ---@field indent number
+    ---@type YamlStackFrame[]
     local stack = {{obj = result, indent = -1}}
     local i = 1
     
@@ -183,11 +187,17 @@ function CUI_YamlParser.parseLines(lines)
             i = i + 1
         else
             -- Pop stack to find parent at correct indentation level
-            while #stack > 1 and stack[#stack].indent >= indent do
+            while #stack > 1 do
+                local topFrame = rawget(stack, #stack) --[[@as YamlStackFrame?]]
+                if not topFrame or topFrame.indent < indent then break end
                 table.remove(stack)
             end
             
-            local parent = stack[#stack].obj
+            local parentFrame = rawget(stack, #stack) --[[@as YamlStackFrame?]]
+            if not parentFrame then
+                error("YAML parser lost its root stack frame")
+            end
+            local parent = parentFrame.obj
             
             -- Check for array item (starts with -)
             if content:sub(1, 2) == "- " then
@@ -200,10 +210,6 @@ function CUI_YamlParser.parseLines(lines)
                     local newObj = {}
                     newObj[trim(key)] = parseScalar(value)
                     
-                    -- Ensure parent is an array
-                    if type(parent) ~= "table" then
-                        parent = {}
-                    end
                     table.insert(parent, newObj)
                     
                     -- Push for nested content
@@ -368,7 +374,6 @@ local function _resolveGroup(groupName, groups, resolving, prefixSet)
     local out = {}
     for _, item in ipairs(groupVal) do
         if _isGroupRefToken(item, prefixSet) then
-            local prefix = item:sub(1, 1)
             local ref = item:sub(2)
             local parts = _splitPlus(ref)
             local baseName = parts[1]

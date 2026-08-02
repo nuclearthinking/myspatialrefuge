@@ -177,7 +177,7 @@ function MSR_UpgradeWindow:registerInventoryListener()
     if self._inventoryChangeHandler then return end
     
     local window = self
-    self._inventoryChangeHandler = function(actionType, items, state)
+    self._inventoryChangeHandler = function(_actionType, _items, _state)
         if not window:isVisible() then return end
         window:onInventoryChanged()
     end
@@ -363,6 +363,7 @@ function MSR_UpgradeWindow:close()
     MSR.UpgradeItemCache.invalidate(self.player)
 end
 
+---@diagnostic disable-next-line: unused -- ISPanel override required by PZ.
 function MSR_UpgradeWindow:isKeyConsumed(key)
     return key == Keyboard.KEY_ESCAPE
 end
@@ -397,6 +398,7 @@ function MSR_UpgradeWindow:prerender()
     self:drawRectBorder(0, 0, self.width, self.height, 0.8, 0.30, 0.25, 0.38)
 end
 
+---@diagnostic disable-next-line: unused -- ISPanel override required by PZ.
 function MSR_UpgradeWindow:render() end
 
 function MSR_UpgradeWindow:update()

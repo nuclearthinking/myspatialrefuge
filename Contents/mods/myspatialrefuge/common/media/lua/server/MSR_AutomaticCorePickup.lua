@@ -95,18 +95,112 @@ local function canCollectFromCorpse(player, corpse, now)
     return player:getUsername() == owner
 end
 
-local function transferCores(player, rootContainer, destinationContainer, firstItem)
+local function addDestinationCandidate(player, coreItem, containerItem, seenItems, withCore, withoutCore)
+    if not containerItem or seenItems[containerItem] then return end
+    seenItems[containerItem] = true
+
+    if not isInstanceOf(containerItem, "InventoryContainer") then return end
+
+    local container = containerItem:getInventory()
+    if not container or not container:hasRoomFor(player, coreItem) then return end
+
+    local destinations = container:containsType(CORE_ITEM) and withCore or withoutCore
+    destinations[#destinations + 1] = container
+end
+
+local function buildDestinationPlan(player, coreItem)
+    local withCore = {}
+    local withoutCore = {}
+    local seenItems = {}
+
+    -- The back slot is the default bag destination when no equipped container
+    -- already holds a core. Remaining worn locations retain the game's stable
+    -- WornItems order, followed by primary and secondary hand containers.
+    addDestinationCandidate(
+        player,
+        coreItem,
+        player:getClothingItem_Back(),
+        seenItems,
+        withCore,
+        withoutCore
+    )
+
+    local wornItems = player:getWornItems()
+    local wornCount = wornItems and wornItems:size() or 0
+    for index = 0, wornCount - 1 do
+        local wornItem = wornItems:get(index)
+        addDestinationCandidate(
+            player,
+            coreItem,
+            wornItem and wornItem:getItem() or nil,
+            seenItems,
+            withCore,
+            withoutCore
+        )
+    end
+
+    addDestinationCandidate(
+        player,
+        coreItem,
+        player:getPrimaryHandItem(),
+        seenItems,
+        withCore,
+        withoutCore
+    )
+    addDestinationCandidate(
+        player,
+        coreItem,
+        player:getSecondaryHandItem(),
+        seenItems,
+        withCore,
+        withoutCore
+    )
+
+    -- Containers that already hold cores keep affinity while preserving the
+    -- stable equipment order. Empty equipped containers follow afterwards.
+    for index = 1, #withoutCore do
+        withCore[#withCore + 1] = withoutCore[index]
+    end
+
+    -- The player's root inventory is always the final fallback, even when it
+    -- already contains cores: an eligible equipped bag remains preferable.
+    local playerInventory = player:getInventory()
+    if playerInventory and playerInventory:hasRoomFor(player, coreItem) then
+        withCore[#withCore + 1] = playerInventory
+    end
+
+    return withCore
+end
+
+local function transferCores(player, rootContainer, context, firstItem)
     local collected = 0
     local item = firstItem
 
+    if not context.destinations then
+        context.destinations = buildDestinationPlan(player, item)
+        context.destinationIndex = 1
+    end
+
     while item do
         local sourceContainer = item:getContainer()
-        if not sourceContainer
-            or sourceContainer == destinationContainer
-            or not InventoryAuthority.moveItem(player, sourceContainer, destinationContainer, item)
-        then
-            break
+        if not sourceContainer then break end
+
+        local moved = false
+        while context.destinationIndex <= #context.destinations do
+            local destinationContainer = context.destinations[context.destinationIndex]
+            if sourceContainer ~= destinationContainer
+                and InventoryAuthority.moveItem(player, sourceContainer, destinationContainer, item)
+            then
+                moved = true
+                break
+            end
+
+            -- A destination can fill while collecting a batch. Advance to the
+            -- next equipped container and finally the root inventory.
+            context.destinationIndex = context.destinationIndex + 1
         end
+
+        if not moved then break end
 
         collected = collected + 1
         item = rootContainer:getFirstTypeRecurse(CORE_ITEM)
@@ -115,22 +209,23 @@ local function transferCores(player, rootContainer, destinationContainer, firstI
     return collected, item
 end
 
-local function collectFromCorpse(player, corpse, destinationContainer, now)
+local function collectFromCorpse(player, corpse, context)
     local rootContainer = corpse:getContainer()
-    if not rootContainer then return 0, now end
+    if not rootContainer then return 0, context end
 
     -- The Java-side recursive lookup is cheaper than walking every corpse item
     -- through Lua. It also avoids creating ModData for coreless corpses.
     local firstCore = rootContainer:getFirstTypeRecurse(CORE_ITEM)
-    if not firstCore then return 0, now end
+    if not firstCore then return 0, context end
 
     -- Most scanned corpses do not contain a core. Read the protection timestamp
     -- only after Java has found one, and at most once for the whole area scan.
-    now = now or getTime()
-    if not canCollectFromCorpse(player, corpse, now) then return 0, now end
+    context = context or {}
+    context.now = context.now or getTime()
+    if not canCollectFromCorpse(player, corpse, context.now) then return 0, context end
 
-    local collected = transferCores(player, rootContainer, destinationContainer, firstCore)
-    return collected, now
+    local collected = transferCores(player, rootContainer, context, firstCore)
+    return collected, context
 end
 
 local function isObjectInRange(object, playerX, playerY, playerZ, radiusSquared)
@@ -157,25 +252,17 @@ local function onZombieDead(zombie)
         -- A new corpse is handled directly, so a stationary killer gets the core
         -- without starting a general area scan or a tick-based delayed task.
         if radius > 0 and not killer:getVehicle() then
-            local destinationContainer = killer:getInventory()
-            if destinationContainer then
-                local killerX = killer:getX()
-                local killerY = killer:getY()
-                local killerZ = killer:getZ()
-                if isObjectInRange(zombie, killerX, killerY, killerZ, radius * radius) then
-                    local collected, remainingCore = transferCores(
-                        killer,
-                        rootContainer,
-                        destinationContainer,
-                        firstCore
-                    )
-                    if collected > 0 then
-                        showPickupFeedback(killer, collected)
-                        LOG.debug("Collected %d new zombie core(s) for %s", collected, getPlayerLabel(killer))
-                    end
-
-                    if not remainingCore then return end
+            local killerX = killer:getX()
+            local killerY = killer:getY()
+            local killerZ = killer:getZ()
+            if isObjectInRange(zombie, killerX, killerY, killerZ, radius * radius) then
+                local collected, remainingCore = transferCores(killer, rootContainer, {}, firstCore)
+                if collected > 0 then
+                    showPickupFeedback(killer, collected)
+                    LOG.debug("Collected %d new zombie core(s) for %s", collected, getPlayerLabel(killer))
                 end
+
+                if not remainingCore then return end
             end
         end
 
@@ -197,8 +284,7 @@ end
 
 local function collectNearbyCores(player, radius, square)
     square = square or player:getCurrentSquare()
-    local destinationContainer = player:getInventory()
-    if not square or not destinationContainer then return 0 end
+    if not square then return 0 end
 
     local cell = getCurrentCell()
     if not cell then return 0 end
@@ -211,7 +297,7 @@ local function collectNearbyCores(player, radius, square)
     local playerZ = player:getZ()
     local radiusSquared = radius * radius
     local scanRadius = radius > 1 and MAX_SCAN_RADIUS or 1
-    local now = nil
+    local context = nil
     local collected = 0
 
     for offsetX = -scanRadius, scanRadius do
@@ -224,7 +310,7 @@ local function collectNearbyCores(player, radius, square)
                     local corpse = corpses:get(index)
                     if corpse and isObjectInRange(corpse, playerX, playerY, playerZ, radiusSquared) then
                         local corpseCollected
-                        corpseCollected, now = collectFromCorpse(player, corpse, destinationContainer, now)
+                        corpseCollected, context = collectFromCorpse(player, corpse, context)
                         collected = collected + corpseCollected
                     end
                 end

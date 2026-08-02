@@ -12,15 +12,17 @@
 
 require "ISUI/ISButton"
 
+---@class CUI_ToggleButton : ISButton
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 CUI_ToggleButton = ISButton:derive("CUI_ToggleButton")
-
-local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 
 --==============================================================================
 -- CONSTRUCTOR
 --==============================================================================
 
+---@return CUI_ToggleButton
 function CUI_ToggleButton:new(x, y, size, iconTexture, target, onclick)
+    ---@type CUI_ToggleButton
     local o = ISButton:new(x, y, size, size, "", target, onclick)
     setmetatable(o, self)
     self.__index = self
@@ -97,6 +99,7 @@ end
 -- RENDERING
 --==============================================================================
 
+---@diagnostic disable-next-line: unused -- ISUIElement override required by PZ.
 function CUI_ToggleButton:prerender()
     -- Don't call parent prerender - we handle our own background
 end
@@ -165,7 +168,7 @@ end
 -- MOUSE HANDLING
 --==============================================================================
 
-function CUI_ToggleButton:onMouseUp(x, y)
+function CUI_ToggleButton:onMouseUp(_x, _y)
     if self.pressed and self:isMouseOver() then
         -- Toggle state before calling onclick
         if self.isToggleButton then

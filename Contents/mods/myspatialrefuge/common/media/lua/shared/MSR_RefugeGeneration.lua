@@ -18,6 +18,7 @@ MSR.RefugeGeneration._loaded = true
 
 local RG = MSR.RefugeGeneration
 local LOG = L.logger("RefugeGeneration")
+---@type number
 local _lastRepairAttempt = 0
 local _repairCooldown = 60 -- seconds between repair attempts
 

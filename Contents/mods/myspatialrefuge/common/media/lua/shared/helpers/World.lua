@@ -388,8 +388,8 @@ function World.getModData(obj)
     if not obj.getModData then return nil end
     
     local ok, md = pcall(function() return obj:getModData() end)
-    if not ok then return nil end
-    
+    if not ok or type(md) ~= "table" then return nil end
+
     return md
 end
 

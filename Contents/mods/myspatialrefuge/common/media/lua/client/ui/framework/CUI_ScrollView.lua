@@ -11,6 +11,8 @@
 require "ISUI/ISUIElement"
 require "ui/framework/CUI_ScrollBar"
 
+---@class CUI_ScrollView : ISUIElement
+---@field [any] any PZ UI classes are extended dynamically through derive/new.
 CUI_ScrollView = ISUIElement:derive("CUI_ScrollView")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -19,7 +21,9 @@ local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
 -- INITIALIZATION
 --==============================================================================
 
+---@return CUI_ScrollView
 function CUI_ScrollView:new(x, y, w, h)
+    ---@type CUI_ScrollView
     local o = ISUIElement:new(x, y, w, h)
     setmetatable(o, self)
     self.__index = self
@@ -126,6 +130,7 @@ function CUI_ScrollView:getScrollWidth()
         return self.scrollwidth
     end
     
+    ---@type number
     local width = 0
     for _, child in pairs(self.scrollChildren) do
         width = math.max(width, child:getX() - self:getXScroll() + child:getWidth())
@@ -139,6 +144,7 @@ function CUI_ScrollView:getScrollHeight()
         return self.scrollheight
     end
     
+    ---@type number
     local height = 0
     for _, child in pairs(self.scrollChildren) do
         height = math.max(height, child:getY() - self:getYScroll() + child:getHeight())
@@ -168,6 +174,7 @@ function CUI_ScrollView:onMouseWheel(del)
         local targetScroll = currentScroll - (del * self.scrollSensitivity)
 
         local scrollWidth = self:getScrollWidth()
+        ---@type number
         local maxScroll = math.min(0, self.width - scrollWidth)
         targetScroll = math.max(maxScroll, math.min(0, targetScroll))
         
@@ -180,6 +187,7 @@ function CUI_ScrollView:onMouseWheel(del)
         local targetScroll = currentScroll - (del * self.scrollSensitivity)
 
         local scrollHeight = self:getScrollHeight()
+        ---@type number
         local maxScroll = math.min(0, self.height - scrollHeight)
         targetScroll = math.max(maxScroll, math.min(0, targetScroll))
         
