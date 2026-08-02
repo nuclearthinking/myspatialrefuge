@@ -12,6 +12,7 @@
     "UI_RefugeUpgrade_Category_shelter": "Убежище",
     "UI_RefugeUpgrade_Category_general": "Общее",
     "UI_RefugeUpgrade_Category_comfort": "Комфорт",
+    "UI_RefugeUpgrade_Category_ecology": "Экология",
     "UI_RefugeUpgrade_Category_debug": "Отладка",
     "UI_Upgrade_ExpandRefuge": "Расширить территорию",
     "UI_Upgrade_ExpandRefuge_L1": "Расширить убежище до 5x5 клеток.",
@@ -78,6 +79,10 @@
     "UI_Effect_corePickupRadius": "Радиус сбора ядер",
     "UI_Effect_TileFormat": "%1 тайл",
     "UI_Effect_TilesFormat": "%1 тайла",
+    "UI_Upgrade_FertileResonance": "Плодородный резонанс",
+    "UI_Upgrade_FertileResonance_L1": "Изменённое течение времени в убежище сокращает базовую длительность здоровых стадий роста культур. Расход воды, болезни и гниение не ускоряются.",
+    "UI_Upgrade_FertileResonance_L2": "Плодородный резонанс ещё сильнее сокращает базовую длительность здоровых стадий роста культур. Расход воды, болезни и гниение не ускоряются.",
+    "UI_Upgrade_FertileResonance_L3": "Убежище приводит здоровые культуры в почти совершенную временную гармонию, значительно сокращая их базовые стадии роста. Расход воды, болезни и гниение не ускоряются.",
     "UI_Effect_refugeSize": "Размер убежища",
     "UI_Effect_readingSpeedMultiplier": "Скорость чтения",
     "UI_Effect_refugeCastTimeMultiplier": "Скорость телепортации",
@@ -91,5 +96,6 @@
     "UI_Effect_refugeWoundRecoveryMultiplier": "Заживление ран",
     "UI_Effect_refugeSleepFatigueMultiplier": "Качество сна",
     "UI_Effect_refugeMentalRecoveryMultiplier": "Восстановление психики",
-    "UI_Effect_refugeStiffnessRecoveryMultiplier": "Восстановление мышц"
+    "UI_Effect_refugeStiffnessRecoveryMultiplier": "Восстановление мышц",
+    "UI_Effect_refugeCropGrowthTimeMultiplier": "Скорость роста культур"
 }

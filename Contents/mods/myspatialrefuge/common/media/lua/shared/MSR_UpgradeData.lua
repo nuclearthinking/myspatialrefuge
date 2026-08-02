@@ -419,6 +419,7 @@ function UpgradeData.getPlayerActiveEffects(player)
         refugeSleepFatigueMultiplier = "max",
         refugeMentalRecoveryMultiplier = "max",
         refugeStiffnessRecoveryMultiplier = "max",
+        refugeCropGrowthTimeMultiplier = "min",
     }
     
     local function applyEffect(effects, effectName, effectValue)

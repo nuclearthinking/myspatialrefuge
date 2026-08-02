@@ -12,6 +12,7 @@
     "UI_RefugeUpgrade_Category_shelter": "庇护",
     "UI_RefugeUpgrade_Category_general": "通用",
     "UI_RefugeUpgrade_Category_comfort": "舒适",
+    "UI_RefugeUpgrade_Category_ecology": "生态",
     "UI_RefugeUpgrade_Category_debug": "调试",
     "UI_Upgrade_ExpandRefuge": "扩大庇护所区域",
     "UI_Upgrade_ExpandRefuge_L1": "将庇护所扩大至5×5",
@@ -78,6 +79,10 @@
     "UI_Effect_corePickupRadius": "核心收集范围",
     "UI_Effect_TileFormat": "%1格",
     "UI_Effect_TilesFormat": "%1格",
+    "UI_Upgrade_FertileResonance": "丰饶共鸣",
+    "UI_Upgrade_FertileResonance_L1": "庇护所中改变的时间流会缩短健康作物的基础生长阶段。水分消耗、疾病和腐烂不会加速。",
+    "UI_Upgrade_FertileResonance_L2": "丰饶共鸣会进一步缩短健康作物的基础生长阶段。水分消耗、疾病和腐烂不会加速。",
+    "UI_Upgrade_FertileResonance_L3": "庇护所使健康作物接近完美的时间和谐，大幅缩短基础生长阶段。水分消耗、疾病和腐烂不会加速。",
     "UI_Effect_refugeSize": "庇护所大小",
     "UI_Effect_readingSpeedMultiplier": "阅读速度",
     "UI_Effect_refugeCastTimeMultiplier": "传送发动速度",
@@ -91,5 +96,6 @@
     "UI_Effect_refugeWoundRecoveryMultiplier": "伤口恢复",
     "UI_Effect_refugeSleepFatigueMultiplier": "睡眠质量",
     "UI_Effect_refugeMentalRecoveryMultiplier": "精神恢复",
-    "UI_Effect_refugeStiffnessRecoveryMultiplier": "肌肉恢复"
+    "UI_Effect_refugeStiffnessRecoveryMultiplier": "肌肉恢复",
+    "UI_Effect_refugeCropGrowthTimeMultiplier": "作物生长速度"
 }
