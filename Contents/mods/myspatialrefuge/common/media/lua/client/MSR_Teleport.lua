@@ -32,6 +32,7 @@ require "MSR_ServerCommandRouter"
 require "helpers/TeleportCooldown"
 require "helpers/World"
 require "helpers/TeleportFlow"
+require "MSR_RefugeGeometry"
 
 local PM = MSR.PlayerMessage
 local LOG = L.logger("Teleport")
@@ -51,8 +52,7 @@ end
 local doSingleplayerExit
 
 local function doSingleplayerEnter(player, refugeData)
-    local teleportX = refugeData.centerX
-    local teleportY = refugeData.centerY
+    local teleportX, teleportY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local teleportZ = refugeData.centerZ
     local teleportPlayer = player
     -- Use refugeData.radius directly (authoritative value) - tier lookup can be stale
@@ -111,7 +111,7 @@ local function doSingleplayerEnter(player, refugeData)
         end
     })
     TC.applyEncumbrancePenalty(player, encumbrancePenalty)
-    addSound(player, refugeData.centerX, refugeData.centerY, refugeData.centerZ, 10, 1)
+    addSound(player, teleportX, teleportY, refugeData.centerZ, 10, 1)
     PM.Say(player, PM.ENTERED_REFUGE)
     fireTeleportEvent("MSR_TeleportEnterCompleted", { player = player, refugeData = refugeData })
     

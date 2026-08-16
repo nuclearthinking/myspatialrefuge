@@ -57,7 +57,7 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    CURRENT_DATA_VERSION = 7, -- v7: refuge customizations (Spatial Well)
+    CURRENT_DATA_VERSION = 8, -- v8: relic-anchored effective refuge geometry
     
     CORE_ITEM = "Base.MagicalCore",
 

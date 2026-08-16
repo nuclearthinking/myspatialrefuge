@@ -1,5 +1,6 @@
 require "00_core/00_MSR"
 require "MSR_SpatialWell"
+require "MSR_BoundaryReconciler"
 
 local Decay = MSR.register("Decay")
 if not Decay then
@@ -87,6 +88,12 @@ function Decay.ReclaimOldestInactiveRefuge()
     end
 
     MSR.SpatialWell.RemoveForRefuge(victim.refugeData, false)
+    local boundariesRemoved, removedCount = MSR.BoundaryReconciler.RemoveSlotBoundaries(victim.refugeData)
+    if not boundariesRemoved then
+        LOG.debug("Boundary removal deferred for reclaimed slot; next reconciliation will clean it")
+    elseif removedCount > 0 then
+        LOG.debug("Removed %d boundary objects from reclaimed slot", removedCount)
+    end
     local success, deletedData = Data.DeleteRefugeDataByUsername(victim.username)
     if not success or not deletedData then
         return nil, nil, nil
@@ -113,6 +120,7 @@ function Decay.PurgeInactiveRefuges(minDays, limit)
         end
 
         MSR.SpatialWell.RemoveForRefuge(candidate.refugeData, false)
+        MSR.BoundaryReconciler.RemoveSlotBoundaries(candidate.refugeData)
         local success, deletedData = Data.DeleteRefugeDataByUsername(candidate.username)
         if success and deletedData then
             table.insert(purged, {

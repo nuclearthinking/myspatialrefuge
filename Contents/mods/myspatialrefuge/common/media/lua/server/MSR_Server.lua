@@ -21,6 +21,8 @@ require "MSR_Death"
 require "MSR_XPRetention"
 require "MSR_InventoryAuthority"
 require "MSR_SpatialWellServer"
+require "MSR_RefugeGeometry"
+require "MSR_BasementGeneration"
 
 MSR_Server = MSR_Server or {}
 
@@ -64,12 +66,7 @@ function MSR_Server.GetRelicContainer(player, bypassCache)
             return cached.container
         end
     end
-    local relicX = refugeData.relicX or refugeData.centerX
-    local relicY = refugeData.relicY or refugeData.centerY
-    local relicZ = refugeData.relicZ or refugeData.centerZ or 0
-    local radius = refugeData.radius or 1
-    
-    local relic = MSR.Shared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
+    local relic = MSR.Integrity.FindRelic(refugeData)
     if not relic then 
         _serverRelicContainerCache[username] = nil
         return nil 
@@ -202,16 +199,6 @@ local function getUpgradeItemRoots(player)
     return sources
 end
 
-local function consumeItemsByIds(player, lockedItemIds)
-    if not player or not lockedItemIds then return false end
-    local sources = getUpgradeItemRoots(player)
-    if #sources == 0 then return false end
-
-    local success, consumed, expected = MSR.InventoryAuthority.consumeByIds(sources, lockedItemIds)
-    LOG.debug("consumeItemsByIds: Consumed %d/%d items", consumed, expected)
-    return success
-end
-
 local function areLockedItemsAvailable(player, lockedItemIds)
     if not player or not lockedItemIds then return false end
     local sources = getUpgradeItemRoots(player)
@@ -222,16 +209,6 @@ local function areLockedItemsAvailable(player, lockedItemIds)
         lockedItemIds,
         MSR.Transaction.IsItemAvailable
     )
-end
-
-local function consumeUpgradeRequirements(player, requirements, lockedItemIds)
-    if #requirements == 0 then return true end
-
-    if lockedItemIds and not K.isEmpty(lockedItemIds) then
-        return consumeItemsByIds(player, lockedItemIds)
-    end
-
-    return MSR.UpgradeLogic.consumeItems(player, requirements)
 end
 
 function MSR_Server.HandleModDataRequest(player, _args)
@@ -349,9 +326,10 @@ function MSR_Server.HandleEnterRequest(player, args)
     local encumbrancePenalty = MSR.Validation.GetEncumbrancePenalty(player)
     updateTeleportCooldown(username, encumbrancePenalty)
     
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.TELEPORT_TO, {
-        centerX = refugeData.centerX,
-        centerY = refugeData.centerY,
+        centerX = areaCenterX,
+        centerY = areaCenterY,
         centerZ = refugeData.centerZ,
         tier = refugeData.tier,
         radius = refugeData.radius,
@@ -377,10 +355,7 @@ function MSR_Server.HandleChunksReady(player, _args)
     
     LOG.debug( "Phase 2: Waiting for server chunks to load for " .. username)
     
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
     local centerZ = refugeData.centerZ
-    local radius = refugeData.radius or 1
     local playerRef = player
     local usernameRef = username
     local refugeDataRef = refugeData
@@ -397,7 +372,13 @@ function MSR_Server.HandleChunksReady(player, _args)
             return
         end
         
-        local allChunksLoaded = MSR.World.isAreaLoaded(centerX, centerY, centerZ, radius)
+        local slotExtent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
+        local allChunksLoaded = MSR.World.areAreaChunksLoaded(
+            refugeDataRef.centerX,
+            refugeDataRef.centerY,
+            centerZ,
+            slotExtent
+        )
         
         if allChunksLoaded and not generated then
             generated = true
@@ -416,10 +397,7 @@ function MSR_Server.HandleChunksReady(player, _args)
             
             -- Quick check: if relic exists, refuge is already generated - skip full integrity check
             -- Only do full check if relic is missing (recovery scenario) or first generation
-            local quickRelicCheck = MSR.Shared.FindRelicInRefuge(
-                refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
-                refugeDataRef.radius or 1, refugeDataRef.refugeId
-            )
+            local quickRelicCheck = MSR.Integrity.FindRelic(refugeDataRef)
             
             if not quickRelicCheck then
                 -- Relic missing - need full setup (recovery scenario)
@@ -429,19 +407,27 @@ function MSR_Server.HandleChunksReady(player, _args)
                 -- Existing saves may still reference the pre-42.20 numeric
                 -- tiledef ID. The sprite name and object data survive, so
                 -- rebind the existing relic rather than replacing it.
-                if MSR.Integrity.CheckNeedsRepair(refugeDataRef) then
-                    LOG.debug( "Refuge integrity check requested on entry")
-                    MSR.Integrity.ValidateAndRepair(refugeDataRef, {
-                        source = "enter_server",
-                        player = playerRef
-                    })
-                end
+                MSR.Integrity.ValidateAndRepair(refugeDataRef, {
+                    source = "enter_server",
+                    player = playerRef
+                })
 
                 -- Clear zombies that may have spawned
+                local clearX, clearY = MSR.RefugeGeometry.GetAreaCenter(refugeDataRef)
                 MSR.ZombieClear.ClearZombiesFromArea(
-                    refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
+                    clearX, clearY, refugeDataRef.centerZ,
                     refugeDataRef.radius or 1, true, playerRef
                 )
+            end
+
+            local refugeUpgrades = refugeDataRef.upgrades or {}
+            if (refugeUpgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0) > 0
+                and not MSR.BasementGeneration.IsBasementPresent(refugeDataRef)
+            then
+                local basementOk, basementError = MSR.BasementGeneration.Generate(refugeDataRef, playerRef)
+                if not basementOk then
+                    LOG.warning("Basement roll-forward remains incomplete on entry: %s", tostring(basementError))
+                end
             end
             
             -- Simple square recalculation for visibility/lighting updates
@@ -449,8 +435,7 @@ function MSR_Server.HandleChunksReady(player, _args)
             -- We only need a single RecalcAllWithNeighbours pass for proper rendering
             local RECALC_DELAY_TICKS = 60  -- 1 second delay for chunks to fully initialize
             MSR.delay(RECALC_DELAY_TICKS, function()
-                local recalcX = refugeDataRef.centerX
-                local recalcY = refugeDataRef.centerY
+                local recalcX, recalcY = MSR.RefugeGeometry.GetAreaCenter(refugeDataRef)
                 local recalcZ = refugeDataRef.centerZ
                 local recalcRadius = refugeDataRef.radius or 1
                 local recalculated = MSR.World.recalcArea(recalcX, recalcY, recalcZ, recalcRadius + 1)
@@ -475,9 +460,10 @@ function MSR_Server.HandleChunksReady(player, _args)
                 LOG.debug( "Total refuges in ModData: " .. count)
             end
             
+            local responseCenterX, responseCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeDataRef)
             sendServerCommand(playerRef, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.GENERATION_COMPLETE, {
-                centerX = refugeDataRef.centerX,
-                centerY = refugeDataRef.centerY,
+                centerX = responseCenterX,
+                centerY = responseCenterY,
                 centerZ = refugeDataRef.centerZ,
                 tier = refugeDataRef.tier,
                 radius = refugeDataRef.radius,
@@ -601,22 +587,22 @@ function MSR_Server.HandleMoveRelicRequest(player, args)
     local cornerDy = args and args.cornerDy or 0
     local cornerName = args and args.cornerName or "Unknown"
     
-    local isValid, sanitizedDx, sanitizedDy = MSR.Validation.ValidateCornerOffset(cornerDx, cornerDy)
+    local isValid, anchor = MSR.RefugeGeometry.ValidateAnchor(cornerDx, cornerDy, cornerName)
     if not isValid then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ERROR, {
             messageKey = "MOVE_DESTINATION_BLOCKED"
         })
         return
     end
-    cornerDx = sanitizedDx
-    cornerDy = sanitizedDy
+    cornerDx = anchor.dx
+    cornerDy = anchor.dy
+    cornerName = anchor.name
     
     print("[MSR_Server] HandleMoveRelicRequest: " .. username .. " -> " .. cornerName)
     print("[MSR_Server]   cornerDx=" .. tostring(cornerDx) .. " cornerDy=" .. tostring(cornerDy))
     print("[MSR_Server]   refugeData: center=" .. refugeData.centerX .. "," .. refugeData.centerY .. " radius=" .. refugeData.radius)
     
-    local targetX = refugeData.centerX + (cornerDx * refugeData.radius)
-    local targetY = refugeData.centerY + (cornerDy * refugeData.radius)
+    local targetX, targetY = MSR.RefugeGeometry.GetRelicTarget(refugeData, anchor)
     print("[MSR_Server]   Target position: " .. targetX .. "," .. targetY)
     
     local success, errorCode = MSR.Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName)
@@ -660,6 +646,21 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     local targetLevel = args and args.targetLevel
     local transactionId = args and args.transactionId
     local lockedItemIds = args and args.lockedItemIds
+
+    if type(upgradeId) ~= "string"
+        or type(targetLevel) ~= "number"
+        or targetLevel ~= targetLevel
+        or targetLevel < 0
+        or targetLevel > 1000
+        or targetLevel ~= math.floor(targetLevel)
+        or (lockedItemIds ~= nil and type(lockedItemIds) ~= "table")
+    then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = "Invalid upgrade request"
+        })
+        return
+    end
     
     -- Reused for pending checks and completion recording
     local lockKey = upgradeId and (username .. "_" .. upgradeId) or nil
@@ -712,19 +713,10 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     if lockedItemIds and not K.isEmpty(lockedItemIds) then
         LOG.debug( "HandleFeatureUpgradeRequest: Received lockedItemIds with " .. K.count(lockedItemIds) .. " item types")
         for itemType, ids in pairs(lockedItemIds) do
-            LOG.debug( "  " .. itemType .. ": " .. #ids .. " items")
+            LOG.debug("  %s: %s items", tostring(itemType), type(ids) == "table" and tostring(#ids) or "invalid")
         end
     else
         LOG.debug( "[DEBUG] HandleFeatureUpgradeRequest: No lockedItemIds received, will use type-based consumption")
-    end
-    
-    if not upgradeId or not targetLevel then
-        clearPendingLock()
-        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
-            transactionId = transactionId,
-            reason = "Invalid upgrade request"
-        })
-        return
     end
     
     local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
@@ -795,32 +787,6 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     -- Use getNextLevelRequirements for difficulty-scaled costs
     local requirements = MSR.UpgradeData.getNextLevelRequirements(player, upgradeId) or {}
     
-    if #requirements > 0 then
-        for _, req in ipairs(requirements) do
-            local itemType = req.type
-            local needed = req.count or 1
-            
-            local available = MSR.Transaction.GetMultiSourceCount(player, itemType)
-            
-            if available < needed and req.substitutes then
-                for _, subType in ipairs(req.substitutes) do
-                    available = available + MSR.Transaction.GetMultiSourceCount(player, subType)
-                    if available >= needed then break end
-                end
-            end
-            
-            if available < needed then
-                local itemName = itemType:match("%.(.+)$") or itemType
-                clearPendingLock()
-                sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
-                    transactionId = transactionId,
-                    reason = "Not enough " .. itemName
-                })
-                return
-            end
-        end
-    end
-    
     -- Pre-validate handler constraints BEFORE consuming items
     -- This prevents losing items if the upgrade would fail (e.g., capacity check)
     local preValidateOk, preValidateErr = MSR.UpgradeLogic.validateUpgrade(player, upgradeId, targetLevel)
@@ -832,6 +798,19 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
             reason = preValidateErr or "Upgrade validation failed"
+        })
+        return
+    end
+
+    local allocationOk, allocationError = MSR.UpgradeLogic.validateAllocationForRequirements(
+        requirements,
+        lockedItemIds or {}
+    )
+    if not allocationOk then
+        clearPendingLock()
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = allocationError or "Invalid item allocation"
         })
         return
     end
@@ -849,27 +828,24 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         end
     end
     
-    -- Use handler pattern for upgrades with special logic (apply first, consume after success)
     local handler = MSR.UpgradeLogic.getHandler(upgradeId)
-    local success, errorMsg, resultData = true, nil, nil
-    
-    if handler then
-        success, errorMsg, resultData = handler.apply(player, targetLevel)
-    else
-        -- Generic upgrades have no world mutation to roll back. Consume their
-        -- requirements before saving the level so a failed consume cannot grant
-        -- a free upgrade.
-        if not consumeUpgradeRequirements(player, requirements, lockedItemIds) then
-            success = false
-            errorMsg = "Failed to consume upgrade requirements"
-        else
-            success = MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
-            if not success then
-                errorMsg = "Failed to save upgrade level"
-            end
-        end
+    if #requirements > 0 and (not lockedItemIds or K.isEmpty(lockedItemIds)) then
+        clearPendingLock()
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            reason = "Exact item allocation is required"
+        })
+        return
     end
-    
+
+    local success, errorMsg, resultData = MSR.UpgradeLogic.executeAuthoritative(
+        player,
+        upgradeId,
+        targetLevel,
+        requirements,
+        lockedItemIds or {}
+    )
+
     if not success then
         LOG.debug( upgradeId .. ": FAILED - " .. tostring(errorMsg))
         clearPendingLock()
@@ -880,18 +856,6 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         return
     end
 
-    if handler and #requirements > 0 then
-        -- Special handlers retain their legacy apply-before-consume order because
-        -- their world mutations cannot be rolled back generically here.
-        local consumed = consumeUpgradeRequirements(player, requirements, lockedItemIds)
-
-        if not consumed then
-            LOG.debug( "HandleFeatureUpgradeRequest: Post-apply consumption failed for " .. username)
-        else
-            LOG.debug( "HandleFeatureUpgradeRequest: Consumed items for " .. tostring(upgradeId))
-        end
-    end
-    
     LOG.debug( "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
     
     -- Build response with common fields
@@ -1026,8 +990,13 @@ end
 
 local function areRefugeChunksLoaded(refugeData)
     if not refugeData then return false end
-    return MSR.World.isAreaLoaded(refugeData.centerX, refugeData.centerY,
-        refugeData.centerZ, refugeData.radius or 1)
+    local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
+    return MSR.World.areAreaChunksLoaded(
+        refugeData.centerX,
+        refugeData.centerY,
+        refugeData.centerZ,
+        extent
+    )
 end
 
 function MSR_Server.CheckAndRecoverStrandedPlayer(player)
@@ -1088,10 +1057,7 @@ function MSR_Server.CheckAndRecoverStrandedPlayer(player)
         
         LOG.debug( "Chunks loaded for " .. usernameRef .. " after " .. tickCount .. " ticks, checking structures...")
         
-        local hasRelic = MSR.Shared.FindRelicInRefuge(
-            refugeDataRef.centerX, refugeDataRef.centerY, refugeDataRef.centerZ,
-            refugeDataRef.radius, refugeDataRef.refugeId
-        )
+        local hasRelic = MSR.Integrity.FindRelic(refugeDataRef)
         
         if not hasRelic then
             LOG.debug( "Regenerating structures for stranded player " .. usernameRef)

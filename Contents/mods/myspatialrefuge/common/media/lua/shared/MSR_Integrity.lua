@@ -1,6 +1,8 @@
 require "00_core/00_MSR"
 require "helpers/World"
 require "MSR_BasementGeneration"
+require "MSR_RefugeGeometry"
+require "MSR_BoundaryReconciler"
 
 
 local Integrity = MSR.register("Integrity")
@@ -271,10 +273,11 @@ end
 
 local function deduplicateConfirmedRelics(refugeData, report)
     if not refugeData or not MSR.Env.canModifyData() then return nil end
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
 
     local allRelics = findConfirmedRelicsInArea(
-        refugeData.centerX,
-        refugeData.centerY,
+        areaCenterX,
+        areaCenterY,
         refugeData.centerZ,
         refugeData.radius or 1,
         refugeData.refugeId
@@ -333,11 +336,12 @@ end
 
 local function visitBoundaryObjects(refugeData, visitor)
     if not refugeData then return false end
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local stopped = false
     for _, z in ipairs(getRefugeZLevels(refugeData)) do
         MSR.World.iterateArea(
-            refugeData.centerX,
-            refugeData.centerY,
+            areaCenterX,
+            areaCenterY,
             z,
             (refugeData.radius or 1) + 2,
             function(square)
@@ -434,15 +438,16 @@ local function createReport(source)
             duplicateItemsTransferred = 0,
             spriteLoadFailed = false
         },
-        walls = { repaired = 0 },
+        walls = { repaired = 0, created = 0, removed = 0, adopted = 0, deferred = false },
         modData = { synced = false, fieldsRepaired = {} },
         errors = {}
     }
 end
 
 local function findRelicForRefuge(refugeData)
-    local relicX = refugeData.relicX or refugeData.centerX
-    local relicY = refugeData.relicY or refugeData.centerY
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
+    local relicX = refugeData.relicX or areaCenterX
+    local relicY = refugeData.relicY or areaCenterY
     local relicZ = refugeData.relicZ or refugeData.centerZ
     local relic, foundBy = findRelicReadOnly(
         relicX,
@@ -452,10 +457,10 @@ local function findRelicForRefuge(refugeData)
         refugeData.refugeId
     )
 
-    if not relic and (relicX ~= refugeData.centerX or relicY ~= refugeData.centerY) then
+    if not relic and (relicX ~= areaCenterX or relicY ~= areaCenterY) then
         relic, foundBy = findRelicReadOnly(
-            refugeData.centerX,
-            refugeData.centerY,
+            areaCenterX,
+            areaCenterY,
             refugeData.centerZ,
             refugeData.radius or 1,
             refugeData.refugeId
@@ -498,12 +503,32 @@ function Integrity.ValidateAndRepair(refugeData, context)
             refugeData.pendingSpriteMigration = nil
             table.insert(report.modData.fieldsRepaired, "pendingSpriteMigration")
         end
+
+        local upperSuccess, upperReport = MSR.BoundaryReconciler.ReconcileUpper(refugeData)
+        upperReport = upperReport or {}
+        report.walls.created = report.walls.created + (upperReport.created or 0)
+        report.walls.removed = report.walls.removed + (upperReport.removed or 0)
+        report.walls.adopted = report.walls.adopted + (upperReport.adopted or 0)
+        report.walls.deferred = report.walls.deferred or upperReport.deferred == true
+
+        local basementSuccess = true
+        if isBasementEnabled(refugeData) then
+            local basementReport
+            basementSuccess, basementReport = MSR.BoundaryReconciler.ReconcileBasement(refugeData)
+            basementReport = basementReport or {}
+            report.walls.created = report.walls.created + (basementReport.created or 0)
+            report.walls.removed = report.walls.removed + (basementReport.removed or 0)
+            report.walls.adopted = report.walls.adopted + (basementReport.adopted or 0)
+            report.walls.deferred = report.walls.deferred or basementReport.deferred == true
+        end
+        report.walls.reconciled = upperSuccess and basementSuccess
         validateWalls(refugeData, report)
     end
 
     -- Sync if anything was repaired
     if canRepair and (report.relic.modDataRepaired or report.relic.spriteRepaired or
-            report.walls.repaired > 0 or #report.modData.fieldsRepaired > 0) then
+            report.walls.repaired > 0 or report.walls.created > 0 or report.walls.removed > 0 or
+            report.walls.adopted > 0 or #report.modData.fieldsRepaired > 0) then
         syncAll(refugeData, relic, report)
     end
 

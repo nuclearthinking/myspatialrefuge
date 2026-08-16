@@ -10,6 +10,7 @@ require "MSR_BasementGeneration"
 require "helpers/World"
 require "MSR_PlayerMessage"
 require "MSR_InventoryAuthority"
+require "MSR_RefugeGeometry"
 local PM = MSR.PlayerMessage
 if MSR and MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
     return MSR.UpgradeLogic
@@ -59,14 +60,14 @@ function UpgradeLogic.syncObjectToClients(object, syncModData)
     end
 end
 
-local UpgradeHandlers = {} -- { apply(player, level) -> success, error, extraData }
+local UpgradeHandlers = {}
 
 --- Register upgrade handler
 ---@param upgradeId string
----@param handler table { apply, validate?, getResponseData?, onSuccess?, invalidatesCache? }
+---@param handler table { prepare?, commit?, reconcile?, validate?, getResponseData?, onSuccess?, invalidatesCache? }
 function UpgradeLogic.registerHandler(upgradeId, handler)
-    if not handler or type(handler.apply) ~= "function" then
-        LOG.error("Handler for " .. upgradeId .. " must have apply function")
+    if not handler or type(handler.commit) ~= "function" then
+        LOG.error("Handler for " .. upgradeId .. " must have commit function")
         return
     end
     UpgradeHandlers[upgradeId] = handler
@@ -81,7 +82,9 @@ end
 function UpgradeLogic.validateUpgrade(player, upgradeId, targetLevel)
     local handler = UpgradeHandlers[upgradeId]
     if handler and handler.validate then
-        return handler.validate(player, targetLevel)
+        local callOk, valid, validationError = pcall(handler.validate, player, targetLevel)
+        if not callOk then return false, "Upgrade validation failed: " .. tostring(valid) end
+        return valid == true, validationError
     end
     return true, nil
 end
@@ -117,6 +120,245 @@ function UpgradeLogic.hasRequiredItems(player, requirements)
         end
     end
     return true
+end
+
+local function allocationFromTransaction(transaction)
+    local allocation = {}
+    for itemType, data in pairs(transaction and transaction.lockedItems or {}) do
+        allocation[itemType] = data.itemIds
+    end
+    return allocation
+end
+
+function UpgradeLogic.validateAllocationForRequirements(requirements, allocation)
+    requirements = requirements or {}
+    allocation = allocation or {}
+    if type(requirements) ~= "table" or type(allocation) ~= "table" then
+        return false, "Invalid item allocation"
+    end
+
+    local allocatedTypes = {}
+    local totalAllocated = 0
+    for itemType, itemIds in pairs(allocation) do
+        if type(itemType) ~= "string" or type(itemIds) ~= "table" then
+            return false, "Invalid item allocation"
+        end
+        local itemCount = #itemIds
+        local visited = 0
+        for index, itemId in pairs(itemIds) do
+            if type(index) ~= "number" or index < 1 or index > itemCount or index ~= math.floor(index)
+                or type(itemId) ~= "number" or itemId ~= math.floor(itemId)
+            then
+                return false, "Invalid item allocation"
+            end
+            visited = visited + 1
+        end
+        if visited ~= itemCount then return false, "Invalid item allocation" end
+        table.insert(allocatedTypes, { itemType = itemType, count = itemCount })
+        totalAllocated = totalAllocated + itemCount
+    end
+
+    local normalizedRequirements = {}
+    local totalRequired = 0
+    for _, requirement in ipairs(requirements) do
+        if type(requirement) ~= "table" or type(requirement.type) ~= "string" then
+            return false, "Invalid upgrade recipe"
+        end
+        local rawCount = tonumber(requirement.count) or 1
+        if rawCount < 0 or rawCount ~= math.floor(rawCount) then return false, "Invalid upgrade recipe" end
+        local count = math.floor(rawCount)
+        local allowed = { [requirement.type] = true }
+        for _, substitute in ipairs(requirement.substitutes or {}) do
+            if type(substitute) ~= "string" then return false, "Invalid upgrade recipe" end
+            allowed[substitute] = true
+        end
+        table.insert(normalizedRequirements, { count = count, allowed = allowed })
+        totalRequired = totalRequired + count
+    end
+
+    if totalAllocated ~= totalRequired then
+        return false, "Item allocation does not satisfy the upgrade recipe"
+    end
+
+    -- Small max-flow graph: allocated item types -> recipe requirements.
+    -- This handles overlapping substitutions without depending on recipe order.
+    local typeCount = #allocatedTypes
+    local requirementCount = #normalizedRequirements
+    local source = 1
+    local firstType = 2
+    local firstRequirement = firstType + typeCount
+    local sink = firstRequirement + requirementCount
+    ---@type table<number, { to: integer, capacity: number, reverse: integer }[]>
+    local graph = {}
+    for node = source, sink do graph[node] = {} end
+
+    local function addEdge(from, to, capacity)
+        local forward = { to = to, capacity = capacity, reverse = #graph[to] + 1 }
+        local reverse = { to = from, capacity = 0, reverse = #graph[from] + 1 }
+        table.insert(graph[from], forward)
+        table.insert(graph[to], reverse)
+    end
+
+    for typeIndex, allocated in ipairs(allocatedTypes) do
+        local typeNode = firstType + typeIndex - 1
+        addEdge(source, typeNode, allocated.count)
+        for requirementIndex, requirement in ipairs(normalizedRequirements) do
+            if requirement.allowed[allocated.itemType] then
+                addEdge(typeNode, firstRequirement + requirementIndex - 1, allocated.count)
+            end
+        end
+    end
+    for requirementIndex, requirement in ipairs(normalizedRequirements) do
+        addEdge(firstRequirement + requirementIndex - 1, sink, requirement.count)
+    end
+
+    ---@type number
+    local flow = 0
+    while true do
+        ---@type table<integer, integer>
+        local parentNode, parentEdge = {}, {}
+        local queue, head = { source }, 1
+        parentNode[source] = source
+        while head <= #queue and not parentNode[sink] do
+            local node = queue[head]
+            head = head + 1
+            for edgeIndex, edge in ipairs(graph[node]) do
+                if edge.capacity > 0 and not parentNode[edge.to] then
+                    parentNode[edge.to] = node
+                    parentEdge[edge.to] = edgeIndex
+                    table.insert(queue, edge.to)
+                    if edge.to == sink then break end
+                end
+            end
+        end
+        if not parentNode[sink] then break end
+
+        ---@type number
+        local amount = totalRequired
+        local node = sink
+        while node ~= source do
+            local previous = parentNode[node]
+            local edgeIndex = parentEdge[node]
+            local edges = previous and graph[previous] or nil
+            local edge = edges and edgeIndex and edges[edgeIndex] or nil
+            if not previous or not edge then return false, "Invalid allocation flow" end
+            amount = math.min(amount, edge.capacity)
+            node = previous
+        end
+        node = sink
+        while node ~= source do
+            local previous = parentNode[node]
+            local edgeIndex = parentEdge[node]
+            local edges = previous and graph[previous] or nil
+            local edge = edges and edgeIndex and edges[edgeIndex] or nil
+            if not previous or not edge then return false, "Invalid allocation flow" end
+            local reverseEdge = graph[node] and graph[node][edge.reverse] or nil
+            if not reverseEdge then return false, "Invalid allocation flow" end
+            edge.capacity = edge.capacity - amount
+            reverseEdge.capacity = reverseEdge.capacity + amount
+            node = previous
+        end
+        flow = flow + amount
+    end
+
+    if flow ~= totalRequired then
+        return false, "Item allocation does not satisfy the upgrade recipe"
+    end
+    return true, nil
+end
+
+function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requirements, allocation)
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return false, "Invalid player", nil end
+
+    local valid, validationError = UpgradeLogic.validateUpgrade(playerObj, upgradeId, targetLevel)
+    if not valid then return false, validationError, nil end
+
+    requirements = requirements or {}
+    allocation = allocation or {}
+    local allocationOk, allocationError = UpgradeLogic.validateAllocationForRequirements(requirements, allocation)
+    if not allocationOk then return false, allocationError, nil end
+
+    local handler = UpgradeHandlers[upgradeId]
+    local operation = { upgradeId = upgradeId, targetLevel = targetLevel }
+    if handler and handler.prepare then
+        local callOk, prepared, prepareError = pcall(handler.prepare, playerObj, targetLevel)
+        if not callOk then return false, "Upgrade preparation failed: " .. tostring(prepared), nil end
+        if not prepared then return false, prepareError or "Upgrade preparation failed", nil end
+        operation = prepared
+    end
+
+    local receipt = nil
+    if #requirements > 0 then
+        local sources = MSR.Transaction.GetItemSources(playerObj)
+        local consumeError = nil
+        receipt, consumeError = MSR.InventoryAuthority.consumeWithReceipt(
+            playerObj,
+            sources,
+            allocation,
+            MSR.Transaction.IsItemAvailable
+        )
+        if not receipt then return false, consumeError or "Failed to consume upgrade requirements", nil end
+    end
+
+    local commitCallOk, committed, resultOrError
+    if handler then
+        commitCallOk, committed, resultOrError = pcall(handler.commit, playerObj, targetLevel, operation)
+    else
+        commitCallOk, committed = pcall(
+            MSR.UpgradeData.setPlayerUpgradeLevel,
+            playerObj,
+            upgradeId,
+            targetLevel
+        )
+        resultOrError = committed and operation or "Failed to save upgrade level"
+    end
+
+    if not commitCallOk then
+        resultOrError = "Upgrade commit failed: " .. tostring(committed)
+        committed = false
+    end
+
+    if not committed and MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId) == targetLevel then
+        LOG.warning("Upgrade commit reported failure after authoritative state was saved; continuing roll-forward")
+        committed = true
+        resultOrError = operation
+    end
+
+    if not committed then
+        if receipt then MSR.InventoryAuthority.refundReceipt(playerObj, receipt) end
+        return false, resultOrError or "Upgrade commit failed", nil
+    end
+    if receipt then MSR.InventoryAuthority.finalizeReceipt(receipt) end
+
+    local resultData = resultOrError or operation
+    if handler and handler.reconcile then
+        local reconcileCallOk, reconciled, reconcileError = pcall(
+            handler.reconcile,
+            playerObj,
+            targetLevel,
+            operation,
+            resultData
+        )
+        if not reconcileCallOk then
+            reconcileError = reconciled
+            reconciled = false
+        end
+        if not reconciled then
+            LOG.warning("Committed upgrade %s requires roll-forward repair: %s", upgradeId, tostring(reconcileError))
+        end
+    else
+        UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
+    end
+
+    if handler and handler.onSuccess then
+        local callbackOk, callbackError = pcall(handler.onSuccess, playerObj, targetLevel, resultData)
+        if not callbackOk then
+            LOG.warning("Upgrade success callback failed for %s: %s", upgradeId, tostring(callbackError))
+        end
+    end
+
+    return true, nil, resultData
 end
 
 function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
@@ -180,88 +422,42 @@ function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirem
         end
     end
 
-    local handler = UpgradeLogic.getHandler(upgradeId)
-    if handler then
-        local success, errorMsg, resultData = handler.apply(player, targetLevel)
-        if not success then
-            if transaction then
-                MSR.Transaction.Rollback(player, transaction.id)
-            end
-            return false, errorMsg or "Upgrade failed"
-        end
-        if handler.onSuccess then
-            handler.onSuccess(player, targetLevel, resultData)
-        end
-    else
-        if transaction then
-            local committed = MSR.Transaction.Commit(player, transaction.id)
-            if not committed then
-                LOG.debug("Transaction commit failed for " .. tostring(transaction.id))
-                return false, "Failed to consume upgrade requirements"
-            end
-            transaction = nil
-        end
-
-        local levelSaved = MSR.UpgradeData.setPlayerUpgradeLevel(player, upgradeId, targetLevel)
-        if not levelSaved then
-            return false, "Failed to save upgrade level"
-        end
-        UpgradeLogic.applyUpgradeEffects(player, upgradeId, targetLevel)
+    local allocation = allocationFromTransaction(transaction)
+    local success, errorMsg = UpgradeLogic.executeAuthoritative(
+        player, upgradeId, targetLevel, requirements, allocation
+    )
+    if not success then
+        if transaction then MSR.Transaction.Rollback(player, transaction.id) end
+        return false, errorMsg or "Upgrade failed"
     end
 
-    if transaction then
-        local committed = MSR.Transaction.Commit(player, transaction.id)
-        if not committed then
-            LOG.debug("Transaction commit failed for " .. tostring(transaction.id))
-        end
-    end
-    
-    -- Expansion level is managed by refuge tier and bypasses setPlayerUpgradeLevel.
-    if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
-        invalidateItemCountCaches(player)
-    end
-
-    local upgrade = MSR.UpgradeData.getUpgrade(upgradeId)
-    local name = upgrade and (getText(upgrade.name) or upgrade.name) or upgradeId
-    PM.Say(player, PM.UPGRADED_TO_LEVEL, name, targetLevel)
-
+    if transaction then MSR.Transaction.Finalize(player, transaction.id) end
+    UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, nil)
     return true, nil
 end
 
 function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirements)
-    local transaction, err = MSR.Transaction.Begin(player, TRANSACTION_TYPE_UPGRADE, requirements)
-    if not transaction then
-        return false, err or "Failed to start transaction"
+    local transaction = nil
+    if requirements and #requirements > 0 then
+        local err = nil
+        transaction, err = MSR.Transaction.Begin(player, TRANSACTION_TYPE_UPGRADE, requirements)
+        if not transaction then
+            return false, err or "Failed to start transaction"
+        end
     end
 
-    local lockedItemIds = {}
-    for itemType, data in pairs(transaction.lockedItems) do
-        lockedItemIds[itemType] = data.itemIds
-    end
+    local lockedItemIds = allocationFromTransaction(transaction)
 
-    LOG.debug("Transaction " .. transaction.id .. " with " .. K.count(lockedItemIds) .. " item types")
+    LOG.debug("Upgrade request with " .. K.count(lockedItemIds) .. " locked item types")
     sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE, {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
-        transactionId = transaction.id,
+        transactionId = transaction and transaction.id or nil,
         lockedItemIds = lockedItemIds
     })
 
     PM.Say(player, PM.UPGRADING)
     return true, nil
-end
-
-function UpgradeLogic.consumeItems(player, requirements)
-    local playerObj = resolvePlayer(player)
-    if not playerObj then return false end
-    
-    local resolved = MSR.Transaction.ResolveSubstitutions(playerObj, requirements)
-    if not resolved then return false end
-
-    local sources = MSR.Transaction.GetItemSources(playerObj)
-    if not sources or #sources == 0 then return false end
-
-    return MSR.InventoryAuthority.consumeByType(sources, resolved, MSR.Transaction.IsItemAvailable)
 end
 
 function UpgradeLogic.applyUpgradeEffects(_player, upgradeId, level)
@@ -312,48 +508,6 @@ function UpgradeLogic.validateStorageUpgrade(player, level)
     return true, nil
 end
 
----@param player IsoPlayer|number
----@param level number
----@return boolean, string|nil
-function UpgradeLogic.applyStorageUpgrade(player, level)
-    local playerObj = resolvePlayer(player)
-    if not playerObj then return false, "Invalid player" end
-
-    local refugeData = MSR.Data.GetRefugeData(playerObj)
-    if not refugeData then return false, "Refuge data not found" end
-    local relic = MSR.Integrity and MSR.Integrity.FindRelic and MSR.Integrity.FindRelic(refugeData)
-    if not relic then
-        -- No relic exists - safe to set level, capacity will apply on next creation
-        if not MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level) then
-            return false, "Failed to save upgrade level"
-        end
-        LOG.info("Relic not found, capacity will apply on next creation")
-        return true, nil
-    end
-
-    local container = relic:getContainer()
-    if not container then return false, "Relic container not found" end
-
-    local newCapacity = getStorageCapacityForLevel(level)
-    local currentWeight = container:getCapacityWeight()
-    if currentWeight > newCapacity then
-        return false, "Cannot reduce capacity below current weight (" .. round(currentWeight, 1) .. " units)"
-    end
-
-    -- Validation passed - now commit the upgrade
-    if not MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.CORE_STORAGE, level) then
-        return false, "Failed to save upgrade level"
-    end
-
-    container:setCapacity(newCapacity)
-    local md = relic:getModData()
-    md.storageUpgradeLevel = level
-    UpgradeLogic.syncObjectToClients(relic, true)
-
-    LOG.info("Updated relic storage capacity to " .. newCapacity)
-    return true, nil
-end
-
 local function registerBuiltinHandlers()
     -- Guard against duplicate registration
     if UpgradeHandlers[MSR.Config.UPGRADES.CORE_STORAGE] then
@@ -364,8 +518,25 @@ local function registerBuiltinHandlers()
         validate = function(player, level)
             return UpgradeLogic.validateStorageUpgrade(player, level)
         end,
-        apply = function(player, level)
-            return UpgradeLogic.applyStorageUpgrade(player, level)
+        prepare = function(_player, level)
+            return { level = level }, nil
+        end,
+        commit = function(player, level, operation)
+            if not MSR.UpgradeData.setPlayerUpgradeLevel(player, MSR.Config.UPGRADES.CORE_STORAGE, level) then
+                return false, "Failed to save storage upgrade level"
+            end
+            return true, operation
+        end,
+        reconcile = function(player, level)
+            local refugeData = MSR.Data.GetRefugeData(player)
+            local relic = refugeData and MSR.Integrity.FindRelic(refugeData) or nil
+            if not relic then return true, nil end
+            local container = relic:getContainer()
+            if not container then return false, "Relic container not found" end
+            container:setCapacity(getStorageCapacityForLevel(level))
+            relic:getModData().storageUpgradeLevel = level
+            UpgradeLogic.syncObjectToClients(relic, true)
+            return true, nil
         end,
         invalidatesCache = true
     })
@@ -393,11 +564,9 @@ local function registerBuiltinHandlers()
                 return false, "Already at this level"
             end
 
-            local basementZ = MSR.BasementGeneration.GetBasementZ(refugeData)
-            local upperLoaded = MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, refugeData.centerZ, refugeData.radius)
-            local lowerLoaded = MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, basementZ, refugeData.radius)
-            LOG.debug("Basement chunk checks: upperLoaded=%s lowerLoaded=%s basementZ=%s",
-                tostring(upperLoaded), tostring(lowerLoaded), tostring(basementZ))
+            local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
+            local upperLoaded = MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, refugeData.centerZ, extent)
+            LOG.debug("Basement surface chunk check: upperLoaded=%s", tostring(upperLoaded))
             if not upperLoaded then
                 return false, "Refuge area not fully loaded. Move around and try again."
             end
@@ -410,49 +579,50 @@ local function registerBuiltinHandlers()
 
             return true, nil
         end,
-        apply = function(player, level)
+        prepare = function(player, level)
             local playerObj = resolvePlayer(player)
-            if not playerObj then return false, "Invalid player" end
+            if not playerObj then return nil, "Invalid player" end
 
             local refugeData = MSR.Data.GetRefugeData(playerObj)
-            if not refugeData then return false, "Refuge data not found" end
-
-            LOG.debug("Basement apply: user=%s level=%s center=%s,%s,%s radius=%s",
-                tostring(playerObj:getUsername()), tostring(level),
-                tostring(refugeData.centerX), tostring(refugeData.centerY), tostring(refugeData.centerZ),
-                tostring(refugeData.radius))
-
-            local success, errorMsg = MSR.BasementGeneration.Generate(refugeData, playerObj)
-            if not success then
-                LOG.debug("Basement apply failed: %s", tostring(errorMsg))
-                return false, errorMsg or "Basement generation failed"
+            if not refugeData then return nil, "Refuge data not found" end
+            return { refugeData = refugeData, level = level }, nil
+        end,
+        commit = function(player, level, operation)
+            if not MSR.UpgradeData.setPlayerUpgradeLevel(player, MSR.Config.UPGRADES.REFUGE_BASEMENT, level) then
+                return false, "Failed to save basement upgrade level"
             end
-
-            MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, MSR.Config.UPGRADES.REFUGE_BASEMENT, level)
-
+            return true, operation
+        end,
+        reconcile = function(player, _level, operation)
+            local success, errorMsg = MSR.BasementGeneration.Generate(operation.refugeData, player)
+            if not success then return false, errorMsg or "Basement generation failed" end
             if MSR.RoomPersistence then
-                MSR.RoomPersistence.Save(refugeData)
-                MSR.RoomPersistence.Restore(refugeData)
+                MSR.RoomPersistence.Save(operation.refugeData)
+                MSR.RoomPersistence.Restore(operation.refugeData)
             end
-
             return true, nil
         end,
         invalidatesCache = true
     })
 
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.EXPAND_REFUGE, {
-        apply = function(player, _level)
+        prepare = function(player, _level)
             local refugeData = MSR.Data.GetRefugeData(player)
-            if not refugeData then return false, "Refuge data not found" end
-
-            local success, errorMsg, resultData = MSR.RefugeExpansion.Execute(player, refugeData)
-            return success, errorMsg, resultData
+            if not refugeData then return nil, "Refuge data not found" end
+            return MSR.RefugeExpansion.Prepare(player, refugeData)
+        end,
+        commit = function(player, _level, operation)
+            return MSR.RefugeExpansion.Commit(player, operation)
+        end,
+        reconcile = function(player, _level, operation)
+            return MSR.RefugeExpansion.Reconcile(player, operation)
         end,
         getResponseData = function(refugeData, resultData)
             if not resultData then return nil end
+            local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
             return {
-                centerX = refugeData.centerX,
-                centerY = refugeData.centerY,
+                centerX = centerX,
+                centerY = centerY,
                 centerZ = refugeData.centerZ,
                 oldRadius = resultData.oldRadius,
                 newRadius = resultData.newRadius,
@@ -468,7 +638,10 @@ local function registerBuiltinHandlers()
     })
 
     UpgradeLogic.registerHandler(MSR.Config.UPGRADES.DEBUG_FAIL_UPGRADE, {
-        apply = function(_player, _level)
+        prepare = function(_player, level)
+            return { level = level }, nil
+        end,
+        commit = function(_player, _level, _operation)
             return false, "Debug upgrade failed intentionally"
         end,
         invalidatesCache = false
@@ -487,11 +660,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     if not playerObj then return end
 
     if transactionId then
-        if MSR.Env.isMultiplayerClient() then
-            MSR.Transaction.Finalize(playerObj, transactionId) -- MP: clear locks (server consumed items)
-        else
-            MSR.Transaction.Commit(playerObj, transactionId) -- SP: consume items
-        end
+        MSR.Transaction.Finalize(playerObj, transactionId)
     end
     
     if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
@@ -500,10 +669,6 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     end
 
     local handler = UpgradeLogic.getHandler(upgradeId)
-    if not handler then
-        UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
-    end
-    MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, targetLevel)
 
     if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE
         and MSR.EffectSystem

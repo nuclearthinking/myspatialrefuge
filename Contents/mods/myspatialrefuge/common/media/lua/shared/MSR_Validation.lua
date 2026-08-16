@@ -1,6 +1,7 @@
 -- MSR_Validation - Shared validation logic for client and server
 
 require "00_core/00_MSR"
+require "MSR_RefugeGeometry"
 require "00_core/Config"
 require "00_core/Data"
 
@@ -209,14 +210,9 @@ end
 -- Value Validation
 
 function Validation.ValidateCornerOffset(cornerDx, cornerDy)
-    if type(cornerDx) ~= "number" or type(cornerDy) ~= "number" then
-        return false, 0, 0
-    end
-    
-    local sanitizedDx = math.max(-1, math.min(1, math.floor(cornerDx)))
-    local sanitizedDy = math.max(-1, math.min(1, math.floor(cornerDy)))
-    
-    return true, sanitizedDx, sanitizedDy
+    local valid, anchor = MSR.RefugeGeometry.ValidateAnchor(cornerDx, cornerDy)
+    if not valid then return false, 0, 0 end
+    return true, anchor.dx, anchor.dy
 end
 
 function Validation.ValidateTier(tier)
@@ -254,7 +250,7 @@ function Validation.ValidateWorldCoordinates(x, y)
         return false, "Invalid coordinate type"
     end
     
-    if Data.IsInRefugeCoordinates(x, y) then
+    if Data.IsInRefugeGridCoordinates(x, y) then
         return false, "Coordinates are in refuge space"
     end
     
@@ -273,7 +269,7 @@ function Validation.CanUpgradeRefuge(player, refugeData)
         return false, "No refuge found", nil
     end
     
-    if not Validation.IsInRefugeCoords(player) then
+    if not MSR.RefugeGeometry.ContainsTile(refugeData, player:getX(), player:getY()) then
         return false, "Must be in refuge to upgrade", nil
     end
     

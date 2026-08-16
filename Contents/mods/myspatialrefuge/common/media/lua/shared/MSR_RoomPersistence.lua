@@ -3,6 +3,7 @@
 
 require "00_core/00_MSR"
 require "helpers/World"
+require "MSR_RefugeGeometry"
 
 local LOG = L.logger("RoomPersistence")
 
@@ -73,7 +74,8 @@ end
 function RoomPersistence.Save(refugeData)
     if not refugeData then return 0 end
     
-    local centerX, centerY, centerZ = refugeData.centerX, refugeData.centerY, refugeData.centerZ
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
+    local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     
     if not MSR.World.isChunkLoaded(centerX, centerY, centerZ) then return 0 end
@@ -194,7 +196,8 @@ function RoomPersistence.ForceCutaway(refugeData, playerIndex)
     local gameCell = getCell()
     if not gameCell then return 0 end
     
-    local cx, cy, cz = refugeData.centerX, refugeData.centerY, refugeData.centerZ or 0
+    local cx, cy = MSR.RefugeGeometry.GetAreaCenter(refugeData)
+    local cz = refugeData.centerZ or 0
     local r = (refugeData.radius or 1) + 1
     local timestamp = getTimestampMs()
     local count = 0

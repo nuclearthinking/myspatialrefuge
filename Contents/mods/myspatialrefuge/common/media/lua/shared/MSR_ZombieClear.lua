@@ -1,4 +1,5 @@
 require "00_core/00_MSR"
+require "MSR_RefugeGeometry"
 
 local ZombieClear = MSR.register("ZombieClear")
 if not ZombieClear then return MSR.ZombieClear end
@@ -114,9 +115,9 @@ end
 --- @return number Number of entities cleared
 function ZombieClear.ClearRefuge(refugeData, player)
     if not refugeData then return 0 end
-    
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     return ZombieClear.ClearZombiesFromArea(
-        refugeData.centerX, refugeData.centerY, refugeData.centerZ,
+        centerX, centerY, refugeData.centerZ,
         refugeData.radius or 1, true, player
     )
 end

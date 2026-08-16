@@ -8,6 +8,8 @@ require "MSR_Integrity"
 require "MSR_ZombieClear"
 require "MSR_BasementGeneration"
 require "MSR_UpgradeData"
+require "MSR_RefugeGeometry"
+require "MSR_BoundaryReconciler"
 
 if MSR and MSR.RefugeGeneration and MSR.RefugeGeneration._loaded then
     return MSR.RefugeGeneration
@@ -353,45 +355,13 @@ function RG.ClearTreesFromArea(centerX, centerY, z, radius, dropLoot)
 end
 
 -----------------------------------------------------------
--- Refuge Expansion
------------------------------------------------------------
-
-function RG.ExpandRefuge(refugeData, newTier, player)
-    if not refugeData then return false end
-
-    local tierConfig = MSR.Config.TIERS[newTier]
-    if not tierConfig then return false end
-
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local centerZ = refugeData.centerZ
-    local oldRadius = refugeData.radius
-    local newRadius = tierConfig.radius
-
-    LOG.debug("ExpandRefuge: tier %d -> %d radius %d -> %d", (refugeData.tier or 0), newTier, oldRadius, newRadius)
-
-    RG.RemoveAllRefugeWalls(centerX, centerY, centerZ, newRadius)
-    RG.CreateBoundaryWalls(centerX, centerY, centerZ, newRadius)
-    RG.ClearTreesFromArea(centerX, centerY, centerZ, newRadius, false)
-
-    refugeData.tier = newTier
-    refugeData.radius = newRadius
-    refugeData.lastExpanded = K.time()
-
-    MSR.ZombieClear.ClearZombiesFromArea(centerX, centerY, centerZ, newRadius, true, player)
-
-    return true
-end
-
------------------------------------------------------------
 -- Full Refuge Generation
 -----------------------------------------------------------
 
 function RG.EnsureRefugeStructures(refugeData, player)
     if not refugeData then return false end
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
@@ -399,7 +369,7 @@ function RG.EnsureRefugeStructures(refugeData, player)
     local relicY = refugeData.relicY or centerY
     local relicZ = refugeData.relicZ or centerZ
 
-    RG.CreateBoundaryWalls(centerX, centerY, centerZ, radius)
+    MSR.BoundaryReconciler.ReconcileUpper(refugeData)
     RG.ClearTreesFromArea(centerX, centerY, centerZ, radius, false)
 
     local relic = RG.CreateSacredRelicAtPosition(
@@ -439,11 +409,12 @@ end
 ---@return table
 function RG.CreateEnterContext(refugeData, player)
     local radius = refugeData.radius or 1
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     return {
         player = player,
         refugeData = refugeData,
-        centerX = refugeData.centerX,
-        centerY = refugeData.centerY,
+        centerX = centerX,
+        centerY = centerY,
         centerZ = refugeData.centerZ,
         radius = radius,
         refugeId = refugeData.refugeId,
@@ -474,7 +445,7 @@ function RG.StepEnterPreparation(ctx)
             local existingRelic = MSR.Shared.FindRelicInRefuge(
                 ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius, ctx.refugeId
             )
-            local wallsExist = RG.CheckBoundaryWallsExist(ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius)
+            local wallsExist = MSR.BoundaryReconciler.ReconcileUpper(ctx.refugeData)
 
             if existingRelic and wallsExist then
                 ctx.refugeInitialized = true
@@ -495,8 +466,8 @@ function RG.StepEnterPreparation(ctx)
                 if MSR.World.arePerimeterChunksLoaded(ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius) then
                     RG.ClearTreesFromArea(ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius, false)
 
-                    local wallsCount = RG.CreateBoundaryWalls(ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius)
-                    if wallsCount > 0 or RG.CheckBoundaryWallsExist(ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius) then
+                    local reconciled = MSR.BoundaryReconciler.ReconcileUpper(ctx.refugeData)
+                    if reconciled then
                         ctx.wallsCreated = true
                     end
                 end

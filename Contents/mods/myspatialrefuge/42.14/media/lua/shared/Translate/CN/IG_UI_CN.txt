@@ -85,4 +85,5 @@ IGUI_CN = {
     IGUI_SpatialWellMissingResources = "我没有足够的资源建造空间水井。",
     IGUI_SpatialWellBuildFailed = "空间水井未能成形。",
     IGUI_SpatialWellNotInRefuge = "我只能在自己的庇护所内放置它。",
+    IGUI_MoveSacredRelic_ExpansionHint = "避难所的空间会回应圣物的位置。",
 }

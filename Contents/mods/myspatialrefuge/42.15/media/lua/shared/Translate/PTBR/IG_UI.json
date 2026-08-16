@@ -84,5 +84,6 @@
     "IGUI_SpatialWellInvalidLocation": "O poço espacial não pode ser colocado ali.",
     "IGUI_SpatialWellMissingResources": "Não tenho recursos para o poço espacial.",
     "IGUI_SpatialWellBuildFailed": "O poço espacial não conseguiu tomar forma.",
-    "IGUI_SpatialWellNotInRefuge": "Só posso colocá-lo dentro do meu refúgio."
+    "IGUI_SpatialWellNotInRefuge": "Só posso colocá-lo dentro do meu refúgio.",
+    "IGUI_MoveSacredRelic_ExpansionHint": "O espaço do refúgio responde à posição da relíquia."
 }

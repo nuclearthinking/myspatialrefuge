@@ -7,6 +7,7 @@
 -- Version 5: Added roomIds table for room persistence (no breaking changes)
 -- Version 6: Added lastActiveTime for refuge decay and reclamation
 -- Version 7: Added customizations table for refuge-built objects
+-- Version 8: Added effective refuge area offsets
 
 require "00_core/00_MSR"
 require "helpers/World"
@@ -264,13 +265,40 @@ local function migrate_6_to_7(player)
     return true, "Migrated v6 -> v7 (refuge customizations)"
 end
 
+-----------------------------------------------------------
+-- Migration: v7 -> v8
+-- Existing refuges retain their centered geometry.
+-----------------------------------------------------------
+
+local function migrate_7_to_8(player)
+    local username = player:getUsername()
+    local refugeData = Data.GetRefugeDataByUsername(username)
+
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+
+    refugeData.areaOffsetX = 0
+    refugeData.areaOffsetY = 0
+    refugeData.dataVersion = 8
+    if not Data.SaveRefugeData(refugeData) then
+        refugeData.areaOffsetX = nil
+        refugeData.areaOffsetY = nil
+        refugeData.dataVersion = 7
+        return false, "Failed to persist v8 refuge geometry"
+    end
+
+    return true, "Migrated v7 -> v8 (effective refuge geometry)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
     [2] = migrate_2_to_3,
     [3] = migrate_3_to_4,
     [4] = migrate_4_to_5,
     [5] = migrate_5_to_6,
-    [6] = migrate_6_to_7
+    [6] = migrate_6_to_7,
+    [7] = migrate_7_to_8
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)

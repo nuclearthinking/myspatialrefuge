@@ -2,6 +2,7 @@
 
 require "00_core/00_MSR"
 require "helpers/World"
+require "MSR_RefugeGeometry"
 require "MSR_PlayerMessage"
 require "MSR_Transaction"
 
@@ -234,9 +235,10 @@ function SpatialWell.Find(refugeData)
     if object or square then return object, square end
 
     local foundObject, foundSquare = nil, nil
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     World.iterateArea(
-        refugeData.centerX,
-        refugeData.centerY,
+        areaCenterX,
+        areaCenterY,
         refugeData.centerZ or 0,
         refugeData.radius or 1,
         function(candidateSquare)

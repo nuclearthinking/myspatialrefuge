@@ -3,7 +3,9 @@
 require "MSR_Transaction"
 require "MSR_Integrity"
 require "MSR_PlayerMessage"
+require "MSR_RefugeGeometry"
 require "00_core/Env"
+require "ISUI/ISToolTip"
 
 local PM = MSR.PlayerMessage
 local LOG = L.logger("Context")
@@ -75,9 +77,8 @@ function MSR.MoveRelicToPosition(player, relic, refugeData, cornerDx, cornerDy, 
         if success then
             MSR.UpdateRelicMoveTime(player)
             
-            local radius = refugeData.radius or 1
-            local targetX = refugeData.centerX + (cornerDx * radius)
-            local targetY = refugeData.centerY + (cornerDy * radius)
+            local anchor = MSR.RefugeGeometry.GetAnchor(cornerName)
+            local targetX, targetY = MSR.RefugeGeometry.GetRelicTarget(refugeData, anchor)
             refugeData.relicX = targetX
             refugeData.relicY = targetY
             refugeData.relicZ = refugeData.centerZ
@@ -162,6 +163,12 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, _test
     local moveOptionText = getText("IGUI_MoveSacredRelic")
     local moveOption = context:addOption(moveOptionText, playerObj, nil)
     context:addSubMenu(moveOption, moveSubmenu)
+    ---@diagnostic disable-next-line: undefined-global -- Loaded by ISUI/ISToolTip at runtime.
+    local moveTooltip = ISToolTip:new()
+    moveTooltip:initialise()
+    moveTooltip:setVisible(false)
+    moveTooltip.description = getText("IGUI_MoveSacredRelic_ExpansionHint")
+    moveOption.toolTip = moveTooltip
     
     local moveIcon = getTexture("media/ui/MoveRelic_24x24.png")
     if moveIcon then

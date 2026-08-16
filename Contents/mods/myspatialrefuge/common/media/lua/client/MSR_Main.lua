@@ -155,18 +155,7 @@ function MSR.GetRelicContainer(player, bypassCache)
         return _relicContainerCache.container
     end
     
-    local relicX = refugeData.relicX
-    local relicY = refugeData.relicY
-    local relicZ = refugeData.relicZ or 0
-    
-    if not relicX or not relicY then
-        relicX = refugeData.centerX
-        relicY = refugeData.centerY
-        relicZ = refugeData.centerZ or 0
-    end
-    
-    local radius = refugeData.radius or 1
-    local relic = MSR.Shared.FindRelicInRefuge(relicX, relicY, relicZ, radius, refugeId)
+    local relic = MSR.Integrity.FindRelic(refugeData)
     
     if not relic then 
         _relicContainerCache.container = nil
