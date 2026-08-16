@@ -3,6 +3,9 @@
 
 require "00_core/00_MSR"
 require "MSR_Decay"
+require "MSR_RefugeGeometry"
+require "MSR_Integrity"
+require "MSR_BoundaryReconciler"
 
 local Config = MSR.Config
 local Data = MSR.Data
@@ -151,6 +154,15 @@ local function tierFromRadius(radius)
     return nil
 end
 
+local function getRegisteredRefugeAtSlot(centerX, centerY)
+    for username, refugeData in pairs(Data.GetRefugeRegistry() or {}) do
+        if refugeData.centerX == centerX and refugeData.centerY == centerY then
+            return refugeData, username
+        end
+    end
+    return nil, nil
+end
+
 -----------------------------------------------------------
 -- Command Handlers
 -----------------------------------------------------------
@@ -197,10 +209,14 @@ local function cmdInfo(username)
     addLine(lines, "[MSR] === Refuge: " .. username .. " ===")
     addLine(lines, "  refugeId: " .. tostring(refugeData.refugeId))
     addLine(lines, "  slot: " .. tostring(getSlotFromCoords(refugeData.centerX, refugeData.centerY)))
-    addLine(lines, "  coords: " .. refugeData.centerX .. "," .. refugeData.centerY .. "," .. (refugeData.centerZ or 0))
+    addLine(lines, "  slotCenter: " .. refugeData.centerX .. "," .. refugeData.centerY .. "," .. (refugeData.centerZ or 0))
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
+    local offsetX, offsetY = MSR.RefugeGeometry.GetAreaOffset(refugeData)
+    addLine(lines, "  areaCenter: " .. areaCenterX .. "," .. areaCenterY)
+    addLine(lines, "  areaOffset: " .. offsetX .. "," .. offsetY)
     addLine(lines, "  tier: " .. tostring(refugeData.tier))
     addLine(lines, "  radius: " .. tostring(refugeData.radius))
-    addLine(lines, "  relic: " .. (refugeData.relicX or refugeData.centerX) .. "," .. (refugeData.relicY or refugeData.centerY))
+    addLine(lines, "  relic: " .. (refugeData.relicX or areaCenterX) .. "," .. (refugeData.relicY or areaCenterY))
     addLine(lines, "  dataVersion: " .. tostring(refugeData.dataVersion))
     addLine(lines, "  createdTime: " .. tostring(refugeData.createdTime))
     addLine(lines, "  lastActiveTime: " .. tostring(refugeData.lastActiveTime))
@@ -227,14 +243,27 @@ local function cmdDelete(username)
         return lines
     end
 
-    local success, existing = Data.DeleteRefugeDataByUsername(username)
-    if not success or not existing then
+    local existing = Data.GetRefugeDataByUsername(username)
+    if not existing then
         addLine(lines, "[MSR] No refuge found for: " .. username)
+        return lines
+    end
+
+    MSR.SpatialWell.RemoveForRefuge(existing, false)
+    local boundariesLoaded, removedBoundaries = MSR.BoundaryReconciler.RemoveSlotBoundaries(existing)
+    local success = Data.DeleteRefugeDataByUsername(username)
+    if not success then
+        addLine(lines, "[MSR] Failed to delete refuge for: " .. username)
         return lines
     end
 
     addLine(lines, "[MSR] Deleted refuge for: " .. username)
     addLine(lines, "[MSR]   Was at: " .. existing.centerX .. "," .. existing.centerY .. " tier " .. tostring(existing.tier))
+    if boundariesLoaded then
+        addLine(lines, "[MSR]   Boundary objects removed: " .. tostring(removedBoundaries))
+    else
+        addLine(lines, "[MSR]   Boundary cleanup deferred until slot reuse")
+    end
     addLine(lines, "[MSR]   Return position cleared")
     return lines
 end
@@ -304,7 +333,23 @@ local function cmdScan(slotNum, playerOverride)
         return lines
     end
 
-    local relic, relicMd, relicX, relicY = findRelicAt(centerX, centerY, centerZ, 5)
+    local registered, registeredUsername = getRegisteredRefugeAtSlot(centerX, centerY)
+    local relic, relicMd, relicX, relicY
+    if registered then
+        relic = MSR.Integrity.FindRelic(registered)
+        if relic and relic:getSquare() then
+            local relicSquare = relic:getSquare()
+            relicMd = relic:getModData()
+            relicX, relicY = relicSquare:getX(), relicSquare:getY()
+        end
+    else
+        relic, relicMd, relicX, relicY = findRelicAt(
+            centerX,
+            centerY,
+            centerZ,
+            MSR.RefugeGeometry.GetMaximumDirectionalExtent()
+        )
+    end
     if not relic then
         addLine(lines, "[MSR] No relic found at this location.")
         addLine(lines, "[MSR] This refuge slot may be empty or never used.")
@@ -315,9 +360,9 @@ local function cmdScan(slotNum, playerOverride)
     addLine(lines, "[MSR] RELIC FOUND at " .. relicX .. "," .. relicY)
     addLine(lines, "[MSR]   refugeId: " .. tostring(refugeId))
 
-    local username = nil
+    local username = registeredUsername
     if refugeId and type(refugeId) == "string" then
-        username = refugeId:gsub("^refuge_", "")
+        username = username or refugeId:gsub("^refuge_", "")
     end
     addLine(lines, "[MSR]   Owner (from refugeId): " .. tostring(username))
 
@@ -325,7 +370,9 @@ local function cmdScan(slotNum, playerOverride)
         addLine(lines, "[MSR]   Requested by: " .. tostring(player:getUsername()))
     end
 
-    local radius = measureRefugeRadius(centerX, centerY, centerZ)
+    local areaCenterX, areaCenterY = centerX, centerY
+    if registered then areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(registered) end
+    local radius = registered and registered.radius or measureRefugeRadius(areaCenterX, areaCenterY, centerZ)
     local tier = nil
     if radius then
         tier = tierFromRadius(radius)
@@ -334,9 +381,11 @@ local function cmdScan(slotNum, playerOverride)
         addLine(lines, "[MSR]   Could not detect radius (walls not loaded or missing)")
     end
 
-    local registered = username and Data.GetRefugeDataByUsername(username)
     if registered then
+        local offsetX, offsetY = MSR.RefugeGeometry.GetAreaOffset(registered)
         addLine(lines, "[MSR]   Registry: REGISTERED at " .. registered.centerX .. "," .. registered.centerY)
+        addLine(lines, "[MSR]   Effective center: " .. areaCenterX .. "," .. areaCenterY ..
+            " offset=" .. offsetX .. "," .. offsetY)
     else
         addLine(lines, "[MSR]   Registry: NOT REGISTERED")
     end

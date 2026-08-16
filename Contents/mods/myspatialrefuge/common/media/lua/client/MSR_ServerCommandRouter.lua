@@ -12,7 +12,6 @@ require "MSR_UpgradeItemCache"
 
 require "helpers/TeleportCooldown"
 require "helpers/TeleportFlow"
-require "helpers/World"
 
 local Router = MSR.register("ServerCommandRouter")
 local LOG = L.logger("Teleport")
@@ -25,7 +24,6 @@ MSR.ServerCommandRouter = Router
 local PM = MSR.PlayerMessage
 local TC = MSR.TeleportCooldown
 local Flow = MSR.TeleportFlow
-local World = MSR.World
 local EventsBus = MSR.Events
 
 local function fireTeleportEvent(eventName, payload)
@@ -235,81 +233,8 @@ local function handleFeatureUpgradeComplete(args, player)
     -- onUpgradeComplete handles cache invalidation based on handler config
     MSR.UpgradeLogic.onUpgradeComplete(player, args.upgradeId, args.newLevel, args.transactionId)
 
-    if args.upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE and args.centerX and args.centerY and args.centerZ then
-        local ctx = {
-            oldRadius = args.oldRadius or 5,
-            newRadius = args.newRadius or 3,
-            centerX = args.centerX,
-            centerY = args.centerY,
-            centerZ = args.centerZ,
-            ticks = 0,
-            cleanupId = tostring(args.transactionId or K.timeMs())
-        }
-        ctx.scanRadius = math.max(ctx.oldRadius, ctx.newRadius) + 2
-        ctx.newMinX = ctx.centerX - ctx.newRadius
-        ctx.newMaxX = ctx.centerX + ctx.newRadius
-        ctx.newMinY = ctx.centerY - ctx.newRadius
-        ctx.newMaxY = ctx.centerY + ctx.newRadius
-
-        local function isOnNewPerimeter(c, x, y)
-            if y == c.newMinY or y == c.newMaxY + 1 then
-                if x >= c.newMinX and x <= c.newMaxX + 1 then return true end
-            end
-            if x == c.newMinX or x == c.newMaxX + 1 then
-                if y >= c.newMinY and y <= c.newMaxY + 1 then return true end
-            end
-            return false
-        end
-
-        local function doCleanup(c)
-            local removed = 0
-            local modifiedSquares = {}
-            World.iterateArea(c.centerX, c.centerY, c.centerZ, c.scanRadius, function(square, x, y)
-                if not isOnNewPerimeter(c, x, y) then
-                    local objects = square:getObjects()
-                    if K.isIterable(objects) then
-                        local toRemove = {}
-                        for _, obj in K.iter(objects) do
-                            local md = World.getModData(obj)
-                            if md and md.isRefugeBoundary then
-                                table.insert(toRemove, obj)
-                            end
-                        end
-                        if #toRemove > 0 then
-                            table.insert(modifiedSquares, square)
-                            for _, obj in ipairs(toRemove) do
-                                if World.removeObject(square, obj, false) then
-                                    removed = removed + 1
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-
-            for _, square in ipairs(modifiedSquares) do
-                World.recalcSquare(square)
-            end
-
-            return removed
-        end
-
-        doCleanup(ctx)
-
-        local function delayedCleanup()
-            ctx.ticks = ctx.ticks + 1
-            if ctx.ticks < 30 then return end
-            Events.OnTick.Remove(delayedCleanup)
-            local removed = doCleanup(ctx)
-            if removed > 0 then
-                local p = getPlayer()
-                if p then PM.Say(p, PM.WALLS_SYNCED) end
-            end
-        end
-
-        Events.OnTick.Add(delayedCleanup)
-        if MSR.InvalidateBoundsCache then MSR.InvalidateBoundsCache(player) end
-    end
+    -- Boundary objects are authoritative server state. The client only accepts
+    -- the refuge snapshot and invalidates derived caches in onUpgradeComplete.
 end
 
 local function handleFeatureUpgradeError(args, player)

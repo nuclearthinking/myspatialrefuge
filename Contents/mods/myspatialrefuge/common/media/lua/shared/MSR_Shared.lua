@@ -2,6 +2,7 @@ require "00_core/00_MSR"
 require "helpers/World"
 require "MSR_Integrity"
 require "MSR_PlayerMessage"
+require "MSR_RefugeGeometry"
 
 local LOG = L.logger("Shared")
 
@@ -51,8 +52,7 @@ function Shared.SyncRelicPositionToModData(refugeData)
     if not MSR.Data.CanModifyData() then return false end
     if refugeData.relicX ~= nil then return false end
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
@@ -85,15 +85,15 @@ local Err = MSR.PlayerMessage.MoveRelicError
 function Shared.MoveRelic(refugeData, cornerDx, cornerDy, cornerName, existingRelic)
     if not refugeData then return false, Err.NO_REFUGE_DATA end
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local refugeId = refugeData.refugeId
 
-    local targetX = centerX + (cornerDx * radius)
-    local targetY = centerY + (cornerDy * radius)
-    local targetZ = centerZ
+    local validAnchor, anchor = MSR.RefugeGeometry.ValidateAnchor(cornerDx, cornerDy, cornerName)
+    if not validAnchor then return false, Err.DESTINATION_BLOCKED end
+
+    local targetX, targetY, targetZ = MSR.RefugeGeometry.GetRelicTarget(refugeData, anchor)
 
     local relic = existingRelic or Shared.FindRelicInRefuge(centerX, centerY, centerZ, radius, refugeId)
     if not relic then return false, Err.RELIC_NOT_FOUND end

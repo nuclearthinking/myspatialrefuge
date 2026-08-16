@@ -1,5 +1,6 @@
 workshop_upload.vdf
 docs/*
+!docs/REFUGE_RELIC_ANCHORED_EXPANSION_PLAN.md
 .idea
 .vscode
 .code-graph-rag

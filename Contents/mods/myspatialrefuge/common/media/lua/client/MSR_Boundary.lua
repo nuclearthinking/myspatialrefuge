@@ -1,6 +1,7 @@
 -- Boundary enforcement: prevents players from leaving refuge area
 
 require "MSR_PlayerMessage"
+require "MSR_RefugeGeometry"
 
 local lastBoundaryWarning = setmetatable({}, {__mode = "k"})  -- weak: last warning time per player
 local boundaryCheckSuppressed = setmetatable({}, {__mode = "k"})  -- weak: suppressed during approach teleport
@@ -15,14 +16,11 @@ end
 function MSR.GetRefugeBounds(refugeData)
     if not refugeData then return nil end
     
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
-    local radius = refugeData.radius
-    
-    local tileMinX = centerX - radius
-    local tileMaxX = centerX + radius
-    local tileMinY = centerY - radius
-    local tileMaxY = centerY + radius
+    local tiles = MSR.RefugeGeometry.GetTileBounds(refugeData)
+    if not tiles then return nil end
+    local centerX, centerY, radius = tiles.centerX, tiles.centerY, tiles.radius
+    local tileMinX, tileMaxX = tiles.minX, tiles.maxX
+    local tileMinY, tileMaxY = tiles.minY, tiles.maxY
     
     return {
         posMinX = tileMinX,
@@ -35,7 +33,10 @@ function MSR.GetRefugeBounds(refugeData)
         tileMaxY = tileMaxY,
         centerX = centerX,
         centerY = centerY,
-        radius = radius
+        radius = radius,
+        slotCenterX = refugeData.centerX,
+        slotCenterY = refugeData.centerY,
+        slotHalfSpacing = MSR.Config.REFUGE_SPACING / 2
     }
 end
 
@@ -51,11 +52,6 @@ function MSR.CheckBoundaryViolation(player)
     
     -- Skip during approach teleport phase
     if boundaryCheckSuppressed[player] then
-        return false
-    end
-    
-    -- Only check if player is in refuge area
-    if not MSR.IsPlayerInRefuge or not MSR.IsPlayerInRefuge(player) then
         return false
     end
     
@@ -76,6 +72,14 @@ function MSR.CheckBoundaryViolation(player)
     
     local playerX = player:getX()
     local playerY = player:getY()
+
+    -- Keep enforcing just outside the effective wall, but never affect the
+    -- player elsewhere in the world. The immutable slot envelope is the gate.
+    if math.abs(playerX - bounds.slotCenterX) >= bounds.slotHalfSpacing
+        or math.abs(playerY - bounds.slotCenterY) >= bounds.slotHalfSpacing
+    then
+        return false
+    end
     
     local isOutside = false
     local clampedX = playerX

@@ -1,5 +1,7 @@
 require "00_core/00_MSR"
 require "helpers/World"
+require "MSR_RefugeGeometry"
+require "MSR_BoundaryReconciler"
 
 local Basement = MSR.register("BasementGeneration")
 if not Basement then
@@ -8,11 +10,6 @@ end
 local LOG = L.logger("BasementGeneration")
 
 local FLOOR_SPRITE = MSR.Config.BASEMENT.FLOOR_SPRITE
-local WALL_NORTH = MSR.Config.BASEMENT.WALL_NORTH
-local WALL_WEST = MSR.Config.BASEMENT.WALL_WEST
-local WALL_CORNER_NW = MSR.Config.BASEMENT.WALL_CORNER_NW
-local WALL_CORNER_SE = MSR.Config.BASEMENT.WALL_CORNER_SE
-
 local function isSquareClear(square)
     if not square then return false end
     if square:getTree() then return false end
@@ -155,12 +152,13 @@ local function getConfiguredStairwells(refugeData)
     if not MSR.Config then return nil end
 
     local wells = {}
+    local areaCenterX, areaCenterY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     if MSR.Config.BASEMENT_STAIRWELLS and #MSR.Config.BASEMENT_STAIRWELLS > 0 then
         for _, cfg in ipairs(MSR.Config.BASEMENT_STAIRWELLS) do
             if cfg.xOffset ~= nil and cfg.yOffset ~= nil then
                 table.insert(wells, {
-                    x = refugeData.centerX + cfg.xOffset,
-                    y = refugeData.centerY + cfg.yOffset,
+                    x = areaCenterX + cfg.xOffset,
+                    y = areaCenterY + cfg.yOffset,
                     zTop = refugeData.centerZ,
                     zBottom = (refugeData.centerZ or 0) - 1,
                     north = cfg.north,
@@ -171,6 +169,52 @@ local function getConfiguredStairwells(refugeData)
     end
 
     return #wells > 0 and wells or nil
+end
+
+local function getRefugeStairsOnSquare(square)
+    if not square then return {} end
+    return MSR.World.findObjects(square, function(obj)
+        local md = MSR.World.getModData(obj)
+        return md ~= nil and md.isRefugeBasementStairs == true
+    end)
+end
+
+local function hasCompleteStairwell(anchor)
+    local footprint = getStairsFootprint(anchor.x, anchor.y, anchor.zBottom, anchor.north or false)
+    for _, pos in ipairs(footprint) do
+        local square = MSR.World.getSquareSafe(pos[1], pos[2], pos[3])
+        if #getRefugeStairsOnSquare(square) == 0 then return false end
+    end
+    return true
+end
+
+local function reconcileExistingStairwell(anchor)
+    local footprint = getStairsFootprint(anchor.x, anchor.y, anchor.zBottom, anchor.north or false)
+    local complete = true
+    for _, pos in ipairs(footprint) do
+        local square = MSR.World.getSquareSafe(pos[1], pos[2], pos[3])
+        local stairs = getRefugeStairsOnSquare(square)
+        if #stairs == 0 then complete = false end
+        if square then
+            for index = 2, #stairs do
+                local duplicate = stairs[index]
+                if duplicate then MSR.World.removeObject(square, duplicate, true) end
+            end
+        end
+    end
+    if complete then return true end
+
+    -- A failed fixture placement can leave one or two pieces behind. Remove
+    -- only our marked pieces so the next idempotent attempt starts cleanly.
+    for _, pos in ipairs(footprint) do
+        local square = MSR.World.getSquareSafe(pos[1], pos[2], pos[3])
+        if square then
+            for _, stairs in ipairs(getRefugeStairsOnSquare(square)) do
+                if stairs then MSR.World.removeObject(square, stairs, true) end
+            end
+        end
+    end
+    return false
 end
 
 function Basement.CheckStairwellAvailability(refugeData)
@@ -277,39 +321,6 @@ local function clearBasementSquare(square)
     if square.RecalcProperties then square:RecalcProperties() end
 end
 
-local function createBasementWallObject(square, spriteName, isNorthWall)
-    if not square or not square:getChunk() then return nil end
-    local cell = getCell()
-    if not cell then return nil end
-
-    local wall = IsoThumpable.new(cell, square, spriteName, isNorthWall, {})
-    if not wall then return nil end
-
-    wall:setMaxHealth(999999)
-    wall:setHealth(999999)
-    wall:setCanBarricade(false)
-    wall:setIsThumpable(false)
-    wall:setBreakSound("none")
-    wall:setIsDismantable(false)
-    wall:setCanBePlastered(false)
-    wall:setIsHoppable(false)
-    if wall.setDestroyed then wall:setDestroyed(false) end
-
-    local md = wall:getModData()
-    md.isRefugeBoundary = true
-    md.refugeBoundarySprite = spriteName
-    md.isProtectedRefugeObject = true
-    md.isRefugeBasementObject = true
-
-    if MSR.World.addObject(square, wall, true) then
-        if MSR.Env.isServer() and wall.transmitModData then
-            wall:transmitModData()
-        end
-        return wall
-    end
-    return nil
-end
-
 local function removeFloorFromSquare(square)
     if not square then return end
     local objects = square:getObjects()
@@ -374,39 +385,8 @@ local function createStairwellOpening(anchorX, anchorY, zTop, north)
     end
 end
 
-local function createBasementBoundaryWalls(centerX, centerY, z, radius)
-    local wallsCreated = 0
-    local minX = centerX - radius
-    local maxX = centerX + radius
-    local minY = centerY - radius
-    local maxY = centerY + radius
-
-    for x = minX, maxX do
-        if createBasementWallObject(MSR.World.getSquareSafe(x, minY, z), WALL_NORTH, true) then wallsCreated =
-            wallsCreated + 1 end
-        if createBasementWallObject(MSR.World.getSquareSafe(x, maxY + 1, z), WALL_NORTH, true) then wallsCreated =
-            wallsCreated + 1 end
-    end
-
-    for y = minY, maxY do
-        if createBasementWallObject(MSR.World.getSquareSafe(minX, y, z), WALL_WEST, false) then wallsCreated =
-            wallsCreated + 1 end
-        if createBasementWallObject(MSR.World.getSquareSafe(maxX + 1, y, z), WALL_WEST, false) then wallsCreated =
-            wallsCreated + 1 end
-    end
-
-    createBasementWallObject(MSR.World.getSquareSafe(minX, minY, z), WALL_CORNER_NW, false)
-    createBasementWallObject(MSR.World.getSquareSafe(maxX + 1, maxY + 1, z), WALL_CORNER_SE, false)
-
-    if wallsCreated > 0 then
-        LOG.debug("Basement walls created: %d", wallsCreated)
-    end
-    return wallsCreated
-end
-
 local function createBasementFloors(refugeData)
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local centerZ = refugeData.centerZ - 1
     local radius = refugeData.radius or 1
     local created = 0
@@ -440,9 +420,13 @@ function Basement.IsBasementPresent(refugeData)
     if not refugeData then return false end
     local centerZ = refugeData.centerZ or 0
     local basementZ = centerZ - 1
-    local square = MSR.World.getSquareSafe(refugeData.centerX, refugeData.centerY, basementZ)
-    if square and square:getFloor() then
-        return true
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
+    local square = MSR.World.getSquareSafe(centerX, centerY, basementZ)
+    if not square or not square:getFloor() then return false end
+    local anchors = getConfiguredStairwells(refugeData)
+    if not anchors then return false end
+    for _, anchor in ipairs(anchors) do
+        if hasCompleteStairwell(anchor) then return true end
     end
     return false
 end
@@ -465,7 +449,8 @@ local function debugTeleportToBasement(key)
 
     local basementZ = Basement.GetBasementZ(refugeData)
     local targetZ = (player:getZ() == basementZ) and refugeData.centerZ or basementZ
-    player:teleportTo(refugeData.centerX, refugeData.centerY, targetZ)
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
+    player:teleportTo(centerX, centerY, targetZ)
 end
 
 if not MSR._basementDebugTeleportRegistered then
@@ -479,8 +464,7 @@ function Basement.Generate(refugeData, player)
         return false, "Basement generation must run on server/host"
     end
 
-    local centerX = refugeData.centerX
-    local centerY = refugeData.centerY
+    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     local centerZ = refugeData.centerZ
     local radius = refugeData.radius or 1
     local basementZ = centerZ - 1
@@ -489,15 +473,17 @@ function Basement.Generate(refugeData, player)
         centerX, centerY, centerZ, basementZ, radius, player and player:getUsername() or "nil")
 
     local upperLoaded = MSR.World.areAreaChunksLoaded(centerX, centerY, centerZ, radius)
-    local lowerLoaded = MSR.World.areAreaChunksLoaded(centerX, centerY, basementZ, radius)
-    LOG.debug("Chunk checks: upperLoaded=%s lowerLoaded=%s", tostring(upperLoaded), tostring(lowerLoaded))
+    LOG.debug("Surface chunk check: upperLoaded=%s", tostring(upperLoaded))
     if not upperLoaded then
         return false, "Refuge area not fully loaded. Move around and try again."
     end
 
     createBasementFloors(refugeData)
 
-    createBasementBoundaryWalls(centerX, centerY, basementZ, radius)
+    local wallsOk = MSR.BoundaryReconciler.ReconcileBasement(refugeData)
+    if not wallsOk then
+        return false, "Basement boundary reconciliation deferred"
+    end
 
     local anchors = getConfiguredStairwells(refugeData)
 
@@ -511,9 +497,16 @@ function Basement.Generate(refugeData, player)
         LOG.debug("Stairs anchor: x=%d y=%d topZ=%d bottomZ=%d north=%s",
             anchor.x, anchor.y, anchor.zTop, anchor.zBottom, tostring(anchor.north))
 
+        if reconcileExistingStairwell(anchor) then
+            createStairwellOpening(anchor.x, anchor.y, anchor.zTop, anchor.north or false)
+            placedAny = true
+        end
+
         local topSquare = MSR.World.getSquareSafe(anchor.x, anchor.y, anchor.zTop)
         local bottomSquare = ensureSquare(anchor.x, anchor.y, anchor.zBottom)
-        if not topSquare or not bottomSquare then
+        if placedAny and hasCompleteStairwell(anchor) then
+            LOG.debug("Basement stairs already complete at %d,%d", anchor.x, anchor.y)
+        elseif not topSquare or not bottomSquare then
             LOG.debug("Stairs squares not loaded: topSquare=%s bottomSquare=%s",
                 tostring(topSquare ~= nil), tostring(bottomSquare ~= nil))
         else
@@ -545,6 +538,9 @@ function Basement.Generate(refugeData, player)
                 if placedStairs then
                     createStairwellOpening(anchor.x, anchor.y, anchor.zTop, stairsNorth)
                     LOG.debug("Basement stairs placed at %d,%d (north=%s)", anchor.x, anchor.y, tostring(stairsNorth))
+                    placedAny = true
+                elseif reconcileExistingStairwell(anchor) then
+                    createStairwellOpening(anchor.x, anchor.y, anchor.zTop, north)
                     placedAny = true
                 else
                     LOG.debug("Stairs placement failed at %d,%d", anchor.x, anchor.y)

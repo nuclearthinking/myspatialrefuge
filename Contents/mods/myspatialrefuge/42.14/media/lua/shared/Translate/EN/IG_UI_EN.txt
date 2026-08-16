@@ -85,4 +85,5 @@ IGUI_EN = {
     IGUI_SpatialWellMissingResources = "I do not have the resources for the Spatial Well.",
     IGUI_SpatialWellBuildFailed = "The Spatial Well failed to take shape.",
     IGUI_SpatialWellNotInRefuge = "I can only place this inside my refuge.",
+    IGUI_MoveSacredRelic_ExpansionHint = "The refuge's space responds to the relic's position.",
 }

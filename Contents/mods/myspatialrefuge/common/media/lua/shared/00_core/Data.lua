@@ -1,6 +1,8 @@
 -- 06_Data - ModData management (Shared)
 -- Assumes: MSR, MSR.Config, MSR.Env, L exist (loaded by 00_MSR.lua)
 
+require "MSR_RefugeGeometry"
+
 local Data = MSR.register("Data")
 if not Data then
     return MSR.Data
@@ -35,6 +37,7 @@ end
 
 function Data.SerializeRefugeData(refugeData)
     if not refugeData then return nil end
+    local areaOffsetX, areaOffsetY = MSR.RefugeGeometry.GetAreaOffset(refugeData)
     return {
         refugeId = refugeData.refugeId,
         username = refugeData.username,
@@ -43,6 +46,8 @@ function Data.SerializeRefugeData(refugeData)
         centerZ = refugeData.centerZ,
         tier = refugeData.tier,
         radius = refugeData.radius,
+        areaOffsetX = areaOffsetX,
+        areaOffsetY = areaOffsetY,
         relicX = refugeData.relicX,
         relicY = refugeData.relicY,
         relicZ = refugeData.relicZ,
@@ -259,14 +264,7 @@ function Data.GetRefugeDataAtPosition(x, y, _z)
 
     for _, refugeData in pairs(registry) do
         if refugeData and refugeData.centerX == expectedX and refugeData.centerY == expectedY then
-            local radius = tonumber(refugeData.radius)
-            if not radius then
-                local tier = Config.TIERS[tonumber(refugeData.tier) or 0]
-                radius = tier and tier.radius or 1
-            end
-
-            if x >= refugeData.centerX - radius and x <= refugeData.centerX + radius and
-               y >= refugeData.centerY - radius and y <= refugeData.centerY + radius then
+            if MSR.RefugeGeometry.ContainsTile(refugeData, x, y) then
                 return refugeData
             end
             return nil
@@ -362,6 +360,7 @@ function Data.GetOrCreateRefugeData(player)
                     orphanData.username = username
                     orphanData.refugeId = "refuge_" .. username
                     orphanData.dataVersion = Config.CURRENT_DATA_VERSION
+                    orphanData.areaOffsetX, orphanData.areaOffsetY = MSR.RefugeGeometry.GetAreaOffset(orphanData)
                     orphanData.customizations = orphanData.customizations or {}
                     
                     registry[oldUsername] = nil
@@ -396,6 +395,8 @@ function Data.GetOrCreateRefugeData(player)
             centerZ = centerZ,
             tier = 0,
             radius = Config.TIERS[0].radius,
+            areaOffsetX = 0,
+            areaOffsetY = 0,
             relicX = centerX,
             relicY = centerY,
             relicZ = centerZ,
@@ -477,6 +478,8 @@ function Data.SaveRefugeData(refugeData)
         return false 
     end
     
+    refugeData.areaOffsetX, refugeData.areaOffsetY = MSR.RefugeGeometry.GetAreaOffset(refugeData)
+
     LOG.debug("SaveRefugeData: Saving for %s with upgrades=%s",
         refugeData.username, formatUpgradesTable(refugeData.upgrades))
     
@@ -566,6 +569,7 @@ function Data.ClaimOrphanRefuge(player)
     orphanData.username = newUsername
     orphanData.refugeId = "refuge_" .. newUsername
     orphanData.dataVersion = Config.CURRENT_DATA_VERSION
+    orphanData.areaOffsetX, orphanData.areaOffsetY = MSR.RefugeGeometry.GetAreaOffset(orphanData)
     orphanData.customizations = orphanData.customizations or {}
     
     registry[oldUsername] = nil
@@ -588,28 +592,27 @@ end
 -- Return Position Management
 -----------------------------------------------------------
 
-local refugeBoundsCache = nil
+local refugeGridBoundsCache = nil
 
-local function getRefugeBounds()
-    if not refugeBoundsCache then
-        local baseX = Config.REFUGE_BASE_X
-        local baseY = Config.REFUGE_BASE_Y
-        local maxRadius = 10
+function Data.IsInRefugeGridCoordinates(x, y)
+    if type(x) ~= "number" or type(y) ~= "number" then return false end
+    if not refugeGridBoundsCache then
+        local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
         local edgeOffset = (Config.getRefugeGridSize() - 1) * Config.REFUGE_SPACING
-        refugeBoundsCache = {
-            minX = baseX - maxRadius,
-            minY = baseY - maxRadius,
-            maxX = baseX + edgeOffset + maxRadius + 1,
-            maxY = baseY + edgeOffset + maxRadius + 1
+        refugeGridBoundsCache = {
+            minX = Config.REFUGE_BASE_X - extent,
+            minY = Config.REFUGE_BASE_Y - extent,
+            maxX = Config.REFUGE_BASE_X + edgeOffset + extent + 1,
+            maxY = Config.REFUGE_BASE_Y + edgeOffset + extent + 1,
         }
     end
-    return refugeBoundsCache
+    return x >= refugeGridBoundsCache.minX and x < refugeGridBoundsCache.maxX
+        and y >= refugeGridBoundsCache.minY and y < refugeGridBoundsCache.maxY
 end
 
 function Data.IsInRefugeCoordinates(x, y)
-    local bounds = getRefugeBounds()
-    return x >= bounds.minX and x < bounds.maxX and 
-           y >= bounds.minY and y < bounds.maxY
+    if type(x) ~= "number" or type(y) ~= "number" then return false end
+    return Data.GetRefugeDataAtPosition(x, y) ~= nil
 end
 
 function Data.IsPlayerInRefugeCoords(player)
@@ -652,7 +655,7 @@ local function isValidReturnPosition(pos)
     if type(pos.x) ~= "number" or type(pos.y) ~= "number" or type(pos.z) ~= "number" then
         return false
     end
-    return not Data.IsInRefugeCoordinates(pos.x, pos.y)
+    return not Data.IsInRefugeGridCoordinates(pos.x, pos.y)
 end
 
 local function transmitPlayerModData(player)
@@ -733,7 +736,7 @@ local function validateReturnCoordinates(username, x, y, z, context)
         return false
     end
 
-    if Data.IsInRefugeCoordinates(x, y) then
+    if Data.IsInRefugeGridCoordinates(x, y) then
         LOG.warning("Attempted to save refuge coordinates as %sreturn position - blocked!", context or "")
         return false
     end

@@ -330,7 +330,12 @@ function UpgradeData.setPlayerUpgradeLevel(player, upgradeId, level)
     upgradeData[upgradeId] = level
 
     LOG.debug( "setPlayerUpgradeLevel: " .. upgradeId .. "=" .. tostring(level))
-    if MSR.Data and MSR.Data.SaveRefugeData then MSR.Data.SaveRefugeData(refugeData) end
+    local saved = MSR.Data and MSR.Data.SaveRefugeData and MSR.Data.SaveRefugeData(refugeData)
+    if not saved then
+        upgradeData[upgradeId] = previousLevel
+        LOG.error("setPlayerUpgradeLevel: failed to persist %s=%s", tostring(upgradeId), tostring(level))
+        return false
+    end
 
     if previousLevel ~= level then
         MSR.UpgradeEvents.OnLevelChanged.Fire(playerObj, upgradeId, previousLevel, level)

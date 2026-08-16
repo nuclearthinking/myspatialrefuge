@@ -84,5 +84,6 @@
     "IGUI_SpatialWellInvalidLocation": "El pozo espacial no puede colocarse ahí.",
     "IGUI_SpatialWellMissingResources": "No tengo recursos para el pozo espacial.",
     "IGUI_SpatialWellBuildFailed": "El pozo espacial no logró tomar forma.",
-    "IGUI_SpatialWellNotInRefuge": "Solo puedo colocarlo dentro de mi refugio."
+    "IGUI_SpatialWellNotInRefuge": "Solo puedo colocarlo dentro de mi refugio.",
+    "IGUI_MoveSacredRelic_ExpansionHint": "El espacio del refugio responde a la posición de la reliquia."
 }

@@ -20,10 +20,12 @@ function MSR.CreateWall(x, y, z, addNorth, addWest, cornerSprite)
 end
 
 function MSR.CreateBoundaryWalls(centerX, centerY, z, radius)
+    if not MSR.Env.hasServerAuthority() then return 0 end
     return MSR.RefugeGeneration.CreateBoundaryWalls(centerX, centerY, z, radius)
 end
 
 function MSR.RemoveBoundaryWalls(centerX, centerY, z, radius)
+    if not MSR.Env.hasServerAuthority() then return 0 end
     return MSR.RefugeGeneration.RemoveBoundaryWalls(centerX, centerY, z, radius)
 end
 
@@ -42,12 +44,14 @@ end
 
 function MSR.ExpandRefuge(refugeData, newTier)
     if not refugeData then return false end
-
-    local success = MSR.RefugeGeneration.ExpandRefuge(refugeData, newTier)
-    if success then
-        MSR.SaveRefugeData(refugeData)
-    end
-    return success
+    require "MSR_UpgradeLogic"
+    local player = getPlayer()
+    if not player then return false end
+    return MSR.UpgradeLogic.purchaseUpgradeSP(
+        player,
+        MSR.Config.UPGRADES.EXPAND_REFUGE,
+        newTier
+    )
 end
 
 -- Deletes data only; structures persist for inheritance and to avoid chunk-loading issues
