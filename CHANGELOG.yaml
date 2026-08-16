@@ -1,4 +1,11 @@
 versions:
+- version: 1.27.1
+  date: August 2026
+  added: []
+  fixed:
+  - Fixed refuge size upgrades sometimes incorrectly reporting that the player was outside the refuge.
+  changed: []
+  removed: []
 - version: '1.27'
   date: August 2026
   added:
