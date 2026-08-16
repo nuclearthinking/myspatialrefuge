@@ -1,4 +1,15 @@
 versions:
+- version: '1.26'
+  date: August 2026
+  added:
+  - Added a Refuge Customization tab and a placeable Spatial Well that can be built inside the refuge without a Construction
+    skill.
+  - The Spatial Well stores up to 400 L of clean water and restores 2 L per hour, including time spent with its chunk unloaded
+    during the current game session.
+  fixed: []
+  changed:
+  - Updated the Sacred Relic and Spatial Well visuals with a shared worn arcane-industrial style.
+  removed: []
 - version: '1.25'
   date: August 2026
   added:
