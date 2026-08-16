@@ -155,7 +155,7 @@ end
 
 
 -- Lock items for a transaction. Returns locked item IDs or nil if not enough.
-local function lockItems(player, itemType, count)
+local function lockItems(player, itemType, count, itemPredicate)
     if not player or not itemType or count <= 0 then return nil end
     player = resolvePlayer(player)
     if not player then return nil end
@@ -177,12 +177,23 @@ local function lockItems(player, itemType, count)
     
     local totalAvailable = 0
     for _, container in ipairs(sources) do
-        if container and container.getCountType then
+        if itemPredicate then
+            local items = container and container.getItems and container:getItems()
+            if K.isIterable(items) then
+                for _, item in K.iter(items) do
+                    if item and item:getFullType() == itemType
+                            and not alreadyLockedIds[item:getID()]
+                            and itemPredicate(item, container) then
+                        totalAvailable = totalAvailable + 1
+                    end
+                end
+            end
+        elseif container and container.getCountType then
             totalAvailable = totalAvailable + container:getCountType(itemType)
         end
     end
     
-    local availableCount = totalAvailable - alreadyLockedCount
+    local availableCount = itemPredicate and totalAvailable or (totalAvailable - alreadyLockedCount)
     
     if availableCount < count then
         LOG.debug("lockItems: Not enough " .. itemType .. " (need " .. count .. ", available " .. availableCount .. ")")
@@ -198,7 +209,8 @@ local function lockItems(player, itemType, count)
         if K.isIterable(items) then
             for _, item in K.iter(items) do
                 if lockedCount >= count then break end
-                if item and item:getFullType() == itemType then
+                if item and item:getFullType() == itemType
+                        and (not itemPredicate or itemPredicate(item, container)) then
                     local itemId = item:getID()
                     if not alreadyLockedIds[itemId] then
                         local available = isItemAvailableForLock(item, container)
@@ -307,13 +319,15 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     -- Detect format: array of {type, count, substitutes} vs hash {itemType = count}
     -- If first key is numeric, it's an array format with potential substitutes
     local resolvedRequirements = itemRequirements
+    local predicatesByType = {}
     if K.isArrayLike(itemRequirements) then
         -- Array format - resolve substitutions
-        local resolved, err = Transaction.ResolveSubstitutions(playerObj, itemRequirements)
+        local resolved, err, resolvedPredicates = Transaction.ResolveSubstitutions(playerObj, itemRequirements)
         if not resolved then
             return nil, err
         end
         resolvedRequirements = resolved
+        predicatesByType = resolvedPredicates or {}
     end
     
     if K.isEmpty(resolvedRequirements) then return nil, "No items specified" end
@@ -334,7 +348,7 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     -- Lock items
     local lockedItems = {}
     for itemType, count in pairs(resolvedRequirements) do
-        local locked = lockItems(playerObj, itemType, count)
+        local locked = lockItems(playerObj, itemType, count, predicatesByType[itemType])
         if not locked then
             -- Rollback partial locks
             for lockedType, data in pairs(lockedItems) do
@@ -788,8 +802,9 @@ end
 -- @param player: The player
 -- @param itemType: The item type to count
 -- @param filtered: (optional) If true, only count items that pass availability checks (favorites, crafting, etc.)
+-- @param itemPredicate: (optional) Additional caller-owned item filter
 -- @return: Total count across all sources
-function Transaction.GetMultiSourceCount(player, itemType, filtered)
+function Transaction.GetMultiSourceCount(player, itemType, filtered, itemPredicate)
     -- Fail-fast validation
     if not player then error("Transaction.GetMultiSourceCount: player is required") end
     if not itemType then error("Transaction.GetMultiSourceCount: itemType is required") end
@@ -809,18 +824,21 @@ function Transaction.GetMultiSourceCount(player, itemType, filtered)
         end
     end
     
-    if filtered then
-        -- Iterate items and apply availability filter (same logic as lockItems)
+    if filtered or itemPredicate then
+        -- Iterate items when either the availability or caller-owned filter is needed.
         for _, container in ipairs(sources) do
             local items = container and container.getItems and container:getItems()
             if K.isIterable(items) then
                 for _, item in K.iter(items) do
-                    if item and item:getFullType() == itemType then
+                    if item and item:getFullType() == itemType
+                            and (not itemPredicate or itemPredicate(item, container)) then
                         local itemId = item:getID()
                         -- Skip already locked items
                         if not lockedIds[itemId] then
-                            -- Apply availability filter (equipped/worn checks use item:isEquipped())
-                            local available, _ = isItemAvailableForLock(item, container)
+                            local available = true
+                            if filtered then
+                                available = isItemAvailableForLock(item, container)
+                            end
                             if available then
                                 totalCount = totalCount + 1
                             end
@@ -887,7 +905,12 @@ function Transaction.GetSubstitutionCount(player, requirement, filtered)
     local total = 0
     
     -- Primary type
-    local primaryCount = Transaction.GetMultiSourceCount(playerObj, requirement.type, filtered)
+    local primaryCount = Transaction.GetMultiSourceCount(
+        playerObj,
+        requirement.type,
+        filtered,
+        requirement.predicate
+    )
     if primaryCount > 0 then
         counts[requirement.type] = primaryCount
         total = total + primaryCount
@@ -897,7 +920,12 @@ function Transaction.GetSubstitutionCount(player, requirement, filtered)
     if requirement.substitutes then
         for _, subType in ipairs(requirement.substitutes) do
             if not counts[subType] then
-                local subCount = Transaction.GetMultiSourceCount(playerObj, subType, filtered)
+                local subCount = Transaction.GetMultiSourceCount(
+                    playerObj,
+                    subType,
+                    filtered,
+                    requirement.predicate
+                )
                 if subCount > 0 then
                     counts[subType] = subCount
                     total = total + subCount
@@ -925,18 +953,36 @@ function Transaction.ResolveSubstitutions(player, requirements)
     -- This ensures we don't double-count items when multiple requirements share types
     -- Use filtered=true to only count items that pass availability checks (not equipped, etc.)
     local initialCounts = {}
+    local predicatesByType = {}
+
+    local function registerType(req, itemType)
+        if req.predicate and predicatesByType[itemType]
+                and predicatesByType[itemType] ~= req.predicate then
+            return false, "Conflicting item filters for " .. itemType
+        end
+        if req.predicate then predicatesByType[itemType] = req.predicate end
+        if initialCounts[itemType] == nil then
+            initialCounts[itemType] = Transaction.GetMultiSourceCount(
+                playerObj,
+                itemType,
+                true,
+                req.predicate
+            )
+        end
+        return true, nil
+    end
     
     for _, req in ipairs(requirements) do
         -- Track primary type (filtered=true to exclude equipped/favorite items)
-        if req.type and not initialCounts[req.type] then
-            initialCounts[req.type] = Transaction.GetMultiSourceCount(playerObj, req.type, true)
+        if req.type then
+            local registered, registerError = registerType(req, req.type)
+            if not registered then return nil, registerError end
         end
         -- Track substitutes (filtered=true to exclude equipped/favorite items)
         if req.substitutes then
             for _, subType in ipairs(req.substitutes) do
-                if not initialCounts[subType] then
-                    initialCounts[subType] = Transaction.GetMultiSourceCount(playerObj, subType, true)
-                end
+                local registered, registerError = registerType(req, subType)
+                if not registered then return nil, registerError end
             end
         end
     end
@@ -988,7 +1034,7 @@ function Transaction.ResolveSubstitutions(player, requirements)
         end
     end
     
-    return resolved
+    return resolved, nil, predicatesByType
 end
 
 return MSR.Transaction

@@ -6,6 +6,7 @@
 -- Version 4: Added upgrades table for feature upgrades (faster_reading, etc.)
 -- Version 5: Added roomIds table for room persistence (no breaking changes)
 -- Version 6: Added lastActiveTime for refuge decay and reclamation
+-- Version 7: Added customizations table for refuge-built objects
 
 require "00_core/00_MSR"
 require "helpers/World"
@@ -243,12 +244,33 @@ local function migrate_5_to_6(player)
     return true, "Migrated v5 -> v6 (last active tracking)"
 end
 
+-----------------------------------------------------------
+-- Migration: v6 -> v7
+-- Add customizations table for Spatial Well and future objects
+-----------------------------------------------------------
+
+local function migrate_6_to_7(player)
+    local username = player:getUsername()
+    local refugeData = Data.GetRefugeDataByUsername(username)
+
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+
+    refugeData.customizations = refugeData.customizations or {}
+    refugeData.dataVersion = 7
+    Data.SaveRefugeData(refugeData)
+
+    return true, "Migrated v6 -> v7 (refuge customizations)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
     [2] = migrate_2_to_3,
     [3] = migrate_3_to_4,
     [4] = migrate_4_to_5,
-    [5] = migrate_5_to_6
+    [5] = migrate_5_to_6,
+    [6] = migrate_6_to_7
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)

@@ -77,4 +77,12 @@ IGUI_CN = {
     IGUI_MSR_EssenceAbsorbed = "吸收了前世的经验。",
     IGUI_MSR_EssenceNotYours = "这个精华属于别人。",
     IGUI_MSR_EssenceEmpty = "这个精华没有经验。",
+    IGUI_ManageRefuge = "管理庇护所",
+    IGUI_SpatialWellBuilt = "空间水井已与庇护所连接。",
+    IGUI_SpatialWellBuilding = "庇护所正在塑造空间水井……",
+    IGUI_SpatialWellAlreadyBuilt = "这个庇护所已经有一口空间水井。",
+    IGUI_SpatialWellInvalidLocation = "空间水井无法放置在这里。",
+    IGUI_SpatialWellMissingResources = "我没有足够的资源建造空间水井。",
+    IGUI_SpatialWellBuildFailed = "空间水井未能成形。",
+    IGUI_SpatialWellNotInRefuge = "我只能在自己的庇护所内放置它。",
 }

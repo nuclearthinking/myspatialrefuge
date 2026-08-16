@@ -6,6 +6,9 @@ require "MSR_Integrity"
 require "MSR_RoomPersistence"
 require "MSR_UpgradeLogic"
 require "MSR_VehicleTeleport"
+require "MSR_SpatialWell"
+require "MSR_Transaction"
+require "MSR_UpgradeItemCache"
 
 require "helpers/TeleportCooldown"
 require "helpers/TeleportFlow"
@@ -315,6 +318,34 @@ local function handleFeatureUpgradeError(args, player)
     end
 end
 
+local function updateClientRefugeData(player, refugeData)
+    if not player or not refugeData then return end
+    local username = player:getUsername()
+    if not username or refugeData.username ~= username then return end
+
+    local modData = ModData.getOrCreate(MSR.Config.MODDATA_KEY)
+    modData[MSR.Config.REFUGES_KEY] = modData[MSR.Config.REFUGES_KEY] or {}
+    modData[MSR.Config.REFUGES_KEY][username] = refugeData
+end
+
+local function handleSpatialWellComplete(args, player)
+    if not args then return end
+    updateClientRefugeData(player, args.refugeData)
+    if args.transactionId then
+        MSR.Transaction.Finalize(player, args.transactionId)
+    end
+    MSR.UpgradeItemCache.invalidate(player)
+    PM.Say(player, PM.SPATIAL_WELL_BUILT)
+end
+
+local function handleSpatialWellError(args, player)
+    if args and args.transactionId then
+        MSR.Transaction.Rollback(player, args.transactionId)
+    end
+    MSR.UpgradeItemCache.invalidate(player)
+    PM.Say(player, args and args.reason or PM.SPATIAL_WELL_BUILD_FAILED)
+end
+
 local function handleServerError(args, player)
     if args and args.messageKey then
         if args.messageArgs and #args.messageArgs > 0 then
@@ -339,6 +370,8 @@ CommandHandlers[MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE] = handleMoveRelicComple
 CommandHandlers[MSR.Config.COMMANDS.CLEAR_ZOMBIES] = handleClearZombies
 CommandHandlers[MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE] = handleFeatureUpgradeComplete
 CommandHandlers[MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR] = handleFeatureUpgradeError
+CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_COMPLETE] = handleSpatialWellComplete
+CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_ERROR] = handleSpatialWellError
 CommandHandlers[MSR.Config.COMMANDS.ERROR] = handleServerError
 
 local function OnServerCommand(module, command, args)

@@ -76,5 +76,13 @@
     "IGUI_MSR_AbsorbEssence": "Поглотить Эссенцию Опыта",
     "IGUI_MSR_EssenceAbsorbed": "Поглощён опыт из прошлой жизни.",
     "IGUI_MSR_EssenceNotYours": "Эта эссенция принадлежит кому-то другому.",
-    "IGUI_MSR_EssenceEmpty": "В этой эссенции нет опыта."
+    "IGUI_MSR_EssenceEmpty": "В этой эссенции нет опыта.",
+    "IGUI_ManageRefuge": "Управление убежищем",
+    "IGUI_SpatialWellBuilt": "Пространственный колодец связан с убежищем.",
+    "IGUI_SpatialWellBuilding": "Убежище создаёт пространственный колодец...",
+    "IGUI_SpatialWellAlreadyBuilt": "В этом убежище уже есть пространственный колодец.",
+    "IGUI_SpatialWellInvalidLocation": "Здесь нельзя разместить пространственный колодец.",
+    "IGUI_SpatialWellMissingResources": "Мне не хватает ресурсов для пространственного колодца.",
+    "IGUI_SpatialWellBuildFailed": "Не удалось создать пространственный колодец.",
+    "IGUI_SpatialWellNotInRefuge": "Я могу разместить его только в своём убежище."
 }

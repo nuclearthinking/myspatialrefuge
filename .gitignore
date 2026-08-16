@@ -4,3 +4,4 @@ docs/*
 .vscode
 .code-graph-rag
 .luals/
+tmp/

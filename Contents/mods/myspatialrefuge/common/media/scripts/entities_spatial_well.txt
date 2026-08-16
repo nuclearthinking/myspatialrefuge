@@ -1,0 +1,40 @@
+module Base
+{
+    entity MSRSpatialWell
+    {
+        component UiConfig
+        {
+            xuiSkin = default,
+            entityStyle = ES_Well,
+            uiEnabled = false,
+        }
+        component FluidContainer
+        {
+            ContainerName = Well,
+            Capacity = 400.0,
+            FillsWithCleanWater = true,
+            HiddenAmount = false,
+            InitialPercentMin = 0.1,
+            InitialPercentMax = 0.1,
+            InputLocked = true,
+            Fluids
+            {
+                fluid = Water:1.0,
+            }
+            whitelist
+            {
+                fluid = Water,
+            }
+        }
+        component SpriteConfig
+        {
+            face S
+            {
+                layer
+                {
+                    row = myspatialrefuge_1,
+                }
+            }
+        }
+    }
+}

@@ -47,6 +47,7 @@ function Data.SerializeRefugeData(refugeData)
         relicY = refugeData.relicY,
         relicZ = refugeData.relicZ,
         upgrades = refugeData.upgrades,
+        customizations = refugeData.customizations,
         createdTime = refugeData.createdTime,
         lastActiveTime = refugeData.lastActiveTime,
         lastExpanded = refugeData.lastExpanded,
@@ -361,6 +362,7 @@ function Data.GetOrCreateRefugeData(player)
                     orphanData.username = username
                     orphanData.refugeId = "refuge_" .. username
                     orphanData.dataVersion = Config.CURRENT_DATA_VERSION
+                    orphanData.customizations = orphanData.customizations or {}
                     
                     registry[oldUsername] = nil
                     registry[username] = orphanData
@@ -401,7 +403,8 @@ function Data.GetOrCreateRefugeData(player)
             lastActiveTime = K.time(),
             lastExpanded = K.time(),
             dataVersion = Config.CURRENT_DATA_VERSION,
-            upgrades = {}
+            upgrades = {},
+            customizations = {}
         }
         
         Data.SaveRefugeData(refugeData)
@@ -563,6 +566,7 @@ function Data.ClaimOrphanRefuge(player)
     orphanData.username = newUsername
     orphanData.refugeId = "refuge_" .. newUsername
     orphanData.dataVersion = Config.CURRENT_DATA_VERSION
+    orphanData.customizations = orphanData.customizations or {}
     
     registry[oldUsername] = nil
     registry[newUsername] = orphanData

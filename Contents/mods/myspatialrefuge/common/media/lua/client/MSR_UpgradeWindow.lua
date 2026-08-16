@@ -1,4 +1,5 @@
 require "ISUI/ISPanel"
+require "ISUI/ISButton"
 require "ui/framework/CUI_Framework"
 require "MSR_UpgradeData"
 require "MSR_PlayerMessage"
@@ -16,6 +17,11 @@ require "MSR_UpgradeItemCache"
 ---@field upgradeDetails any
 ---@field requiredItems any
 ---@field ingredientList any
+---@field customizationPanel MSR_CustomizationPanel
+---@field upgradesTabButton ISButton
+---@field customizationTabButton ISButton
+---@field activeTab string
+---@field tabHeight number
 ---@field closeButton ISButton
 ---@field resizeWidget ISResizeWidget
 ---@field _lastRefreshTime number
@@ -31,9 +37,9 @@ local FONT_HGT_LARGE = getTextManager():getFontHeight(UIFont.Large)
 local Config = require "ui/framework/CUI_Config"
 
 MSR_UpgradeWindow.WINDOW_WIDTH = math.floor(FONT_HGT_SMALL * 55)
-MSR_UpgradeWindow.WINDOW_HEIGHT = math.floor(FONT_HGT_SMALL * 35)
+MSR_UpgradeWindow.WINDOW_HEIGHT = math.floor(FONT_HGT_SMALL * 39)
 MSR_UpgradeWindow.MIN_WIDTH = math.floor(FONT_HGT_SMALL * 45)
-MSR_UpgradeWindow.MIN_HEIGHT = math.floor(FONT_HGT_SMALL * 28)
+MSR_UpgradeWindow.MIN_HEIGHT = math.floor(FONT_HGT_SMALL * 32)
 MSR_UpgradeWindow.GRID_WIDTH_RATIO = 0.35
 MSR_UpgradeWindow.DETAILS_WIDTH_RATIO = 0.40
 MSR_UpgradeWindow.INGREDIENTS_WIDTH_RATIO = 0.25
@@ -91,6 +97,9 @@ function MSR_UpgradeWindow:new(x, y, width, height, player, relic)
     o.upgradeDetails = nil
     o.requiredItems = nil
     o.ingredientList = nil
+    o.customizationPanel = nil
+    o.activeTab = "upgrades"
+    o.tabHeight = math.floor(FONT_HGT_MEDIUM * 1.8)
     o.moveWithMouse = true
     o.resizable = true
     o.drawFrame = false
@@ -113,8 +122,24 @@ function MSR_UpgradeWindow:initialise()
 end
 
 function MSR_UpgradeWindow:createChildren()
-    local contentY = self.headerHeight
-    local contentHeight = self.height - self.headerHeight - self.padding
+    local tabY = self.headerHeight + self.padding
+    local tabWidth = math.floor(FONT_HGT_MEDIUM * 11)
+    self.upgradesTabButton = ISButton:new(
+        self.padding, tabY, tabWidth, self.tabHeight,
+        getText("UI_RefugeTab_Upgrades"), self, self.onUpgradesTabClick
+    )
+    self.upgradesTabButton:initialise()
+    self:addChild(self.upgradesTabButton)
+
+    self.customizationTabButton = ISButton:new(
+        self.padding + tabWidth + self.padding, tabY, tabWidth, self.tabHeight,
+        getText("UI_RefugeTab_Customization"), self, self.onCustomizationTabClick
+    )
+    self.customizationTabButton:initialise()
+    self:addChild(self.customizationTabButton)
+
+    local contentY = tabY + self.tabHeight + self.padding
+    local contentHeight = self.height - contentY - self.padding
     local gridWidth = math.floor((self.width - self.padding * 4) * self.GRID_WIDTH_RATIO)
     local detailsWidth = math.floor((self.width - self.padding * 4) * self.DETAILS_WIDTH_RATIO)
     local ingredientsWidth = self.width - gridWidth - detailsWidth - self.padding * 4
@@ -151,6 +176,17 @@ function MSR_UpgradeWindow:createChildren()
     )
     self.ingredientList:initialise()
     self:addChild(self.ingredientList)
+
+    local MSR_CustomizationPanel = require "MSR_CustomizationPanel"
+    self.customizationPanel = MSR_CustomizationPanel:new(
+        self.padding,
+        contentY,
+        self.width - self.padding * 2,
+        contentHeight,
+        self
+    )
+    self.customizationPanel:initialise()
+    self:addChild(self.customizationPanel)
     
     local closeSize = math.floor(FONT_HGT_MEDIUM * 1.2)
     self.closeButton = ISButton:new(
@@ -170,7 +206,38 @@ function MSR_UpgradeWindow:createChildren()
     
     self:createResizeWidget()
     self:refreshUpgradeList()
+    self:showTab("upgrades")
     self:registerInventoryListener()
+end
+
+function MSR_UpgradeWindow:showTab(tabName)
+    self.activeTab = tabName == "customization" and "customization" or "upgrades"
+    local showUpgrades = self.activeTab == "upgrades"
+
+    if self.upgradeGrid then self.upgradeGrid:setVisible(showUpgrades) end
+    if self.upgradeDetails then self.upgradeDetails:setVisible(showUpgrades) end
+    if self.ingredientList then self.ingredientList:setVisible(showUpgrades) end
+    if self.customizationPanel then
+        self.customizationPanel:setVisible(not showUpgrades)
+        if not showUpgrades then self.customizationPanel:refresh() end
+    end
+
+    if self.upgradesTabButton then
+        self.upgradesTabButton.backgroundColor = showUpgrades
+            and {r=0.32, g=0.20, b=0.38, a=0.9} or {r=0.12, g=0.10, b=0.16, a=0.8}
+    end
+    if self.customizationTabButton then
+        self.customizationTabButton.backgroundColor = not showUpgrades
+            and {r=0.32, g=0.20, b=0.38, a=0.9} or {r=0.12, g=0.10, b=0.16, a=0.8}
+    end
+end
+
+function MSR_UpgradeWindow:onUpgradesTabClick()
+    self:showTab("upgrades")
+end
+
+function MSR_UpgradeWindow:onCustomizationTabClick()
+    self:showTab("customization")
 end
 
 function MSR_UpgradeWindow:registerInventoryListener()
@@ -202,6 +269,7 @@ function MSR_UpgradeWindow:onInventoryChanged()
     self._lastRefreshTime = now
     MSR.UpgradeItemCache.invalidate(self.player)
     self:refreshCurrentUpgrade()
+    if self.customizationPanel then self.customizationPanel:refresh() end
 end
 
 function MSR_UpgradeWindow:createResizeWidget()
@@ -231,8 +299,8 @@ function MSR_UpgradeWindow:onResize(newWidth, newHeight)
     self:setWidth(newWidth)
     self:setHeight(newHeight)
     
-    local contentY = self.headerHeight
-    local contentHeight = newHeight - self.headerHeight - self.padding
+    local contentY = self.headerHeight + self.padding + self.tabHeight + self.padding
+    local contentHeight = newHeight - contentY - self.padding
     local gridWidth = math.floor((newWidth - self.padding * 4) * self.GRID_WIDTH_RATIO)
     local detailsWidth = math.floor((newWidth - self.padding * 4) * self.DETAILS_WIDTH_RATIO)
     local ingredientsWidth = newWidth - gridWidth - detailsWidth - self.padding * 4
@@ -264,6 +332,14 @@ function MSR_UpgradeWindow:onResize(newWidth, newHeight)
         if self.ingredientList.onResize then
             self.ingredientList:onResize()
         end
+    end
+
+    if self.customizationPanel then
+        self.customizationPanel:setX(self.padding)
+        self.customizationPanel:setY(contentY)
+        self.customizationPanel:setWidth(newWidth - self.padding * 2)
+        self.customizationPanel:setHeight(contentHeight)
+        self.customizationPanel:onResize()
     end
     
     if self.closeButton then
@@ -393,7 +469,7 @@ function MSR_UpgradeWindow:prerender()
     
     local titleX = self.padding * 2 + iconSize
     local titleY = (self.headerHeight - FONT_HGT_LARGE) / 2
-    local title = getText("UI_RefugeUpgrade_Title") or "Upgrade Spatial Refuge"
+    local title = getText("UI_RefugeManagement_Title") or "Manage Spatial Refuge"
     self:drawText(title, titleX, titleY, 0.92, 0.90, 0.88, 1, UIFont.Large)
     self:drawRectBorder(0, 0, self.width, self.height, 0.8, 0.30, 0.25, 0.38)
 end

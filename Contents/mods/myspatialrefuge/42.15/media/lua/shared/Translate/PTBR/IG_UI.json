@@ -76,5 +76,13 @@
     "IGUI_MSR_AbsorbEssence": "Absorver Essência de Experiência",
     "IGUI_MSR_EssenceAbsorbed": "Absorvi experiência de uma vida passada.",
     "IGUI_MSR_EssenceNotYours": "Esta essência pertence a outra pessoa.",
-    "IGUI_MSR_EssenceEmpty": "Esta essência não contém experiência."
+    "IGUI_MSR_EssenceEmpty": "Esta essência não contém experiência.",
+    "IGUI_ManageRefuge": "Gerenciar refúgio",
+    "IGUI_SpatialWellBuilt": "O poço espacial está ligado ao refúgio.",
+    "IGUI_SpatialWellBuilding": "O refúgio está moldando o poço espacial...",
+    "IGUI_SpatialWellAlreadyBuilt": "Este refúgio já possui um poço espacial.",
+    "IGUI_SpatialWellInvalidLocation": "O poço espacial não pode ser colocado ali.",
+    "IGUI_SpatialWellMissingResources": "Não tenho recursos para o poço espacial.",
+    "IGUI_SpatialWellBuildFailed": "O poço espacial não conseguiu tomar forma.",
+    "IGUI_SpatialWellNotInRefuge": "Só posso colocá-lo dentro do meu refúgio."
 }
