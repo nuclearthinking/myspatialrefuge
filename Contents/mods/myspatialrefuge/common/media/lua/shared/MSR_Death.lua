@@ -183,6 +183,7 @@ local function clearPlayerModData(player)
     pmd.spatialRefuge_lastTeleport = nil
     pmd.spatialRefuge_lastDamage = nil
     pmd.spatialRefuge_lastRelicMove = nil
+    pmd.spatialRefuge_lastWellMove = nil
 end
 
 --- Handle refuge data cleanup on death

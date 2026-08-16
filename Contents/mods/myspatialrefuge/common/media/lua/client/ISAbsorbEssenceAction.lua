@@ -12,6 +12,7 @@ function ISAbsorbEssenceAction:isValidStart()
     return self.item ~= nil
 end
 
+---@return boolean
 function ISAbsorbEssenceAction:isValid()
     if not self.item then return false end
     

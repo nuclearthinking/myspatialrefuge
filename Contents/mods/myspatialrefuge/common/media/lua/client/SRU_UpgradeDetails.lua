@@ -9,7 +9,18 @@ require "MSR_UpgradeLogic"
 require "MSR_UpgradeItemCache"
 
 ---@class SRU_UpgradeDetails : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field parentWindow any
+---@field player IsoPlayer
+---@field padding number
+---@field iconSize number
+---@field upgrade table?
+---@field level number?
+---@field levelData table?
+---@field requiredItems SRU_RequiredItems?
+---@field upgradeButton ISButton?
+---@field _requirements table[]?
+---@field isLocked boolean
+---@field missingDependencies string[]
 SRU_UpgradeDetails = ISPanel:derive("SRU_UpgradeDetails")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)

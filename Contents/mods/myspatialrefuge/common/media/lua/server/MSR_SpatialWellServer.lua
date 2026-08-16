@@ -14,12 +14,32 @@ local InventoryAuthority = MSR.InventoryAuthority
 local SpatialWell = MSR.SpatialWell
 local Transaction = MSR.Transaction
 local LOG = L.logger("SpatialWellServer")
+local moveCooldowns = {}
 
 local function sendError(player, transactionId, reason)
     sendServerCommand(player, Config.COMMAND_NAMESPACE, Config.COMMANDS.SPATIAL_WELL_ERROR, {
         transactionId = transactionId,
         reason = reason or MSR.PlayerMessage.SPATIAL_WELL_BUILD_FAILED,
     })
+end
+
+local function sendMoveError(player, reason, reasonArgs)
+    sendServerCommand(player, Config.COMMAND_NAMESPACE, Config.COMMANDS.SPATIAL_WELL_MOVE_ERROR, {
+        reason = reason or MSR.PlayerMessage.SPATIAL_WELL_MOVE_FAILED,
+        reasonArgs = reasonArgs,
+    })
+end
+
+local function getMoveCooldownRemaining(username)
+    local lastMove = moveCooldowns[username]
+    if not lastMove then return 0 end
+
+    local cooldown = Config.SPATIAL_WELL_MOVE_COOLDOWN or 30
+    return math.max(0, cooldown - (K.time() - lastMove))
+end
+
+local function updateMoveCooldown(username)
+    moveCooldowns[username] = K.time()
 end
 
 local function hasUniqueItemIds(allocation)
@@ -102,6 +122,50 @@ function SpatialWellServer.HandlePlaceRequest(player, args)
     LOG.info("Completed Spatial Well transaction %s for %s",
         transactionId, tostring(player:getUsername()))
 end
+
+function SpatialWellServer.HandleMoveRequest(player, args)
+    if not player or type(args) ~= "table" then return end
+
+    local x = tonumber(args.x)
+    local y = tonumber(args.y)
+    local z = tonumber(args.z)
+    if not x or not y or not z or x ~= math.floor(x) or y ~= math.floor(y) or z ~= math.floor(z) then
+        sendMoveError(player, MSR.PlayerMessage.SPATIAL_WELL_INVALID_LOCATION)
+        return
+    end
+
+    local username = player:getUsername()
+    if not username then return end
+
+    local remaining = getMoveCooldownRemaining(username)
+    if remaining > 0 then
+        sendMoveError(player, MSR.PlayerMessage.CANNOT_MOVE_SPATIAL_WELL_YET, { math.ceil(remaining) })
+        return
+    end
+
+    local moved, reason = SpatialWell.MoveTo(player, x, y, z)
+    if not moved then
+        sendMoveError(player, reason)
+        return
+    end
+
+    updateMoveCooldown(username)
+
+    local refugeData = Data.GetRefugeData(player)
+    sendServerCommand(player, Config.COMMAND_NAMESPACE, Config.COMMANDS.SPATIAL_WELL_MOVE_COMPLETE, {
+        refugeData = Data.SerializeRefugeData(refugeData),
+        x = x,
+        y = y,
+        z = z,
+    })
+end
+
+local function clearMoveCooldown(args)
+    local username = args and args.username
+    if username then moveCooldowns[username] = nil end
+end
+
+MSR.Events.Custom.Add("MSR_PlayerDeath", clearMoveCooldown)
 
 local function processSpatialWells()
     local registry = Data.GetRefugeRegistry()

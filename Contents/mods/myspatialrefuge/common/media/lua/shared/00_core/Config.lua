@@ -50,6 +50,7 @@ MSR.Config = {
     
     RELIC_STORAGE_CAPACITY = 20,
     RELIC_MOVE_COOLDOWN = 30,
+    SPATIAL_WELL_MOVE_COOLDOWN = 30,
     WALL_HEIGHT = 1,
     
     TRANSACTION_TIMEOUT_TICKS = 300,
@@ -130,8 +131,11 @@ MSR.Config = {
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
         REQUEST_PLACE_SPATIAL_WELL = "RequestPlaceSpatialWell",
+        REQUEST_MOVE_SPATIAL_WELL = "RequestMoveSpatialWell",
         SPATIAL_WELL_COMPLETE = "SpatialWellComplete",
         SPATIAL_WELL_ERROR = "SpatialWellError",
+        SPATIAL_WELL_MOVE_COMPLETE = "SpatialWellMoveComplete",
+        SPATIAL_WELL_MOVE_ERROR = "SpatialWellMoveError",
         SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
         ADMIN_COMMAND = "AdminCommand",
         ADMIN_RESPONSE = "AdminResponse",

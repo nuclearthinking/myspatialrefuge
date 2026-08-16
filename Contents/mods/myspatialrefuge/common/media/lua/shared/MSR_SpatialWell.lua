@@ -22,6 +22,26 @@ SpatialWell.TRANSACTION_TYPE = "SPATIAL_WELL_BUILD"
 local EMPTY_BUCKET_TYPE = Config.SPATIAL_WELL.EMPTY_BUCKET_TYPE or "Base.BucketEmpty"
 local refillLastProcessedHours = {}
 
+function SpatialWell.GetLastMoveTime(player)
+    if not player then return 0 end
+    local playerData = player:getModData()
+    return playerData.spatialRefuge_lastWellMove or 0
+end
+
+function SpatialWell.GetMoveCooldownRemaining(player)
+    local lastMove = SpatialWell.GetLastMoveTime(player)
+    if lastMove <= 0 then return 0 end
+
+    local cooldown = Config.SPATIAL_WELL_MOVE_COOLDOWN or 30
+    return math.max(0, cooldown - (K.time() - lastMove))
+end
+
+function SpatialWell.UpdateMoveTime(player)
+    if not player then return end
+    local playerData = player:getModData()
+    playerData.spatialRefuge_lastWellMove = K.time()
+end
+
 local function getBucketTypes()
     return Config.SPATIAL_WELL.BUCKET_TYPES or { EMPTY_BUCKET_TYPE }
 end
@@ -123,6 +143,12 @@ function SpatialWell.IsBuilt(refugeData)
     return state ~= nil and state.placed == true and state.x ~= nil and state.y ~= nil
 end
 
+function SpatialWell.IsObjectForRefuge(well, refugeData)
+    if not well or not refugeData or not well.getModData then return false end
+    local md = well:getModData()
+    return md ~= nil and md.isSpatialWell == true and md.refugeId == refugeData.refugeId
+end
+
 function SpatialWell.BeginRefillSession(registry)
     refillLastProcessedHours = {}
     local now = getWorldAgeHours()
@@ -209,6 +235,77 @@ function SpatialWell.CanPlaceAt(player, square, refugeData)
     return true, nil
 end
 
+function SpatialWell.CanMoveObject(player, well, refugeData)
+    if not player or not well then return false, PM.SPATIAL_WELL_MOVE_FAILED end
+
+    refugeData = refugeData or Data.GetRefugeData(player)
+    if not refugeData or not SpatialWell.IsBuilt(refugeData) then
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+
+    local username = player:getUsername()
+    if not username or refugeData.username ~= username then
+        return false, PM.SPATIAL_WELL_NOT_IN_REFUGE
+    end
+
+    local playerRefuge = Data.GetRefugeDataAtPosition(
+        math.floor(player:getX()),
+        math.floor(player:getY()),
+        math.floor(player:getZ())
+    )
+    if not playerRefuge or playerRefuge.refugeId ~= refugeData.refugeId then
+        return false, PM.SPATIAL_WELL_NOT_IN_REFUGE
+    end
+
+    if not SpatialWell.IsObjectForRefuge(well, refugeData) then
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+
+    local state = SpatialWell.GetState(refugeData)
+    local currentSquare = well:getSquare()
+    if not state or not currentSquare or not currentSquare:getChunk() then
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+    if currentSquare:getX() ~= state.x or currentSquare:getY() ~= state.y or
+            currentSquare:getZ() ~= (state.z or refugeData.centerZ or 0) then
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+
+    return true, nil
+end
+
+function SpatialWell.CanMoveTo(player, square, refugeData, well)
+    refugeData = refugeData or Data.GetRefugeData(player)
+    if not refugeData then return false, PM.SPATIAL_WELL_NOT_IN_REFUGE end
+
+    if not well then
+        well = SpatialWell.Find(refugeData)
+    end
+    local canMove, reason = SpatialWell.CanMoveObject(player, well, refugeData)
+    if not canMove then return false, reason end
+    if not square or not square:getChunk() then
+        return false, PM.SPATIAL_WELL_INVALID_LOCATION
+    end
+
+    local currentSquare = well:getSquare()
+    if currentSquare and currentSquare:getX() == square:getX() and
+            currentSquare:getY() == square:getY() and currentSquare:getZ() == square:getZ() then
+        return false, PM.SPATIAL_WELL_INVALID_LOCATION
+    end
+
+    local username = player:getUsername()
+    local targetRefuge = Data.GetRefugeDataAtPosition(square:getX(), square:getY(), square:getZ())
+    if not targetRefuge or targetRefuge.refugeId ~= refugeData.refugeId or
+            targetRefuge.username ~= username then
+        return false, PM.SPATIAL_WELL_INVALID_LOCATION
+    end
+    if square:getZ() ~= (refugeData.centerZ or 0) or not isSquareFree(square) then
+        return false, PM.SPATIAL_WELL_INVALID_LOCATION
+    end
+
+    return true, nil
+end
+
 local function findAtState(refugeData)
     local state = SpatialWell.GetState(refugeData)
     if not state or state.x == nil or state.y == nil then return nil, nil end
@@ -269,6 +366,7 @@ local function applyProtectedProperties(well)
     well:setIsHoppable(false)
     well:setCanPassThrough(false)
     well:setBlockAllTheSquare(true)
+    ---@diagnostic disable-next-line: undefined-field -- Optional compatibility API across supported B42 builds.
     if well.setDestroyed then well:setDestroyed(false) end
 end
 
@@ -469,6 +567,105 @@ function SpatialWell.RequestPlacement(player, x, y, z)
     end
 
     PM.Say(player, PM.SPATIAL_WELL_BUILT)
+    return true, nil
+end
+
+local function moveObjectBetweenSquares(well, sourceSquare, targetSquare)
+    if not World.removeObject(sourceSquare, well, false) then return false end
+
+    well:setSquare(targetSquare)
+    if not World.addObject(targetSquare, well, false) then
+        well:setSquare(sourceSquare)
+        World.addObject(sourceSquare, well, false)
+        World.recalcSquare(sourceSquare)
+        return false
+    end
+
+    World.recalcSquare(sourceSquare)
+    World.recalcSquare(targetSquare)
+    return true
+end
+
+function SpatialWell.MoveTo(player, x, y, z)
+    if not Env.hasServerAuthority() then return false, PM.SPATIAL_WELL_MOVE_FAILED end
+
+    local refugeData = Data.GetRefugeData(player)
+    local well, sourceSquare = SpatialWell.Find(refugeData)
+    local targetSquare = World.getLoadedSquare(x, y, z)
+    local canMove, reason = SpatialWell.CanMoveTo(player, targetSquare, refugeData, well)
+    if not canMove then return false, reason end
+    ---@cast well IsoThumpable
+    ---@cast sourceSquare IsoGridSquare
+    ---@cast targetSquare IsoGridSquare
+
+    -- Move the same IsoThumpable instance. Its attached FluidContainer therefore
+    -- remains intact, including the current water amount and lock state.
+    local fluidContainer = well:getFluidContainer()
+    if not fluidContainer then return false, PM.SPATIAL_WELL_MOVE_FAILED end
+    local waterBeforeMove = fluidContainer:getAmount()
+    if not moveObjectBetweenSquares(well, sourceSquare, targetSquare) then
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+
+    local movedFluidContainer = well:getFluidContainer()
+    local waterAfterMove = movedFluidContainer and movedFluidContainer:getAmount() or nil
+    if not movedFluidContainer or waterAfterMove ~= waterBeforeMove then
+        if not moveObjectBetweenSquares(well, targetSquare, sourceSquare) then
+            LOG.error("Failed to roll back a water-changing Spatial Well move for %s",
+                tostring(refugeData.username))
+        end
+        LOG.error("Spatial Well water changed during move for %s: %.4f -> %.4f",
+            tostring(refugeData.username), waterBeforeMove, tonumber(waterAfterMove) or -1)
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+
+    local state = SpatialWell.GetState(refugeData)
+    local oldX, oldY, oldZ = state.x, state.y, state.z
+    state.x, state.y, state.z = x, y, z
+
+    if not Data.SaveRefugeData(refugeData) then
+        state.x, state.y, state.z = oldX, oldY, oldZ
+        if not moveObjectBetweenSquares(well, targetSquare, sourceSquare) then
+            LOG.error("Failed to roll back Spatial Well move for %s", tostring(refugeData.username))
+        end
+        return false, PM.SPATIAL_WELL_MOVE_FAILED
+    end
+
+    World.transmitModData(well)
+    if well.sync then well:sync() end
+    LOG.info("Moved Spatial Well for %s from %d,%d,%d to %d,%d,%d with %.2f water",
+        tostring(refugeData.username), oldX, oldY, oldZ or refugeData.centerZ or 0,
+        x, y, z, tonumber(waterAfterMove) or 0)
+    return true, nil
+end
+
+function SpatialWell.RequestMove(player, well, x, y, z)
+    if not player then return false, PM.SPATIAL_WELL_MOVE_FAILED end
+
+    local remaining = SpatialWell.GetMoveCooldownRemaining(player)
+    if remaining > 0 then
+        return false, PM.CANNOT_MOVE_SPATIAL_WELL_YET, { math.ceil(remaining) }
+    end
+
+    local targetSquare = World.getLoadedSquare(x, y, z)
+    local canMove, reason = SpatialWell.CanMoveTo(player, targetSquare, nil, well)
+    if not canMove then return false, reason end
+
+    if Env.isMultiplayerClient() then
+        sendClientCommand(Config.COMMAND_NAMESPACE, Config.COMMANDS.REQUEST_MOVE_SPATIAL_WELL, {
+            x = x,
+            y = y,
+            z = z,
+        })
+        PM.Say(player, PM.SPATIAL_WELL_MOVING)
+        return true, nil
+    end
+
+    local moved, moveError = SpatialWell.MoveTo(player, x, y, z)
+    if not moved then return false, moveError or PM.SPATIAL_WELL_MOVE_FAILED end
+
+    SpatialWell.UpdateMoveTime(player)
+    PM.Say(player, PM.SPATIAL_WELL_MOVED)
     return true, nil
 end
 

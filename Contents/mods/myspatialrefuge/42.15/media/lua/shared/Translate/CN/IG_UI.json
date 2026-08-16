@@ -85,5 +85,10 @@
     "IGUI_SpatialWellMissingResources": "我没有足够的资源建造空间水井。",
     "IGUI_SpatialWellBuildFailed": "空间水井未能成形。",
     "IGUI_SpatialWellNotInRefuge": "我只能在自己的庇护所内放置它。",
-    "IGUI_MoveSacredRelic_ExpansionHint": "避难所的空间会回应圣物的位置。"
+    "IGUI_MoveSacredRelic_ExpansionHint": "避难所的空间会回应圣物的位置。",
+    "IGUI_MoveSpatialWell": "移动空间水井",
+    "IGUI_SpatialWellMoving": "庇护所正在移动空间水井……",
+    "IGUI_SpatialWellMoved": "空间水井已移动。",
+    "IGUI_SpatialWellMoveFailed": "无法移动空间水井。",
+    "IGUI_CannotMoveSpatialWellYet": "空间水井暂时无法移动。请等待 %1 秒。"
 }

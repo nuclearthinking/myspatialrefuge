@@ -146,6 +146,7 @@ local function resolvePlayer(player)
     if (type(player) == "userdata" or type(player) == "table") and player.getPlayerNum and getSpecificPlayer then
         local ok, num = pcall(function() return player:getPlayerNum() end)
         if ok and num ~= nil then
+            ---@type IsoPlayer?
             local resolved = getSpecificPlayer(num)
             if resolved then
                 return resolved

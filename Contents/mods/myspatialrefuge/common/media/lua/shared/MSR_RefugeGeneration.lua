@@ -62,6 +62,7 @@ local function createWallObject(square, spriteName, isNorthWall)
     wall:setIsDismantable(false)
     wall:setCanBePlastered(false)
     wall:setIsHoppable(false)
+    ---@diagnostic disable-next-line: undefined-field -- Optional compatibility API across supported B42 builds.
     if wall.setDestroyed then wall:setDestroyed(false) end
 
     local md = wall:getModData()
@@ -241,7 +242,7 @@ local function createRelicObject(square, refugeId)
         return nil
     end
 
-    local relic = IsoThumpable.new(cell, square, spriteName, false, nil)
+    local relic = IsoThumpable.new(cell, square, spriteName, false, nil --[[@as table]])
     if not relic then return nil end
 
     local createdSprite = relic:getSprite()
@@ -266,6 +267,7 @@ local function createRelicObject(square, refugeId)
     relic:setIsHoppable(false)
     relic:setCanPassThrough(false)
     relic:setBlockAllTheSquare(true)
+    ---@diagnostic disable-next-line: undefined-field -- Optional compatibility API across supported B42 builds.
     if relic.setDestroyed then relic:setDestroyed(false) end
 
     local md = relic:getModData()

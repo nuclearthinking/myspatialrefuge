@@ -86,4 +86,9 @@ IGUI_PTBR = {
     IGUI_SpatialWellBuildFailed = "O poço espacial não conseguiu tomar forma.",
     IGUI_SpatialWellNotInRefuge = "Só posso colocá-lo dentro do meu refúgio.",
     IGUI_MoveSacredRelic_ExpansionHint = "O espaço do refúgio responde à posição da relíquia.",
+    IGUI_MoveSpatialWell = "Mover poço espacial",
+    IGUI_SpatialWellMoving = "O refúgio está movendo o poço espacial...",
+    IGUI_SpatialWellMoved = "O poço espacial foi movido.",
+    IGUI_SpatialWellMoveFailed = "Não foi possível mover o poço espacial.",
+    IGUI_CannotMoveSpatialWellYet = "O poço espacial ainda não pode ser movido. Aguarde %s s.",
 }
