@@ -1,4 +1,13 @@
 versions:
+- version: '1.27'
+  date: August 2026
+  added:
+  - The direction of refuge expansion now responds to the Sacred Relic's position.
+  - Spatial Wells can now be moved after placement while preserving their stored water.
+  fixed: []
+  changed:
+  - Updated the refuge entry and exit icons.
+  removed: []
 - version: '1.26'
   date: August 2026
   added:
