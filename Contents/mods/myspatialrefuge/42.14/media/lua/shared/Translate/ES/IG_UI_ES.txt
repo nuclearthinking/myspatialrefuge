@@ -86,4 +86,9 @@ IGUI_ES = {
     IGUI_SpatialWellBuildFailed = "El pozo espacial no logró tomar forma.",
     IGUI_SpatialWellNotInRefuge = "Solo puedo colocarlo dentro de mi refugio.",
     IGUI_MoveSacredRelic_ExpansionHint = "El espacio del refugio responde a la posición de la reliquia.",
+    IGUI_MoveSpatialWell = "Mover pozo espacial",
+    IGUI_SpatialWellMoving = "El refugio está moviendo el pozo espacial...",
+    IGUI_SpatialWellMoved = "El pozo espacial se ha movido.",
+    IGUI_SpatialWellMoveFailed = "No se pudo mover el pozo espacial.",
+    IGUI_CannotMoveSpatialWellYet = "El pozo espacial aún no se puede mover. Espera %s s.",
 }

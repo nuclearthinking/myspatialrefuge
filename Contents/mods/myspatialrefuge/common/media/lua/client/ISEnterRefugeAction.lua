@@ -3,6 +3,7 @@ if not ISBaseTimedAction then return end
 ---@class ISEnterRefugeAction : ISBaseTimedAction
 ISEnterRefugeAction = ISBaseTimedAction:derive("ISEnterRefugeAction")
 
+---@return boolean
 function ISEnterRefugeAction:isValid()
     if not self.character then return false end
     if MSR and MSR.IsPlayerInRefuge and MSR.IsPlayerInRefuge(self.character) then

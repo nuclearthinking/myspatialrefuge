@@ -7,14 +7,27 @@ require "ISUI/ISPanel"
 require "MSR_UpgradeItemCache"
 
 ---@class SRU_IngredientList : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field parentWindow any
+---@field player IsoPlayer
+---@field padding number
+---@field headerHeight number
+---@field itemHeight number
+---@field requirement table?
+---@field allRequirements table[]
+---@field availableItems table[]
+---@field _itemTypesCacheByKey table<string, string[]>
+---@field _requirementsKey string?
 ---@field scrollOffset number
 ---@field maxScroll number
+---@field _sbDragging boolean
 ---@field _sbDragOffsetY number
 ---@field _sbThumbY number
 ---@field _sbThumbH number
 ---@field _sbTrackY number
 ---@field _sbTrackH number
+---@field _sbX number
+---@field _sbW number
+---@field _sbTickFn Callback_OnTick?
 SRU_IngredientList = ISPanel:derive("SRU_IngredientList")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -236,9 +249,10 @@ function SRU_IngredientList:onMouseDown(x, y)
             -- We do this by polling global mouse position each tick while button is held.
             if Events and Events.OnTick and not self._sbTickFn then
                 local panel = self
-                panel._sbTickFn = function()
+                panel._sbTickFn = function(_tick)
                     if not panel._sbDragging then
-                        Events.OnTick.Remove(panel._sbTickFn)
+                        local tickFn = panel._sbTickFn
+                        if tickFn then Events.OnTick.Remove(tickFn) end
                         panel._sbTickFn = nil
                         return
                     end
@@ -247,7 +261,8 @@ function SRU_IngredientList:onMouseDown(x, y)
                     local isDown = (isMouseButtonDown and isMouseButtonDown(0)) or false
                     if not isDown then
                         panel._sbDragging = false
-                        Events.OnTick.Remove(panel._sbTickFn)
+                        local tickFn = panel._sbTickFn
+                        if tickFn then Events.OnTick.Remove(tickFn) end
                         panel._sbTickFn = nil
                         return
                     end
@@ -257,7 +272,8 @@ function SRU_IngredientList:onMouseDown(x, y)
                     if not gY then
                         -- Can't read global mouse; fail-safe stop to avoid leaking OnTick
                         panel._sbDragging = false
-                        Events.OnTick.Remove(panel._sbTickFn)
+                        local tickFn = panel._sbTickFn
+                        if tickFn then Events.OnTick.Remove(tickFn) end
                         panel._sbTickFn = nil
                         return
                     end
@@ -292,6 +308,7 @@ function SRU_IngredientList:onMouseDown(x, y)
     return false
 end
 
+---@return boolean
 function SRU_IngredientList:onMouseUp(_x, _y)
     if self._sbDragging then
         self._sbDragging = false
@@ -304,6 +321,7 @@ function SRU_IngredientList:onMouseUp(_x, _y)
     return false
 end
 
+---@return boolean
 function SRU_IngredientList:onMouseUpOutside(_x, _y)
     if self._sbDragging then
         self._sbDragging = false
@@ -316,6 +334,7 @@ function SRU_IngredientList:onMouseUpOutside(_x, _y)
     return false
 end
 
+---@return boolean
 function SRU_IngredientList:onMouseMove(_dx, _dy)
     if not self._sbDragging then
         return false

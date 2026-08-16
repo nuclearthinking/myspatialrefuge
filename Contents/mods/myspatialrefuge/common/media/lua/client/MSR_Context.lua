@@ -4,6 +4,8 @@ require "MSR_Transaction"
 require "MSR_Integrity"
 require "MSR_PlayerMessage"
 require "MSR_RefugeGeometry"
+require "MSR_SpatialWell"
+require "MSR_SpatialWellCursor"
 require "00_core/Env"
 require "ISUI/ISToolTip"
 
@@ -146,66 +148,94 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, _test
     if not playerObj then return end
     
     local sacredRelic = nil
+    local spatialWell = nil
     for i = 1, #worldObjects do
         local obj = worldObjects[i]
         if obj and isSacredRelicObject(obj) then
             sacredRelic = obj
-            break
         end
+        if obj and obj.getModData then
+            local md = obj:getModData()
+            if md and md.isSpatialWell == true then
+                spatialWell = obj
+            end
+        end
+        if sacredRelic and spatialWell then break end
     end
     
-    if not sacredRelic then return end
+    if not sacredRelic and not spatialWell then return end
     
     local refugeData = MSR.GetRefugeData and MSR.GetRefugeData(playerObj)
     if not refugeData then return end
-    
-    local moveSubmenu = context:getNew(context)
-    local moveOptionText = getText("IGUI_MoveSacredRelic")
-    local moveOption = context:addOption(moveOptionText, playerObj, nil)
-    context:addSubMenu(moveOption, moveSubmenu)
-    ---@diagnostic disable-next-line: undefined-global -- Loaded by ISUI/ISToolTip at runtime.
-    local moveTooltip = ISToolTip:new()
-    moveTooltip:initialise()
-    moveTooltip:setVisible(false)
-    moveTooltip.description = getText("IGUI_MoveSacredRelic_ExpansionHint")
-    moveOption.toolTip = moveTooltip
-    
+
     local moveIcon = getTexture("media/ui/MoveRelic_24x24.png")
-    if moveIcon then
-        moveOption.iconTexture = moveIcon
-    end
-    
-    -- PZ isometric: -X/-Y = up-left, +X/+Y = down-right
-    local corners = {
-        { name = "Up", key = "IGUI_RelicDirection_Up", dx = -1, dy = -1, icon = "DirectionUp" },
-        { name = "Right", key = "IGUI_RelicDirection_Right", dx = 1, dy = -1, icon = "DirectionRight" },
-        { name = "Left", key = "IGUI_RelicDirection_Left", dx = -1, dy = 1, icon = "DirectionLeft" },
-        { name = "Down", key = "IGUI_RelicDirection_Down", dx = 1, dy = 1, icon = "DirectionDown" },
-        { name = "Center", key = "IGUI_RelicDirection_Center", dx = 0, dy = 0, icon = "DirectionCenter" },
-    }
-    
-    for _, corner in ipairs(corners) do
-        local cornerText = getText(corner.key)
-        local function moveToCorner()
-            MSR.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
+
+    if sacredRelic then
+        local moveSubmenu = context:getNew(context)
+        local moveOptionText = getText("IGUI_MoveSacredRelic")
+        local moveOption = context:addOption(moveOptionText, playerObj, nil)
+        context:addSubMenu(moveOption, moveSubmenu)
+        ---@diagnostic disable-next-line: undefined-global -- Loaded by ISUI/ISToolTip at runtime.
+        local moveTooltip = ISToolTip:new()
+        moveTooltip:initialise()
+        moveTooltip:setVisible(false)
+        moveTooltip.description = getText("IGUI_MoveSacredRelic_ExpansionHint")
+        moveOption.toolTip = moveTooltip
+
+        if moveIcon then
+            moveOption.iconTexture = moveIcon
         end
-        local cornerOption = moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
-        local dirIcon = getTexture("media/ui/" .. corner.icon .. "_32x32.png")
-        if dirIcon then
-            cornerOption.iconTexture = dirIcon
+
+        -- PZ isometric: -X/-Y = up-left, +X/+Y = down-right
+        local corners = {
+            { name = "Up", key = "IGUI_RelicDirection_Up", dx = -1, dy = -1, icon = "DirectionUp" },
+            { name = "Right", key = "IGUI_RelicDirection_Right", dx = 1, dy = -1, icon = "DirectionRight" },
+            { name = "Left", key = "IGUI_RelicDirection_Left", dx = -1, dy = 1, icon = "DirectionLeft" },
+            { name = "Down", key = "IGUI_RelicDirection_Down", dx = 1, dy = 1, icon = "DirectionDown" },
+            { name = "Center", key = "IGUI_RelicDirection_Center", dx = 0, dy = 0, icon = "DirectionCenter" },
+        }
+
+        for _, corner in ipairs(corners) do
+            local cornerText = getText(corner.key)
+            local function moveToCorner()
+                MSR.MoveRelicToPosition(playerObj, sacredRelic, refugeData, corner.dx, corner.dy, corner.name)
+            end
+            local cornerOption = moveSubmenu:addOption(cornerText, playerObj, moveToCorner)
+            local dirIcon = getTexture("media/ui/" .. corner.icon .. "_32x32.png")
+            if dirIcon then
+                cornerOption.iconTexture = dirIcon
+            end
+        end
+
+        local function openUpgradeWindow()
+            local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
+            MSR_UpgradeWindow.Open(playerObj, sacredRelic)
+        end
+
+        local upgradeOptionText = getText("IGUI_ManageRefuge")
+        local upgradeOption = context:addOption(upgradeOptionText, playerObj, openUpgradeWindow)
+        local upgradeIcon = getTexture("media/ui/UpgradeArrow_24x24.png")
+        if upgradeIcon then
+            upgradeOption.iconTexture = upgradeIcon
         end
     end
-    
-    local function openUpgradeWindow()
-        local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
-        MSR_UpgradeWindow.Open(playerObj, sacredRelic)
-    end
-    
-    local upgradeOptionText = getText("IGUI_ManageRefuge")
-    local upgradeOption = context:addOption(upgradeOptionText, playerObj, openUpgradeWindow)
-    local upgradeIcon = getTexture("media/ui/UpgradeArrow_24x24.png")
-    if upgradeIcon then
-        upgradeOption.iconTexture = upgradeIcon
+
+    if spatialWell and MSR.SpatialWell.IsObjectForRefuge(spatialWell, refugeData) then
+        local function moveSpatialWell()
+            local started, reason, reasonArgs = MSR_SpatialWellCursor.StartMove(playerObj, spatialWell)
+            if not started then
+                if reasonArgs and #reasonArgs > 0 then
+                    PM.Say(playerObj, reason or PM.SPATIAL_WELL_MOVE_FAILED, unpack(reasonArgs))
+                else
+                    PM.Say(playerObj, reason or PM.SPATIAL_WELL_MOVE_FAILED)
+                end
+            end
+        end
+
+        local moveWellOption = context:addOption(getText("IGUI_MoveSpatialWell"), playerObj, moveSpatialWell)
+        if moveIcon then
+            moveWellOption.iconTexture = moveIcon
+        end
     end
 end
 
@@ -250,17 +280,6 @@ local function BlockDisassembleAction()
             end
             -- Fall through to original
             return originalCanBeDisassembled(self, obj, player)
-        end
-    end
-    
-    -- Furniture pickup
-    if ISMoveableSpriteProps and ISMoveableSpriteProps.isMoveable then
-        local originalIsMoveable = ISMoveableSpriteProps.isMoveable
-        ISMoveableSpriteProps.isMoveable = function(self, obj, player)
-            if isProtectedObject(obj) then
-                return false
-            end
-            return originalIsMoveable(self, obj, player)
         end
     end
     

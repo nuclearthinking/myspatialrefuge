@@ -6,8 +6,21 @@ require "ISUI/ISPanel"
 require "MSR_UpgradeData"
 
 ---@class SRU_UpgradeGrid : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field parentWindow any
+---@field player IsoPlayer
+---@field padding number
+---@field slotSpacing number
+---@field targetColumns integer
+---@field minSlotSize number
+---@field slotSize number
+---@field upgrades table[]
 ---@field slots SRU_UpgradeSlot[]
+---@field selectedSlotIndex integer?
+---@field scrollOffset number
+---@field maxScrollOffset number
+---@field smoothScrollY number?
+---@field smoothScrollTargetY number?
+---@field columnsPerRow integer
 SRU_UpgradeGrid = ISPanel:derive("SRU_UpgradeGrid")
 
 -----------------------------------------------------------
@@ -310,7 +323,14 @@ end
 -----------------------------------------------------------
 
 ---@class SRU_UpgradeSlot : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field grid SRU_UpgradeGrid
+---@field index integer
+---@field upgrade table?
+---@field upgradeIndex integer?
+---@field isSelected boolean
+---@field isHovered boolean
+---@field isLocked boolean
+---@field playerLevel number
 SRU_UpgradeSlot = ISPanel:derive("SRU_UpgradeSlot")
 
 ---@return SRU_UpgradeSlot

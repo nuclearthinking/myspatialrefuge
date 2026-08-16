@@ -112,7 +112,7 @@
     "UI_SpatialWell_RefillRate": "恢复速度",
     "UI_SpatialWell_RefillValue": "每小时 %1 单位",
     "UI_SpatialWell_NoSkillRequired": "无需建造技能",
-    "UI_SpatialWell_Immovable": "无法移动或拆除",
+    "UI_SpatialWell_Immovable": "无法拆除",
     "UI_SpatialWell_RequiredResources": "所需资源",
     "UI_SpatialWell_EmptyBucket": "空水桶",
     "UI_SpatialWell_Build": "选择位置",

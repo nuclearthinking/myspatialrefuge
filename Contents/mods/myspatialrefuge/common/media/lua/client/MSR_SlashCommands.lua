@@ -14,6 +14,7 @@ local EventsBus = MSR.Events
 
 local OUTPUT_COLOR = "<RGB:0.45,0.75,0.95>"
 
+---@return ISChat?
 local function getChatClass()
     ---@diagnostic disable-next-line: undefined-field
     return _G.ISChat
@@ -40,10 +41,8 @@ local function hasLocalAdminAccess()
         return true
     end
 
-    ---@diagnostic disable-next-line: undefined-field
-    if isClient and isClient() and _G.getAccessLevel then
-        ---@diagnostic disable-next-line: undefined-field
-        return _G.getAccessLevel() == "admin"
+    if isClient and isClient() and isAdmin then
+        return isAdmin()
     end
 
     return false
@@ -51,9 +50,10 @@ end
 
 local function appendChatLine(chatText, line)
     local chatClass = getChatClass()
+    local maxLine = chatClass and chatClass.maxLine or 1000
     chatText.chatTextLines = chatText.chatTextLines or {}
 
-    if #chatText.chatTextLines > chatClass.maxLine then
+    if #chatText.chatTextLines > maxLine then
         local newLines = {}
         for i, existingLine in ipairs(chatText.chatTextLines) do
             if i ~= 1 then
@@ -260,18 +260,22 @@ local function installHook()
         return false
     end
 
-    Slash._originalOnCommandEntered = chatClass.onCommandEntered
+    local hookedChatClass = chatClass --[[@as ISChat]]
+    local hookedChat = hookedChatClass.instance --[[@as ISChat]]
+    local chatTextEntry = hookedChat.textEntry --[[@as ISTextEntryBox]]
+    ---@type fun(self: ISChat)
+    local originalOnCommandEntered = hookedChatClass.onCommandEntered
 
-    function chatClass:onCommandEntered()
+    function hookedChatClass:onCommandEntered()
         local activeChatClass = getChatClass()
         local chat = activeChatClass and activeChatClass.instance or nil
         if not chat or not chat.textEntry then
-            return Slash._originalOnCommandEntered(self)
+            return originalOnCommandEntered(self)
         end
 
         local commandText = chat.textEntry:getText()
         if not isSlashCommand(commandText) then
-            return Slash._originalOnCommandEntered(self)
+            return originalOnCommandEntered(self)
         end
 
         chat:unfocus()
@@ -279,7 +283,7 @@ local function installHook()
         dispatchSlashCommand(commandText)
     end
 
-    chatClass.instance.textEntry.onCommandEntered = chatClass.onCommandEntered
+    chatTextEntry.onCommandEntered = hookedChatClass.onCommandEntered
     Slash._hookInstalled = true
     LOG.debug("Installed /msr chat hook")
     return true

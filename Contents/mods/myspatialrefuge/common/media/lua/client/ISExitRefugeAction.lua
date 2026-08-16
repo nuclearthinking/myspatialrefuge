@@ -3,6 +3,7 @@ if not ISBaseTimedAction then return end
 ---@class ISExitRefugeAction : ISBaseTimedAction
 ISExitRefugeAction = ISBaseTimedAction:derive("ISExitRefugeAction")
 
+---@return boolean
 function ISExitRefugeAction:isValid()
     return self.character ~= nil
 end

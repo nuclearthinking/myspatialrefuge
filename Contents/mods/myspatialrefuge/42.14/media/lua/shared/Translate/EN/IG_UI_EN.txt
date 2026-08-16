@@ -86,4 +86,9 @@ IGUI_EN = {
     IGUI_SpatialWellBuildFailed = "The Spatial Well failed to take shape.",
     IGUI_SpatialWellNotInRefuge = "I can only place this inside my refuge.",
     IGUI_MoveSacredRelic_ExpansionHint = "The refuge's space responds to the relic's position.",
+    IGUI_MoveSpatialWell = "Move Spatial Well",
+    IGUI_SpatialWellMoving = "The refuge is moving the Spatial Well...",
+    IGUI_SpatialWellMoved = "The Spatial Well was moved.",
+    IGUI_SpatialWellMoveFailed = "The Spatial Well could not be moved.",
+    IGUI_CannotMoveSpatialWellYet = "The Spatial Well cannot be moved yet. Wait %s sec.",
 }

@@ -30,6 +30,7 @@ function Utils.resolvePlayer(player)
         if not playerRef.getPlayerNum then return nil end
         local ok, num = pcall(function() return playerRef:getPlayerNum() end)
         if ok and num ~= nil and getSpecificPlayer then
+            ---@type IsoPlayer?
             local resolved = getSpecificPlayer(num)
             if resolved then return resolved end
         end

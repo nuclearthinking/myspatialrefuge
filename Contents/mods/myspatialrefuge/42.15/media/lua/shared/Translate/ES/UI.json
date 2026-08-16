@@ -112,7 +112,7 @@
     "UI_SpatialWell_RefillRate": "Regeneración",
     "UI_SpatialWell_RefillValue": "%1 unidades por hora",
     "UI_SpatialWell_NoSkillRequired": "No requiere habilidad de construcción",
-    "UI_SpatialWell_Immovable": "No se puede mover ni desmontar",
+    "UI_SpatialWell_Immovable": "No se puede desmontar",
     "UI_SpatialWell_RequiredResources": "Recursos necesarios",
     "UI_SpatialWell_EmptyBucket": "Cubo vacío",
     "UI_SpatialWell_Build": "Elegir ubicación",

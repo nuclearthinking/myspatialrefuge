@@ -15,7 +15,21 @@ require "ISUI/ISPanel"
 require "ISUI/ISTextEntryBox"
 
 ---@class CUI_SearchBox : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field searchText string
+---@field placeholder string
+---@field padding integer
+---@field clearButtonSize integer
+---@field searchIconSize integer
+---@field bgColor table
+---@field borderColor table
+---@field textColor table
+---@field placeholderColor table
+---@field searchIcon Texture?
+---@field clearIcon Texture?
+---@field onSearchChanged function?
+---@field onSearchCleared function?
+---@field textEntry ISTextEntryBox?
+---@field clearButton ISButton?
 CUI_SearchBox = ISPanel:derive("CUI_SearchBox")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -172,7 +186,10 @@ end
 --==============================================================================
 
 function CUI_SearchBox:onTextChanged()
-    self.searchText = self.textEntry:getInternalText() or ""
+    local textEntry = self.textEntry
+    if not textEntry then return end
+
+    self.searchText = textEntry:getInternalText() or ""
     self:updateClearButtonVisibility()
     
     if self.onSearchChanged then

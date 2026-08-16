@@ -6,7 +6,15 @@ require "ISUI/ISPanel"
 require "MSR_UpgradeItemCache"
 
 ---@class SRU_RequiredItems : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field parentPanel any
+---@field player IsoPlayer
+---@field padding number
+---@field slotWidth number
+---@field slotHeight number
+---@field slotSpacing number
+---@field requirements table[]
+---@field slots SRU_ItemSlot[]
+---@field onSlotClick function?
 SRU_RequiredItems = ISPanel:derive("SRU_RequiredItems")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)
@@ -81,6 +89,7 @@ function SRU_RequiredItems:createSlots()
         local x = self.padding + col * (self.slotWidth + self.slotSpacing)
         local y = self.padding + FONT_HGT_SMALL + self.padding + row * (self.slotHeight + self.slotSpacing)
         
+        ---@type SRU_ItemSlot
         local slot = SRU_ItemSlot:new(x, y, self.slotWidth, self.slotHeight, self, i)
         slot:initialise()
         slot:setRequirement(req)
@@ -177,7 +186,16 @@ end
 -----------------------------------------------------------
 
 ---@class SRU_ItemSlot : ISPanel
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field parentPanel SRU_RequiredItems
+---@field player IsoPlayer
+---@field index integer
+---@field requirement table?
+---@field haveCount number
+---@field needCount number
+---@field hasEnough boolean
+---@field isSelected boolean
+---@field isHovered boolean
+---@field setRequirement fun(self: SRU_ItemSlot, requirement: table?)
 SRU_ItemSlot = ISPanel:derive("SRU_ItemSlot")
 
 ---@return SRU_ItemSlot

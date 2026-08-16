@@ -85,5 +85,10 @@
     "IGUI_SpatialWellMissingResources": "Мне не хватает ресурсов для пространственного колодца.",
     "IGUI_SpatialWellBuildFailed": "Не удалось создать пространственный колодец.",
     "IGUI_SpatialWellNotInRefuge": "Я могу разместить его только в своём убежище.",
-    "IGUI_MoveSacredRelic_ExpansionHint": "Пространство убежища откликается на положение реликвии."
+    "IGUI_MoveSacredRelic_ExpansionHint": "Пространство убежища откликается на положение реликвии.",
+    "IGUI_MoveSpatialWell": "Переместить",
+    "IGUI_SpatialWellMoving": "Убежище перемещает пространственный колодец...",
+    "IGUI_SpatialWellMoved": "Пространственный колодец перемещён.",
+    "IGUI_SpatialWellMoveFailed": "Не удалось переместить пространственный колодец.",
+    "IGUI_CannotMoveSpatialWellYet": "Колодец пока нельзя переместить. Подождите %1 сек."
 }

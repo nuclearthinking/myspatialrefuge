@@ -11,9 +11,13 @@
 require "ISUI/ISScrollBar"
 
 ---@class CUI_ScrollBar : ISScrollBar
----@field [any] any PZ UI classes are extended dynamically through derive/new.
 ---@field pos number
 ---@field barheight number
+---@field alpha number
+---@field thumbColor table
+---@field thumbHoverColor table
+---@field trackColor table
+---@field cornerRadius integer
 CUI_ScrollBar = ISScrollBar:derive("CUI_ScrollBar")
 
 local FONT_HGT_SMALL = getTextManager():getFontHeight(UIFont.Small)

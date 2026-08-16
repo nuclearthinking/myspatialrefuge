@@ -13,7 +13,15 @@
 require "ISUI/ISButton"
 
 ---@class CUI_ToggleButton : ISButton
----@field [any] any PZ UI classes are extended dynamically through derive/new.
+---@field iconTexture Texture?
+---@field iconSizeRatio number
+---@field isActive boolean
+---@field isToggleButton boolean
+---@field activeColor table
+---@field inactiveColor table
+---@field iconColor table
+---@field bgTexture Texture?
+---@field borderTexture Texture?
 CUI_ToggleButton = ISButton:derive("CUI_ToggleButton")
 
 --==============================================================================
@@ -168,6 +176,7 @@ end
 -- MOUSE HANDLING
 --==============================================================================
 
+---@return boolean
 function CUI_ToggleButton:onMouseUp(_x, _y)
     if self.pressed and self:isMouseOver() then
         -- Toggle state before calling onclick

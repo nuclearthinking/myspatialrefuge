@@ -271,6 +271,22 @@ local function handleSpatialWellError(args, player)
     PM.Say(player, args and args.reason or PM.SPATIAL_WELL_BUILD_FAILED)
 end
 
+local function handleSpatialWellMoveComplete(args, player)
+    if not args then return end
+    updateClientRefugeData(player, args.refugeData)
+    MSR.SpatialWell.UpdateMoveTime(player)
+    PM.Say(player, PM.SPATIAL_WELL_MOVED)
+end
+
+local function handleSpatialWellMoveError(args, player)
+    local reason = args and args.reason or PM.SPATIAL_WELL_MOVE_FAILED
+    if args and args.reasonArgs and #args.reasonArgs > 0 then
+        PM.Say(player, reason, unpack(args.reasonArgs))
+    else
+        PM.Say(player, reason)
+    end
+end
+
 local function handleServerError(args, player)
     if args and args.messageKey then
         if args.messageArgs and #args.messageArgs > 0 then
@@ -297,6 +313,8 @@ CommandHandlers[MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE] = handleFeatureUpg
 CommandHandlers[MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR] = handleFeatureUpgradeError
 CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_COMPLETE] = handleSpatialWellComplete
 CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_ERROR] = handleSpatialWellError
+CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_MOVE_COMPLETE] = handleSpatialWellMoveComplete
+CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_MOVE_ERROR] = handleSpatialWellMoveError
 CommandHandlers[MSR.Config.COMMANDS.ERROR] = handleServerError
 
 local function OnServerCommand(module, command, args)
