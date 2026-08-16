@@ -44,6 +44,8 @@ MSR.Config = {
         WALL_CORNER_SE = "walls_exterior_house_01_3",
         SACRED_RELIC = "myspatialrefuge_0",
         SACRED_RELIC_FALLBACK = "location_community_cemetary_01_11",
+        SPATIAL_WELL = "myspatialrefuge_1",
+        SPATIAL_WELL_FALLBACK = "camping_01_16",
     },
     
     RELIC_STORAGE_CAPACITY = 20,
@@ -55,9 +57,31 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    CURRENT_DATA_VERSION = 6, -- v1:per-player v2:global v3:relic v4:upgrades v5:roomIds v6:lastActiveTime
+    CURRENT_DATA_VERSION = 7, -- v7: refuge customizations (Spatial Well)
     
     CORE_ITEM = "Base.MagicalCore",
+
+    SPATIAL_WELL = {
+        ENTITY_SCRIPT = "Base.MSRSpatialWell",
+        CAPACITY = 400,
+        INITIAL_WATER = 40,
+        REFILL_PER_HOUR = 2,
+        EMPTY_BUCKET_TYPE = "Base.BucketEmpty",
+        BUCKET_TYPES = {
+            "Base.BucketEmpty",
+            "Base.Bucket",
+            "Base.BucketForged",
+            "Base.BucketWood",
+            "Base.BucketCarved",
+            "Base.BucketLargeWood",
+        },
+        COST = {
+            ["Base.MagicalCore"] = 35,
+            ["Base.MetalPipe"] = 4,
+            ["Base.ConcretePowder"] = 1,
+            ["Base.BucketEmpty"] = 1,
+        },
+    },
     
     -- XP Essence System
     ESSENCE_ENABLED = true,
@@ -105,6 +129,9 @@ MSR.Config = {
         REQUEST_FEATURE_UPGRADE = "RequestFeatureUpgrade",
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
+        REQUEST_PLACE_SPATIAL_WELL = "RequestPlaceSpatialWell",
+        SPATIAL_WELL_COMPLETE = "SpatialWellComplete",
+        SPATIAL_WELL_ERROR = "SpatialWellError",
         SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
         ADMIN_COMMAND = "AdminCommand",
         ADMIN_RESPONSE = "AdminResponse",

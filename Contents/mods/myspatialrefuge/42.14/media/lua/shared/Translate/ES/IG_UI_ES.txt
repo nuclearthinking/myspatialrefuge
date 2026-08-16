@@ -77,4 +77,12 @@ IGUI_ES = {
     IGUI_MSR_EssenceAbsorbed = "Absorbí experiencia de una vida pasada.",
     IGUI_MSR_EssenceNotYours = "Esta esencia pertenece a otra persona.",
     IGUI_MSR_EssenceEmpty = "Esta esencia no contiene experiencia.",
+    IGUI_ManageRefuge = "Gestionar refugio",
+    IGUI_SpatialWellBuilt = "El pozo espacial está ligado al refugio.",
+    IGUI_SpatialWellBuilding = "El refugio está dando forma al pozo espacial...",
+    IGUI_SpatialWellAlreadyBuilt = "Este refugio ya tiene un pozo espacial.",
+    IGUI_SpatialWellInvalidLocation = "El pozo espacial no puede colocarse ahí.",
+    IGUI_SpatialWellMissingResources = "No tengo recursos para el pozo espacial.",
+    IGUI_SpatialWellBuildFailed = "El pozo espacial no logró tomar forma.",
+    IGUI_SpatialWellNotInRefuge = "Solo puedo colocarlo dentro de mi refugio.",
 }

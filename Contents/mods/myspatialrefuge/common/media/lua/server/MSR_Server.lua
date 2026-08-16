@@ -20,6 +20,7 @@ require "MSR_ZombieClear"
 require "MSR_Death"
 require "MSR_XPRetention"
 require "MSR_InventoryAuthority"
+require "MSR_SpatialWellServer"
 
 MSR_Server = MSR_Server or {}
 
@@ -971,6 +972,7 @@ local function OnClientCommand(module, command, player, args)
         command == MSR.Config.COMMANDS.CHUNKS_READY or
         command == MSR.Config.COMMANDS.REQUEST_MODDATA or
         command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE or
+        command == MSR.Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL or
         command == MSR.Config.COMMANDS.ADMIN_COMMAND
     )
     
@@ -992,6 +994,8 @@ local function OnClientCommand(module, command, player, args)
         MSR_Server.HandleMoveRelicRequest(player, args)
     elseif command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE then
         MSR_Server.HandleFeatureUpgradeRequest(player, args)
+    elseif command == MSR.Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL then
+        MSR.SpatialWellServer.HandlePlaceRequest(player, args)
     elseif command == MSR.Config.COMMANDS.SYNC_CLIENT_DATA then
         -- Handle client data sync (roomIds, etc.)
         -- In MP, clients can't write to ModData - server acts as data store

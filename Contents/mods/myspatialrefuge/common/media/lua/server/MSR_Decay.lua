@@ -1,4 +1,5 @@
 require "00_core/00_MSR"
+require "MSR_SpatialWell"
 
 local Decay = MSR.register("Decay")
 if not Decay then
@@ -85,6 +86,7 @@ function Decay.ReclaimOldestInactiveRefuge()
         return nil, nil, nil
     end
 
+    MSR.SpatialWell.RemoveForRefuge(victim.refugeData, false)
     local success, deletedData = Data.DeleteRefugeDataByUsername(victim.username)
     if not success or not deletedData then
         return nil, nil, nil
@@ -110,6 +112,7 @@ function Decay.PurgeInactiveRefuges(minDays, limit)
             break
         end
 
+        MSR.SpatialWell.RemoveForRefuge(candidate.refugeData, false)
         local success, deletedData = Data.DeleteRefugeDataByUsername(candidate.username)
         if success and deletedData then
             table.insert(purged, {

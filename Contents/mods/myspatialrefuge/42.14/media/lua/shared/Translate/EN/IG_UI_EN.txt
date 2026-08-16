@@ -77,4 +77,12 @@ IGUI_EN = {
     IGUI_MSR_EssenceAbsorbed = "Absorbed experience from a past life.",
     IGUI_MSR_EssenceNotYours = "This essence belongs to someone else.",
     IGUI_MSR_EssenceEmpty = "This essence contains no experience.",
+    IGUI_ManageRefuge = "Manage Refuge",
+    IGUI_SpatialWellBuilt = "The Spatial Well is bound to the refuge.",
+    IGUI_SpatialWellBuilding = "The refuge is shaping the Spatial Well...",
+    IGUI_SpatialWellAlreadyBuilt = "This refuge already has a Spatial Well.",
+    IGUI_SpatialWellInvalidLocation = "The Spatial Well cannot be placed there.",
+    IGUI_SpatialWellMissingResources = "I do not have the resources for the Spatial Well.",
+    IGUI_SpatialWellBuildFailed = "The Spatial Well failed to take shape.",
+    IGUI_SpatialWellNotInRefuge = "I can only place this inside my refuge.",
 }

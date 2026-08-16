@@ -194,7 +194,7 @@ local function OnFillWorldObjectContextMenu(player, context, worldObjects, _test
         MSR_UpgradeWindow.Open(playerObj, sacredRelic)
     end
     
-    local upgradeOptionText = getText("IGUI_UpgradeRefuge")
+    local upgradeOptionText = getText("IGUI_ManageRefuge")
     local upgradeOption = context:addOption(upgradeOptionText, playerObj, openUpgradeWindow)
     local upgradeIcon = getTexture("media/ui/UpgradeArrow_24x24.png")
     if upgradeIcon then
@@ -209,7 +209,7 @@ local function isProtectedObject(obj)
     if not obj then return false end
     if obj.getModData then
         local md = obj:getModData()
-        if md and (md.isSacredRelic or md.isRefugeBoundary) then
+        if md and (md.isSacredRelic or md.isRefugeBoundary or md.isProtectedRefugeObject or md.isSpatialWell) then
             return true
         end
     end
