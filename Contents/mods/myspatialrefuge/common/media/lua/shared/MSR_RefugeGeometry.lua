@@ -71,8 +71,11 @@ end
 
 function Geometry.ContainsTile(refugeData, x, y)
     local bounds = Geometry.GetTileBounds(refugeData)
-    if not bounds or x == nil or y == nil then return false end
-    return x >= bounds.minX and x <= bounds.maxX and y >= bounds.minY and y <= bounds.maxY
+    if not bounds or type(x) ~= "number" or type(y) ~= "number" then return false end
+    local tileX = math.floor(x)
+    local tileY = math.floor(y)
+    return tileX >= bounds.minX and tileX <= bounds.maxX
+        and tileY >= bounds.minY and tileY <= bounds.maxY
 end
 
 function Geometry.ValidateAnchor(dx, dy, name)
@@ -200,6 +203,14 @@ function Geometry.ValidateConfiguration()
     assertInvariant(centeredBounds.maxX == 100 + radii[1], "legacy maxX changed")
     assertInvariant(centeredBounds.minY == 100 - radii[1], "legacy minY changed")
     assertInvariant(centeredBounds.maxY == 100 + radii[1], "legacy maxY changed")
+    assertInvariant(
+        Geometry.ContainsTile(centered, centeredBounds.maxX + 0.9, centeredBounds.maxY + 0.9),
+        "fractional position on edge tile treated as outside"
+    )
+    assertInvariant(
+        not Geometry.ContainsTile(centered, centeredBounds.maxX + 1, centeredBounds.maxY),
+        "position beyond edge tile treated as inside"
+    )
 
     for _, anchorName in ipairs({ "Center", "Up", "Right", "Left", "Down" }) do
         local current = copyRefugeData(centered)
