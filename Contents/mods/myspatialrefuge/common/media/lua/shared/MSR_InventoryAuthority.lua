@@ -231,15 +231,9 @@ function InventoryAuthority.refundReceipt(player, receipt)
             restored = ok and result or nil
         end
         if not restored and playerSquare and playerSquare.AddWorldInventoryItem then
-            local ok, result = pcall(
-                playerSquare.AddWorldInventoryItem,
-                playerSquare,
-                entry.item,
-                0.5,
-                0.5,
-                0,
-                true
-            )
+            local ok, result = pcall(function()
+                return playerSquare:AddWorldInventoryItem(entry.item, 0.5, 0.5, 0, true)
+            end)
             restored = ok and result or nil
         end
         if not restored then
