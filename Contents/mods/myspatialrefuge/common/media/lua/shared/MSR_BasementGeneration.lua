@@ -458,7 +458,7 @@ if not MSR._basementDebugTeleportRegistered then
     MSR._basementDebugTeleportRegistered = true
 end
 
-function Basement.Generate(refugeData, player)
+function Basement.Generate(refugeData, player, cleanupRefugeData)
     if not refugeData then return false, "Refuge data not found" end
     if MSR.Env.isMultiplayerClient() then
         return false, "Basement generation must run on server/host"
@@ -472,7 +472,14 @@ function Basement.Generate(refugeData, player)
     LOG.debug("Generate start: center=%d,%d z=%d basementZ=%d radius=%d player=%s",
         centerX, centerY, centerZ, basementZ, radius, player and player:getUsername() or "nil")
 
-    local upperLoaded = MSR.World.areAreaChunksLoaded(centerX, centerY, centerZ, radius)
+    local loadBounds = MSR.RefugeGeometry.GetLoadBounds(refugeData)
+    local upperLoaded = loadBounds and MSR.World.areBoundsChunksLoaded(
+        loadBounds.minX,
+        loadBounds.minY,
+        loadBounds.maxX,
+        loadBounds.maxY,
+        centerZ
+    )
     LOG.debug("Surface chunk check: upperLoaded=%s", tostring(upperLoaded))
     if not upperLoaded then
         return false, "Refuge area not fully loaded. Move around and try again."
@@ -480,7 +487,7 @@ function Basement.Generate(refugeData, player)
 
     createBasementFloors(refugeData)
 
-    local wallsOk = MSR.BoundaryReconciler.ReconcileBasement(refugeData)
+    local wallsOk = MSR.BoundaryReconciler.ReconcileBasement(refugeData, cleanupRefugeData)
     if not wallsOk then
         return false, "Basement boundary reconciliation deferred"
     end

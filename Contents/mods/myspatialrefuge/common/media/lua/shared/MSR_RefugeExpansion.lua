@@ -15,8 +15,14 @@ if not Expansion then return MSR.RefugeExpansion end
 local LOG = L.logger("RefugeExpansion")
 
 local function validateSlotChunks(refugeData)
-    local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
-    if not MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, refugeData.centerZ, extent) then
+    local bounds = MSR.RefugeGeometry.GetLoadBounds(refugeData)
+    if not bounds or not MSR.World.areBoundsChunksLoaded(
+        bounds.minX,
+        bounds.minY,
+        bounds.maxX,
+        bounds.maxY,
+        refugeData.centerZ
+    ) then
         return false, "Refuge area not fully loaded. Move around and try again."
     end
     return true, nil
@@ -43,6 +49,10 @@ function Expansion.InferCurrentAnchor(refugeData)
 end
 
 function Expansion.Prepare(player, refugeData)
+    MSR.RefugeGeometry.WarnIfTierConfigurationChanged("refuge expansion")
+    if refugeData and refugeData.pendingExpansionRepair then
+        return nil, "Previous expansion repair is still pending"
+    end
     local canUpgrade, reason, tierConfig = MSR.Validation.CanUpgradeRefuge(player, refugeData)
     if not canUpgrade then return nil, reason end
 
@@ -72,6 +82,7 @@ function Expansion.Prepare(player, refugeData)
 
     return {
         candidate = candidate,
+        previous = refugeData,
         anchor = anchor,
         oldRadius = plan.oldRadius,
         newRadius = plan.newRadius,
@@ -115,22 +126,84 @@ local function reconcileWorld(player, operation)
 end
 
 function Expansion.Reconcile(player, operation)
-    local success, errorMessage = reconcileWorld(player, operation)
-    if not success then
-        local playerRef = player
-        local operationRef = operation
-        MSR.delay(30, function()
-            local retryPlayer = playerRef
-            if retryPlayer and MSR.isPlayerValid and not MSR.isPlayerValid(retryPlayer) then
-                retryPlayer = nil
-            end
-            local retryOk, retryError = reconcileWorld(retryPlayer, operationRef)
-            if not retryOk then
-                LOG.warning("Deferred expansion reconciliation remains incomplete: %s", tostring(retryError))
-            end
-        end)
+    return reconcileWorld(player, operation)
+end
+
+--- Restore the authoritative pre-expansion refuge state. World boundaries are
+--- reconciled immediately against that state so a failed purchase cannot be
+--- applied later after its resources have been refunded.
+function Expansion.Rollback(player, operation)
+    local previous = operation and operation.previous
+    if not previous then return false, "Missing pre-expansion refuge data" end
+    if not MSR.Data.SaveRefugeData(previous) then
+        return false, "Failed to restore pre-expansion refuge data"
     end
-    return success, errorMessage
+
+    local upperOk = MSR.BoundaryReconciler.ReconcileUpper(previous, operation.candidate)
+
+    local upgrades = previous.upgrades or {}
+    local basementOk = true
+    local basementError = nil
+    if (upgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0) > 0 then
+        basementOk, basementError = MSR.BasementGeneration.Generate(previous, player, operation.candidate)
+    end
+
+    MSR.RoomPersistence.ApplyCutaway(previous)
+    local integrityReport = MSR.Integrity.ValidateAndRepair(
+        previous,
+        { source = "expansion_rollback", player = player }
+    )
+    local wallsRestored = integrityReport
+        and integrityReport.walls
+        and integrityReport.walls.reconciled == true
+    if not upperOk and not wallsRestored then
+        return false, "Failed to restore upper refuge boundary"
+    end
+    if not basementOk then
+        return false, basementError or "Failed to restore basement"
+    end
+    return true, nil
+end
+
+--- If compensation cannot restore the old world, keep the paid candidate tier
+--- authoritative and persist a repair marker. This prevents a refunded/free
+--- expansion while allowing the loaded-chunk entry path to finish reconciliation.
+function Expansion.PreserveCandidateForRepair(_player, operation, reason)
+    local candidate = operation and operation.candidate
+    if not candidate then return false, "Missing expansion candidate" end
+    candidate.pendingExpansionRepair = {
+        createdTime = K.time(),
+        lastError = tostring(reason or "Expansion rollback failed"),
+        attempts = 0,
+    }
+    if not MSR.Data.SaveRefugeData(candidate) then
+        return false, "Failed to preserve expansion candidate"
+    end
+    LOG.warning("Preserved paid expansion candidate for deferred repair: %s", tostring(reason))
+    operation.repairPending = true
+    return true, operation
+end
+
+function Expansion.RepairPending(player, refugeData)
+    local pending = refugeData and refugeData.pendingExpansionRepair or nil
+    if not pending then return true, nil end
+
+    local operation = { candidate = refugeData }
+    local repaired, repairError = reconcileWorld(player, operation)
+    if not repaired then
+        pending.attempts = (tonumber(pending.attempts) or 0) + 1
+        pending.lastAttemptTime = K.time()
+        pending.lastError = tostring(repairError or "Expansion repair failed")
+        MSR.Data.SaveRefugeData(refugeData)
+        return false, repairError
+    end
+
+    refugeData.pendingExpansionRepair = nil
+    if not MSR.Data.SaveRefugeData(refugeData) then
+        return false, "Failed to clear expansion repair marker"
+    end
+    LOG.info("Completed pending expansion repair for %s", tostring(refugeData.username))
+    return true, nil
 end
 
 -- Compatibility entry point for callers that do not use the upgrade coordinator.
@@ -139,7 +212,14 @@ function Expansion.Execute(player, refugeData)
     if not operation then return false, prepareError, nil end
     local committed, commitResult = Expansion.Commit(player, operation)
     if not committed then return false, commitResult, nil end
-    Expansion.Reconcile(player, operation)
+    local reconciled, reconcileError = Expansion.Reconcile(player, operation)
+    if not reconciled then
+        local rolledBack, rollbackError = Expansion.Rollback(player, operation)
+        if not rolledBack then
+            return false, rollbackError or reconcileError or "Expansion rollback failed", nil
+        end
+        return false, reconcileError or "Expansion reconciliation failed", nil
+    end
     return true, nil, operation
 end
 

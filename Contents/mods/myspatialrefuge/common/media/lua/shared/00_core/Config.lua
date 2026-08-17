@@ -58,11 +58,19 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    CURRENT_DATA_VERSION = 8, -- v8: relic-anchored effective refuge geometry
+    CURRENT_DATA_VERSION = 9, -- v9: persistent Echo balance and transaction history
     
     CORE_ITEM = "Base.MagicalCore",
 
+    ECHO = {
+        CAPACITY = 30000,
+        CORE_VALUE = 100,
+        HISTORY_LIMIT = 20,
+        DISPLAY_ITEM = "Base.MSR_EchoDisplay",
+    },
+
     SPATIAL_WELL = {
+        ECHO_COST = 3500,
         ENTITY_SCRIPT = "Base.MSRSpatialWell",
         CAPACITY = 400,
         INITIAL_WATER = 40,
@@ -77,7 +85,6 @@ MSR.Config = {
             "Base.BucketLargeWood",
         },
         COST = {
-            ["Base.MagicalCore"] = 35,
             ["Base.MetalPipe"] = 4,
             ["Base.ConcretePowder"] = 1,
             ["Base.BucketEmpty"] = 1,
@@ -130,6 +137,9 @@ MSR.Config = {
         REQUEST_FEATURE_UPGRADE = "RequestFeatureUpgrade",
         FEATURE_UPGRADE_COMPLETE = "FeatureUpgradeComplete",
         FEATURE_UPGRADE_ERROR = "FeatureUpgradeError",
+        REQUEST_ECHO_ABSORB = "RequestEchoAbsorb",
+        ECHO_ABSORB_COMPLETE = "EchoAbsorbComplete",
+        ECHO_ABSORB_ERROR = "EchoAbsorbError",
         REQUEST_PLACE_SPATIAL_WELL = "RequestPlaceSpatialWell",
         REQUEST_MOVE_SPATIAL_WELL = "RequestMoveSpatialWell",
         SPATIAL_WELL_COMPLETE = "SpatialWellComplete",
@@ -188,6 +198,56 @@ MSR.Config = {
         }
     }
 }
+
+local Config = MSR.Config
+
+-- Capture the tier geometry declared by this build before dependent mods get a
+-- chance to mutate the public configuration table. First-party tier changes
+-- remain expected because this snapshot is rebuilt from the shipped values on
+-- every game start; only later runtime mutations are reported.
+local function buildTierConfigurationSignature(maxTier, tiers)
+    local highestTier = math.max(0, math.floor(tonumber(maxTier) or 0))
+    if type(tiers) == "table" then
+        for tier in pairs(tiers) do
+            if type(tier) == "number" and tier >= 0 and tier == math.floor(tier) and tier > highestTier then
+                highestTier = math.floor(tier)
+            end
+        end
+    end
+
+    local parts = { "MAX_TIER=" .. tostring(maxTier) }
+    for tier = 0, highestTier do
+        local tierConfig = type(tiers) == "table" and tiers[tier] or nil
+        table.insert(parts, string.format(
+            "%d:%s:%s",
+            tier,
+            tostring(tierConfig and tierConfig.radius or nil),
+            tostring(tierConfig and tierConfig.size or nil)
+        ))
+    end
+    return table.concat(parts, ";")
+end
+
+local declaredTierConfiguration = {
+    maxTier = Config.MAX_TIER,
+    signature = buildTierConfigurationSignature(Config.MAX_TIER, Config.TIERS),
+}
+
+---Describe an unexpected post-load mutation of refuge tier geometry.
+---Returns nil while the runtime configuration matches the values shipped by
+---this build. This is diagnostic only and deliberately does not block callers.
+---@return table|nil mutation
+function Config.getTierConfigurationMutation()
+    local currentSignature = buildTierConfigurationSignature(Config.MAX_TIER, Config.TIERS)
+    if currentSignature == declaredTierConfiguration.signature then return nil end
+
+    return {
+        declaredMaxTier = declaredTierConfiguration.maxTier,
+        runtimeMaxTier = Config.MAX_TIER,
+        declaredSignature = declaredTierConfiguration.signature,
+        runtimeSignature = currentSignature,
+    }
+end
 
 -- Dynamic getters (difficulty-scaled via D)
 

@@ -1,5 +1,13 @@
 module Base
 {
+    item MSR_EchoDisplay
+    {
+        DisplayCategory = Material,
+        ItemType = base:normal,
+        Weight = 0.0,
+        Icon = MSR_Echo,
+    }
+
     item SRU_SkillBookTier1
     {
         DisplayCategory = SkillBook,

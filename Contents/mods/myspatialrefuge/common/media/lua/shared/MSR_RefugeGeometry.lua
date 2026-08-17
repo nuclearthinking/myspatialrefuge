@@ -5,6 +5,8 @@ local Geometry = MSR.register("RefugeGeometry")
 if not Geometry then return MSR.RefugeGeometry end
 
 local Config = MSR.Config
+local LOG = L.logger("RefugeGeometry")
+local tierMutationWarned = false
 
 local ANCHORS = {
     Center = { name = "Center", dx = 0, dy = 0 },
@@ -67,6 +69,56 @@ function Geometry.GetWallBounds(refugeData)
         centerY = tiles.centerY,
         radius = tiles.radius,
     }
+end
+
+---Bounds whose chunks must be loaded before operating on a refuge. This
+---preserves the existing one-tile buffer while following the actual shifted
+---area instead of the maximum theoretical slot envelope.
+function Geometry.GetLoadBounds(refugeData)
+    local tiles = Geometry.GetTileBounds(refugeData)
+    if not tiles then return nil end
+    return {
+        minX = tiles.minX - 1,
+        maxX = tiles.maxX + 1,
+        minY = tiles.minY - 1,
+        maxY = tiles.maxY + 1,
+    }
+end
+
+function Geometry.UnionBounds(first, second)
+    if not first then return second end
+    if not second then return first end
+    return {
+        minX = math.min(first.minX, second.minX),
+        maxX = math.max(first.maxX, second.maxX),
+        minY = math.min(first.minY, second.minY),
+        maxY = math.max(first.maxY, second.maxY),
+    }
+end
+
+---Log a post-load tier mutation once per Lua environment without changing
+---runtime behavior. The declared snapshot comes from Config.lua, so future
+---first-party tier additions do not trigger this warning.
+---@param context string?
+---@return boolean changed
+function Geometry.WarnIfTierConfigurationChanged(context)
+    local mutation = Config.getTierConfigurationMutation and Config.getTierConfigurationMutation() or nil
+    if not mutation then return false end
+
+    if not tierMutationWarned then
+        tierMutationWarned = true
+        LOG.warning(
+            "Unexpected runtime refuge tier mutation detected (%s). " ..
+            "Declared MAX_TIER=%s, runtime MAX_TIER=%s. Continuing without compatibility guarantees. " ..
+            "Declared=%s Runtime=%s",
+            tostring(context or "unknown"),
+            tostring(mutation.declaredMaxTier),
+            tostring(mutation.runtimeMaxTier),
+            tostring(mutation.declaredSignature),
+            tostring(mutation.runtimeSignature)
+        )
+    end
+    return true
 end
 
 function Geometry.ContainsTile(refugeData, x, y)
@@ -183,6 +235,11 @@ local function assertInvariant(condition, message)
 end
 
 function Geometry.ValidateConfiguration()
+    assertInvariant(
+        not Config.getTierConfigurationMutation or Config.getTierConfigurationMutation() == nil,
+        "declared tier configuration changed during core load"
+    )
+
     local radii = {}
     for tier = 0, Config.MAX_TIER do
         local tierConfig = Config.TIERS[tier]
@@ -203,6 +260,11 @@ function Geometry.ValidateConfiguration()
     assertInvariant(centeredBounds.maxX == 100 + radii[1], "legacy maxX changed")
     assertInvariant(centeredBounds.minY == 100 - radii[1], "legacy minY changed")
     assertInvariant(centeredBounds.maxY == 100 + radii[1], "legacy maxY changed")
+    local centeredLoadBounds = Geometry.GetLoadBounds(centered)
+    assertInvariant(centeredLoadBounds.minX == centeredBounds.minX - 1, "load minX buffer changed")
+    assertInvariant(centeredLoadBounds.maxX == centeredBounds.maxX + 1, "load maxX buffer changed")
+    assertInvariant(centeredLoadBounds.minY == centeredBounds.minY - 1, "load minY buffer changed")
+    assertInvariant(centeredLoadBounds.maxY == centeredBounds.maxY + 1, "load maxY buffer changed")
     assertInvariant(
         Geometry.ContainsTile(centered, centeredBounds.maxX + 0.9, centeredBounds.maxY + 0.9),
         "fractional position on edge tile treated as outside"

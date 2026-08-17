@@ -21,6 +21,10 @@ MSR.World = {}
 MSR.World._loaded = true
 
 local World = MSR.World
+local CHUNK_SIZE_IN_SQUARES = math.max(
+    1,
+    math.floor(tonumber(getChunkSizeInSquares and getChunkSizeInSquares() or 10) or 10)
+)
 
 -----------------------------------------------------------
 -- Grid Square Access
@@ -70,8 +74,9 @@ end
 ---@param z number
 ---@return boolean
 function World.isChunkLoaded(x, y, z)
-    local square = World.getSquare(x, y, z)
-    return square ~= nil and square:getChunk() ~= nil
+    local cell = getCell()
+    if not cell then return false end
+    return cell:getChunkForGridSquare(math.floor(x), math.floor(y), math.floor(z)) ~= nil
 end
 
 ---Check if all chunks in an area are loaded (corners + center)
@@ -98,29 +103,71 @@ function World.isAreaLoaded(centerX, centerY, z, radius)
     return true
 end
 
----Check if all perimeter chunks for radius+1 are loaded
+---Check every chunk intersecting the supplied bounds, optionally limiting the
+---check to the outer chunk ring.
+---@param minX number
+---@param minY number
+---@param maxX number
+---@param maxY number
+---@param z number
+---@param perimeterOnly boolean
+---@return boolean
+local function areChunkBoundsLoaded(minX, minY, maxX, maxY, z, perimeterOnly)
+    local cell = getCell()
+    if not cell then return false end
+
+    minX, minY = math.floor(minX), math.floor(minY)
+    maxX, maxY = math.floor(maxX), math.floor(maxY)
+    if minX > maxX or minY > maxY then return false end
+
+    local minChunkX = math.floor(minX / CHUNK_SIZE_IN_SQUARES)
+    local maxChunkX = math.floor(maxX / CHUNK_SIZE_IN_SQUARES)
+    local minChunkY = math.floor(minY / CHUNK_SIZE_IN_SQUARES)
+    local maxChunkY = math.floor(maxY / CHUNK_SIZE_IN_SQUARES)
+
+    for chunkX = minChunkX, maxChunkX do
+        for chunkY = minChunkY, maxChunkY do
+            local onPerimeter = chunkX == minChunkX or chunkX == maxChunkX
+                or chunkY == minChunkY or chunkY == maxChunkY
+            if (not perimeterOnly or onPerimeter) and not cell:getChunkForGridSquare(
+                chunkX * CHUNK_SIZE_IN_SQUARES,
+                chunkY * CHUNK_SIZE_IN_SQUARES,
+                math.floor(z)
+            ) then
+                return false
+            end
+        end
+    end
+
+    return true
+end
+
+---Check each chunk intersecting exact tile bounds once.
+---@param minX number
+---@param minY number
+---@param maxX number
+---@param maxY number
+---@param z number
+---@return boolean
+function World.areBoundsChunksLoaded(minX, minY, maxX, maxY, z)
+    return areChunkBoundsLoaded(minX, minY, maxX, maxY, z, false)
+end
+
+---Check if all perimeter chunks for radius+1 are loaded.
 ---@param centerX number
 ---@param centerY number
 ---@param z number
 ---@param radius number
 ---@return boolean
 function World.arePerimeterChunksLoaded(centerX, centerY, z, radius)
-    local cell = getCell()
-    if not cell then return false end
-
-    for dx = -radius - 1, radius + 1 do
-        for dy = -radius - 1, radius + 1 do
-            local isPerimeter = (dx == -radius - 1 or dx == radius + 1) or (dy == -radius - 1 or dy == radius + 1)
-            if isPerimeter then
-                local sq = cell:getGridSquare(centerX + dx, centerY + dy, z)
-                if not sq or not sq:getChunk() then
-                    return false
-                end
-            end
-        end
-    end
-
-    return true
+    return areChunkBoundsLoaded(
+        centerX - radius - 1,
+        centerY - radius - 1,
+        centerX + radius + 1,
+        centerY + radius + 1,
+        z,
+        true
+    )
 end
 
 ---Check if all chunks in a full area (radius+1) are loaded
@@ -130,24 +177,43 @@ end
 ---@param radius number
 ---@return boolean
 function World.areAreaChunksLoaded(centerX, centerY, z, radius)
-    local cell = getCell()
-    if not cell then return false end
-
-    for dx = -radius - 1, radius + 1 do
-        for dy = -radius - 1, radius + 1 do
-            local sq = cell:getGridSquare(centerX + dx, centerY + dy, z)
-            if not sq or not sq:getChunk() then
-                return false
-            end
-        end
-    end
-
-    return true
+    return World.areBoundsChunksLoaded(
+        centerX - radius - 1,
+        centerY - radius - 1,
+        centerX + radius + 1,
+        centerY + radius + 1,
+        z
+    )
 end
 
 -----------------------------------------------------------
 -- Area Iteration
 -----------------------------------------------------------
+
+---Iterate exact inclusive tile bounds, skipping unloaded squares.
+---@param minX number
+---@param minY number
+---@param maxX number
+---@param maxY number
+---@param z number
+---@param callback fun(square: IsoGridSquare, x: number, y: number)
+---@return number count
+function World.iterateBounds(minX, minY, maxX, maxY, z, callback)
+    local cell = getCell()
+    if not cell then return 0 end
+
+    local count = 0
+    for x = math.floor(minX), math.floor(maxX) do
+        for y = math.floor(minY), math.floor(maxY) do
+            local square = cell:getGridSquare(x, y, z)
+            if square and square:getChunk() then
+                callback(square, x, y)
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
 
 ---Iterate squares in radius, skips unloaded chunks
 ---@param centerX number

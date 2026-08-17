@@ -35,58 +35,50 @@ local UPGRADE_DEFINITIONS = {
             [1] = {
                 description = "UI_Upgrade_ExpandRefuge_L1",
                 effects = { refugeSize = 5 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 5 }
-                }
+                echoCost = 500,
+                requirements = {}
             },
             [2] = {
                 description = "UI_Upgrade_ExpandRefuge_L2",
                 effects = { refugeSize = 7 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 10 }
-                }
+                echoCost = 1000,
+                requirements = {}
             },
             [3] = {
                 description = "UI_Upgrade_ExpandRefuge_L3",
                 effects = { refugeSize = 9 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 20 }
-                }
+                echoCost = 2000,
+                requirements = {}
             },
             [4] = {
                 description = "UI_Upgrade_ExpandRefuge_L4",
                 effects = { refugeSize = 11 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 35 }
-                }
+                echoCost = 3500,
+                requirements = {}
             },
             [5] = {
                 description = "UI_Upgrade_ExpandRefuge_L5",
                 effects = { refugeSize = 13 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 50 }
-                }
+                echoCost = 5000,
+                requirements = {}
             },
             [6] = {
                 description = "UI_Upgrade_ExpandRefuge_L6",
                 effects = { refugeSize = 15 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 75 }
-                }
+                echoCost = 7500,
+                requirements = {}
             },
             [7] = {
                 description = "UI_Upgrade_ExpandRefuge_L7",
                 effects = { refugeSize = 17 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 100 }
-                }
+                echoCost = 10000,
+                requirements = {}
             },
             [8] = {
                 description = "UI_Upgrade_ExpandRefuge_L8",
                 effects = { refugeSize = 19 },
-                requirements = {
-                    { type = "Base.MagicalCore", count = 150 }
-                }
+                echoCost = 15000,
+                requirements = {}
             }
         }
     },
@@ -101,9 +93,8 @@ local UPGRADE_DEFINITIONS = {
         levels = {
             [1] = {
                 description = "UI_Upgrade_DebugFail_L1",
-                requirements = {
-                    { type = "Base.MagicalCore", count = 1 }
-                }
+                echoCost = 100,
+                requirements = {}
             }
         }
     },
@@ -372,7 +363,7 @@ function UpgradeData.canUpgrade(player, upgradeId)
     return true, nil
 end
 
---- Requirements scaled by D.core() for difficulty
+--- Physical requirements scaled by material difficulty.
 function UpgradeData.getNextLevelRequirements(player, upgradeId)
     local upgrade = UpgradeData.getUpgrade(upgradeId)
     if not upgrade then return nil end
@@ -392,16 +383,26 @@ function UpgradeData.getNextLevelRequirements(player, upgradeId)
     for _, req in ipairs(requirements) do
         local scaledReq = { type = req.type, count = req.count }
         if req.substitutes then scaledReq.substitutes = req.substitutes end
-        -- Scale costs by difficulty
-        if req.type == MSR.Config.CORE_ITEM then
-            scaledReq.count = D.core(req.count)
-        else
-            scaledReq.count = D.material(req.count)
-        end
+        scaledReq.count = D.material(req.count)
         table.insert(scaledRequirements, scaledReq)
     end
     
     return scaledRequirements
+end
+
+--- Echo cost for the next level, scaled directly by the core-cost multiplier.
+function UpgradeData.getNextLevelEchoCost(player, upgradeId)
+    local upgrade = UpgradeData.getUpgrade(upgradeId)
+    if not upgrade then return nil end
+
+    local nextLevel = UpgradeData.getPlayerUpgradeLevel(player, upgradeId) + 1
+    if nextLevel > upgrade.maxLevel then return nil end
+
+    local levelData = UpgradeData.getLevelData(upgradeId, nextLevel)
+    if not levelData then return nil end
+    local baseCost = math.floor(tonumber(levelData.echoCost) or 0)
+    if baseCost <= 0 then return 0 end
+    return math.max(1, math.ceil(baseCost * MSR.GetDifficultyMultiplier("coreCost")))
 end
 
 function UpgradeData.getLevelEffects(upgradeId, level)

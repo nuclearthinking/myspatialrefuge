@@ -1,4 +1,18 @@
 ItemName_PTBR = {
     Base.MSR_ExperienceEssence = "Essência de Experiência",
+    Base.MSR_EchoDisplay = "Eco",
+    Base.SRU_SkillBookTier1 = "Qualquer livro de habilidade, volume 1",
+    Base.SRU_SkillBookTier2 = "Qualquer livro de habilidade, volume 2",
+    Base.SRU_SkillBookTier3 = "Qualquer livro de habilidade, volume 3",
+    Base.SRU_SkillBookTier4 = "Qualquer livro de habilidade, volume 4",
+    Base.SRU_SkillBookTier5 = "Qualquer livro de habilidade, volume 5",
+    Base.SRU_MedicalTier1 = "Suprimentos médicos básicos",
+    Base.SRU_MedicalTier2 = "Suprimentos médicos avançados",
+    Base.SRU_BeddingTier1 = "Roupa de cama básica",
+    Base.SRU_BeddingTier2 = "Roupa de cama confortável",
+    Base.SRU_EntertainmentTier1 = "Livros e periódicos",
+    Base.SRU_EntertainmentTier2 = "Rádios e instrumentos musicais",
+    Base.SRU_PainReliefTier1 = "Analgésicos ou soníferos",
+    Base.SRU_PainReliefTier2 = "Betabloqueadores ou vitaminas",
     Base.MagicalCore = "Estranho Núcleo de Zumbi",
 }

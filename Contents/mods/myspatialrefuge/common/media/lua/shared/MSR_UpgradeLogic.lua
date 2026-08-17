@@ -11,6 +11,7 @@ require "helpers/World"
 require "MSR_PlayerMessage"
 require "MSR_InventoryAuthority"
 require "MSR_RefugeGeometry"
+require "MSR_Echo"
 local PM = MSR.PlayerMessage
 if MSR and MSR.UpgradeLogic and MSR.UpgradeLogic._loaded then
     return MSR.UpgradeLogic
@@ -21,6 +22,7 @@ MSR.UpgradeLogic._loaded = true
 
 local UpgradeLogic = MSR.UpgradeLogic
 local TRANSACTION_TYPE_UPGRADE = "REFUGE_FEATURE_UPGRADE"
+UpgradeLogic.TRANSACTION_TYPE = TRANSACTION_TYPE_UPGRADE
 local LOG = L.logger("UpgradeLogic")
 
 local function invalidateItemCountCaches(player)
@@ -64,7 +66,7 @@ local UpgradeHandlers = {}
 
 --- Register upgrade handler
 ---@param upgradeId string
----@param handler table { prepare?, commit?, reconcile?, validate?, getResponseData?, onSuccess?, invalidatesCache? }
+---@param handler table { prepare?, commit?, reconcile?, rollback?, recover?, validate?, getResponseData?, onSuccess?, invalidatesCache? }
 function UpgradeLogic.registerHandler(upgradeId, handler)
     if not handler or type(handler.commit) ~= "function" then
         LOG.error("Handler for " .. upgradeId .. " must have commit function")
@@ -123,11 +125,7 @@ function UpgradeLogic.hasRequiredItems(player, requirements)
 end
 
 local function allocationFromTransaction(transaction)
-    local allocation = {}
-    for itemType, data in pairs(transaction and transaction.lockedItems or {}) do
-        allocation[itemType] = data.itemIds
-    end
-    return allocation
+    return MSR.Transaction.CopyAllocation(transaction)
 end
 
 function UpgradeLogic.validateAllocationForRequirements(requirements, allocation)
@@ -137,29 +135,9 @@ function UpgradeLogic.validateAllocationForRequirements(requirements, allocation
         return false, "Invalid item allocation"
     end
 
-    local allocatedTypes = {}
-    local totalAllocated = 0
-    for itemType, itemIds in pairs(allocation) do
-        if type(itemType) ~= "string" or type(itemIds) ~= "table" then
-            return false, "Invalid item allocation"
-        end
-        local itemCount = #itemIds
-        local visited = 0
-        for index, itemId in pairs(itemIds) do
-            if type(index) ~= "number" or index < 1 or index > itemCount or index ~= math.floor(index)
-                or type(itemId) ~= "number" or itemId ~= math.floor(itemId)
-            then
-                return false, "Invalid item allocation"
-            end
-            visited = visited + 1
-        end
-        if visited ~= itemCount then return false, "Invalid item allocation" end
-        table.insert(allocatedTypes, { itemType = itemType, count = itemCount })
-        totalAllocated = totalAllocated + itemCount
-    end
-
     local normalizedRequirements = {}
     local totalRequired = 0
+    local allowedTypes = {}
     for _, requirement in ipairs(requirements) do
         if type(requirement) ~= "table" or type(requirement.type) ~= "string" then
             return false, "Invalid upgrade recipe"
@@ -168,12 +146,43 @@ function UpgradeLogic.validateAllocationForRequirements(requirements, allocation
         if rawCount < 0 or rawCount ~= math.floor(rawCount) then return false, "Invalid upgrade recipe" end
         local count = math.floor(rawCount)
         local allowed = { [requirement.type] = true }
+        allowedTypes[requirement.type] = true
         for _, substitute in ipairs(requirement.substitutes or {}) do
             if type(substitute) ~= "string" then return false, "Invalid upgrade recipe" end
             allowed[substitute] = true
+            allowedTypes[substitute] = true
         end
         table.insert(normalizedRequirements, { count = count, allowed = allowed })
         totalRequired = totalRequired + count
+    end
+
+    local allocatedTypes = {}
+    local totalAllocated = 0
+    for itemType, itemIds in pairs(allocation) do
+        if type(itemType) ~= "string" or not allowedTypes[itemType] or type(itemIds) ~= "table" then
+            return false, "Invalid item allocation"
+        end
+        local itemCount = #itemIds
+        if itemCount > totalRequired or totalAllocated + itemCount > totalRequired then
+            return false, "Item allocation exceeds the upgrade recipe"
+        end
+        local visited = 0
+        for index, itemId in pairs(itemIds) do
+            visited = visited + 1
+            if visited > itemCount
+                or type(index) ~= "number"
+                or index < 1
+                or index > itemCount
+                or index ~= math.floor(index)
+                or type(itemId) ~= "number"
+                or itemId ~= math.floor(itemId)
+            then
+                return false, "Invalid item allocation"
+            end
+        end
+        if visited ~= itemCount then return false, "Invalid item allocation" end
+        table.insert(allocatedTypes, { itemType = itemType, count = itemCount })
+        totalAllocated = totalAllocated + itemCount
     end
 
     if totalAllocated ~= totalRequired then
@@ -267,9 +276,29 @@ function UpgradeLogic.validateAllocationForRequirements(requirements, allocation
     return true, nil
 end
 
-function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requirements, allocation)
+function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requirements, allocation, operationId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return false, "Invalid player", nil end
+
+    local refugeData = MSR.Data.GetRefugeData(playerObj)
+    if not refugeData then return false, "Refuge data unavailable", nil end
+    if type(operationId) ~= "string" or operationId == "" then
+        return false, "Invalid upgrade operation ID", nil
+    end
+
+    local existingEchoOperation = MSR.Echo.FindHistoryEntry(refugeData, operationId)
+    if existingEchoOperation then
+        if existingEchoOperation.type == "upgrade"
+            and existingEchoOperation.reason == upgradeId .. ":" .. tostring(targetLevel)
+            and MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId) >= targetLevel
+        then
+            return true, nil, { duplicate = true }
+        end
+        return false, "Duplicate Echo operation", nil
+    end
+    if not MSR.Echo.IsPlayerNearOwnRelic(playerObj, refugeData) then
+        return false, "Player is not near their Sacred Relic", nil
+    end
 
     local valid, validationError = UpgradeLogic.validateUpgrade(playerObj, upgradeId, targetLevel)
     if not valid then return false, validationError, nil end
@@ -280,17 +309,26 @@ function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requi
     if not allocationOk then return false, allocationError, nil end
 
     local handler = UpgradeHandlers[upgradeId]
-    local operation = { upgradeId = upgradeId, targetLevel = targetLevel }
+    local previousLevel = MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId)
+    local operation = {
+        upgradeId = upgradeId,
+        targetLevel = targetLevel,
+        previousLevel = previousLevel,
+    }
     if handler and handler.prepare then
         local callOk, prepared, prepareError = pcall(handler.prepare, playerObj, targetLevel)
         if not callOk then return false, "Upgrade preparation failed: " .. tostring(prepared), nil end
         if not prepared then return false, prepareError or "Upgrade preparation failed", nil end
+        if type(prepared) ~= "table" then return false, "Upgrade preparation returned invalid state", nil end
         operation = prepared
+        operation.upgradeId = upgradeId
+        operation.targetLevel = targetLevel
+        operation.previousLevel = previousLevel
     end
 
     local receipt = nil
     if #requirements > 0 then
-        local sources = MSR.Transaction.GetItemSources(playerObj)
+        local sources = MSR.Transaction.GetItemRoots(playerObj, true)
         local consumeError = nil
         receipt, consumeError = MSR.InventoryAuthority.consumeWithReceipt(
             playerObj,
@@ -299,6 +337,91 @@ function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requi
             MSR.Transaction.IsItemAvailable
         )
         if not receipt then return false, consumeError or "Failed to consume upgrade requirements", nil end
+    end
+
+    local echoCost = MSR.UpgradeData.getNextLevelEchoCost(playerObj, upgradeId) or 0
+    local echoReceipt, echoError = MSR.Echo.BeginSpend(
+        refugeData,
+        echoCost,
+        operationId,
+        "upgrade",
+        upgradeId .. ":" .. tostring(targetLevel)
+    )
+    if not echoReceipt then
+        if receipt then MSR.InventoryAuthority.refundReceipt(playerObj, receipt) end
+        return false, echoError or "Failed to spend Echo", nil
+    end
+
+    local function rollbackCommittedState(resultData)
+        if MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId) == previousLevel then
+            return true, nil
+        end
+
+        if handler and handler.rollback then
+            local callOk, rolledBack, rollbackError = pcall(
+                handler.rollback,
+                playerObj,
+                targetLevel,
+                operation,
+                resultData,
+                previousLevel
+            )
+            if not callOk then return false, "Upgrade rollback failed: " .. tostring(rolledBack) end
+            if not rolledBack then return false, rollbackError or "Upgrade rollback failed" end
+            return true, nil
+        end
+
+        if upgradeId == MSR.Config.UPGRADES.EXPAND_REFUGE then
+            return false, "Expansion handler does not provide rollback"
+        end
+        if not MSR.UpgradeData.setPlayerUpgradeLevel(playerObj, upgradeId, previousLevel) then
+            return false, "Failed to restore previous upgrade level"
+        end
+        return true, nil
+    end
+
+    local function abortUpgrade(errorMessage, resultData)
+        local stateRolledBack, stateRollbackError = rollbackCommittedState(resultData)
+        if not stateRolledBack and handler and handler.recover then
+            local recoverCallOk, recovered, recoveryResult = pcall(
+                handler.recover,
+                playerObj,
+                targetLevel,
+                operation,
+                resultData,
+                stateRollbackError or errorMessage
+            )
+            if recoverCallOk and recovered then
+                MSR.Echo.FinalizeReceipt(echoReceipt)
+                if receipt then MSR.InventoryAuthority.finalizeReceipt(receipt) end
+                LOG.warning(
+                    "Upgrade %s preserved paid candidate state after rollback failure: %s",
+                    tostring(upgradeId), tostring(stateRollbackError or errorMessage)
+                )
+                return true, nil, recoveryResult or resultData
+            end
+
+            MSR.Echo.FinalizeReceipt(echoReceipt)
+            if receipt then MSR.InventoryAuthority.finalizeReceipt(receipt) end
+            LOG.error(
+                "Upgrade %s could neither rollback nor preserve candidate state: rollback=%s recovery=%s",
+                tostring(upgradeId), tostring(stateRollbackError),
+                tostring(recoverCallOk and recoveryResult or recovered)
+            )
+            return false, stateRollbackError or "Upgrade recovery failed", nil
+        end
+
+        local echoRolledBack = MSR.Echo.RollbackReceipt(echoReceipt, true)
+        local itemsRestored = not receipt or MSR.InventoryAuthority.refundReceipt(playerObj, receipt)
+        if not stateRolledBack or not echoRolledBack or not itemsRestored then
+            LOG.error(
+                "Upgrade rollback incomplete for %s: state=%s echo=%s items=%s error=%s",
+                tostring(upgradeId), tostring(stateRolledBack), tostring(echoRolledBack),
+                tostring(itemsRestored), tostring(stateRollbackError)
+            )
+            return false, stateRollbackError or "Upgrade rollback failed", nil
+        end
+        return false, errorMessage or "Upgrade failed", nil
     end
 
     local commitCallOk, committed, resultOrError
@@ -319,17 +442,9 @@ function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requi
         committed = false
     end
 
-    if not committed and MSR.UpgradeData.getPlayerUpgradeLevel(playerObj, upgradeId) == targetLevel then
-        LOG.warning("Upgrade commit reported failure after authoritative state was saved; continuing roll-forward")
-        committed = true
-        resultOrError = operation
-    end
-
     if not committed then
-        if receipt then MSR.InventoryAuthority.refundReceipt(playerObj, receipt) end
-        return false, resultOrError or "Upgrade commit failed", nil
+        return abortUpgrade(resultOrError or "Upgrade commit failed", operation)
     end
-    if receipt then MSR.InventoryAuthority.finalizeReceipt(receipt) end
 
     local resultData = resultOrError or operation
     if handler and handler.reconcile then
@@ -345,11 +460,14 @@ function UpgradeLogic.executeAuthoritative(player, upgradeId, targetLevel, requi
             reconciled = false
         end
         if not reconciled then
-            LOG.warning("Committed upgrade %s requires roll-forward repair: %s", upgradeId, tostring(reconcileError))
+            return abortUpgrade(reconcileError or "Upgrade reconciliation failed", resultData)
         end
     else
         UpgradeLogic.applyUpgradeEffects(playerObj, upgradeId, targetLevel)
     end
+
+    MSR.Echo.FinalizeReceipt(echoReceipt)
+    if receipt then MSR.InventoryAuthority.finalizeReceipt(receipt) end
 
     if handler and handler.onSuccess then
         local callbackOk, callbackError = pcall(handler.onSuccess, playerObj, targetLevel, resultData)
@@ -388,6 +506,8 @@ function UpgradeLogic.canPurchaseUpgrade(player, upgradeId, targetLevel)
     if not UpgradeLogic.hasRequiredItems(playerObj, requirements or {}) then
         return false, "Missing required items"
     end
+    local echoCost = MSR.UpgradeData.getNextLevelEchoCost(playerObj, upgradeId) or 0
+    if not MSR.Echo.CanSpend(refugeData, echoCost) then return false, "Not enough Echo" end
 
     return true, nil
 end
@@ -413,51 +533,66 @@ function UpgradeLogic.purchaseUpgrade(player, upgradeId, targetLevel)
 end
 
 function UpgradeLogic.purchaseUpgradeSP(player, upgradeId, targetLevel, requirements)
-    local transaction = nil
+    local transaction, transactionError
     if requirements and #requirements > 0 then
-        local err = nil
-        transaction, err = MSR.Transaction.Begin(player, TRANSACTION_TYPE_UPGRADE, requirements)
-        if not transaction then
-            return false, err or "Failed to start transaction"
-        end
+        transaction, transactionError = MSR.Transaction.Begin(
+            player,
+            TRANSACTION_TYPE_UPGRADE,
+            requirements
+        )
+    else
+        transaction, transactionError = MSR.Transaction.BeginOperation(
+            player,
+            TRANSACTION_TYPE_UPGRADE
+        )
     end
+    if not transaction then return false, transactionError or "Failed to start transaction" end
 
     local allocation = allocationFromTransaction(transaction)
+    local operationId = transaction.id
     local success, errorMsg = UpgradeLogic.executeAuthoritative(
-        player, upgradeId, targetLevel, requirements, allocation
+        player, upgradeId, targetLevel, requirements, allocation, operationId
     )
     if not success then
-        if transaction then MSR.Transaction.Rollback(player, transaction.id) end
+        MSR.Transaction.Rollback(player, transaction.id)
         return false, errorMsg or "Upgrade failed"
     end
 
-    if transaction then MSR.Transaction.Finalize(player, transaction.id) end
+    MSR.Transaction.Finalize(player, transaction.id)
     UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, nil)
     return true, nil
 end
 
 function UpgradeLogic.purchaseUpgradeMP(player, upgradeId, targetLevel, requirements)
-    local transaction = nil
+    local transaction, transactionError
     if requirements and #requirements > 0 then
-        local err = nil
-        transaction, err = MSR.Transaction.Begin(player, TRANSACTION_TYPE_UPGRADE, requirements)
-        if not transaction then
-            return false, err or "Failed to start transaction"
-        end
+        transaction, transactionError = MSR.Transaction.Begin(
+            player,
+            TRANSACTION_TYPE_UPGRADE,
+            requirements
+        )
+    else
+        transaction, transactionError = MSR.Transaction.BeginOperation(
+            player,
+            TRANSACTION_TYPE_UPGRADE
+        )
     end
+    if not transaction then return false, transactionError or "Failed to start transaction" end
 
     local lockedItemIds = allocationFromTransaction(transaction)
+    local operationId = transaction.id
 
     LOG.debug("Upgrade request with " .. K.count(lockedItemIds) .. " locked item types")
     sendClientCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE, {
         upgradeId = upgradeId,
         targetLevel = targetLevel,
-        transactionId = transaction and transaction.id or nil,
+        operationId = operationId,
+        transactionId = transaction.id,
         lockedItemIds = lockedItemIds
     })
 
     PM.Say(player, PM.UPGRADING)
-    return true, nil
+    return true, nil, operationId, transaction.id
 end
 
 function UpgradeLogic.applyUpgradeEffects(_player, upgradeId, level)
@@ -538,6 +673,24 @@ local function registerBuiltinHandlers()
             UpgradeLogic.syncObjectToClients(relic, true)
             return true, nil
         end,
+        rollback = function(player, _level, _operation, _resultData, previousLevel)
+            if not MSR.UpgradeData.setPlayerUpgradeLevel(
+                player,
+                MSR.Config.UPGRADES.CORE_STORAGE,
+                previousLevel
+            ) then
+                return false, "Failed to restore storage upgrade level"
+            end
+            local refugeData = MSR.Data.GetRefugeData(player)
+            local relic = refugeData and MSR.Integrity.FindRelic(refugeData) or nil
+            if not relic then return true, nil end
+            local container = relic:getContainer()
+            if not container then return false, "Relic container not found during rollback" end
+            container:setCapacity(getStorageCapacityForLevel(previousLevel))
+            relic:getModData().storageUpgradeLevel = previousLevel
+            UpgradeLogic.syncObjectToClients(relic, true)
+            return true, nil
+        end,
         invalidatesCache = true
     })
 
@@ -564,8 +717,15 @@ local function registerBuiltinHandlers()
                 return false, "Already at this level"
             end
 
-            local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
-            local upperLoaded = MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, refugeData.centerZ, extent)
+            MSR.RefugeGeometry.WarnIfTierConfigurationChanged("basement upgrade")
+            local loadBounds = MSR.RefugeGeometry.GetLoadBounds(refugeData)
+            local upperLoaded = loadBounds and MSR.World.areBoundsChunksLoaded(
+                loadBounds.minX,
+                loadBounds.minY,
+                loadBounds.maxX,
+                loadBounds.maxY,
+                refugeData.centerZ
+            )
             LOG.debug("Basement surface chunk check: upperLoaded=%s", tostring(upperLoaded))
             if not upperLoaded then
                 return false, "Refuge area not fully loaded. Move around and try again."
@@ -617,6 +777,12 @@ local function registerBuiltinHandlers()
         reconcile = function(player, _level, operation)
             return MSR.RefugeExpansion.Reconcile(player, operation)
         end,
+        rollback = function(player, _level, operation)
+            return MSR.RefugeExpansion.Rollback(player, operation)
+        end,
+        recover = function(player, _level, operation, _resultData, reason)
+            return MSR.RefugeExpansion.PreserveCandidateForRepair(player, operation, reason)
+        end,
         getResponseData = function(refugeData, resultData)
             if not resultData then return nil end
             local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
@@ -655,7 +821,7 @@ function UpgradeLogic.getPlayerEffect(player, effectName)
     return effects[effectName] or 0
 end
 
-function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transactionId)
+function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transactionId, operationId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
 
@@ -687,9 +853,12 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
 
         local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
-            MSR_UpgradeWindow.instance:setUpgradePending(false)
-            MSR_UpgradeWindow.instance:refreshUpgradeList()
-            MSR_UpgradeWindow.instance:refreshCurrentUpgrade()
+            local window = MSR_UpgradeWindow.instance
+            if not window.isUpgradeResponseCurrent or window:isUpgradeResponseCurrent(operationId) then
+                window:setUpgradePending(false)
+                window:refreshUpgradeList()
+                window:refreshCurrentUpgrade()
+            end
         end
     end
 
@@ -698,7 +867,7 @@ function UpgradeLogic.onUpgradeComplete(player, upgradeId, targetLevel, transact
     PM.Say(playerObj, PM.UPGRADED_TO_LEVEL, name, targetLevel)
 end
 
-function UpgradeLogic.onUpgradeError(player, transactionId, reason)
+function UpgradeLogic.onUpgradeError(player, transactionId, reason, operationId)
     local playerObj = resolvePlayer(player)
     if not playerObj then return end
 
@@ -709,7 +878,10 @@ function UpgradeLogic.onUpgradeError(player, transactionId, reason)
     if MSR.Env.isClient() then
         local MSR_UpgradeWindow = require "MSR_UpgradeWindow"
         if MSR_UpgradeWindow and MSR_UpgradeWindow.instance then
-            MSR_UpgradeWindow.instance:setUpgradePending(false)
+            local window = MSR_UpgradeWindow.instance
+            if not window.isUpgradeResponseCurrent or window:isUpgradeResponseCurrent(operationId) then
+                window:setUpgradePending(false)
+            end
         end
         if reason == PM.BASEMENT_STAIRS_BLOCKED then
             UpgradeLogic.showBasementStairsBlockedAlert()

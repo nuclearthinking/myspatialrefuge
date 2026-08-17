@@ -3,6 +3,7 @@
 -- Displays item slots with icons, names, and have/need counts
 
 require "ISUI/ISPanel"
+require "ISUI/ISToolTip"
 require "MSR_UpgradeItemCache"
 
 ---@class SRU_RequiredItems : ISPanel
@@ -25,6 +26,93 @@ local FONT_HGT_MEDIUM = getTextManager():getFontHeight(UIFont.Medium)
 -----------------------------------------------------------
 
 local Config = require "ui/framework/CUI_Config"
+local TOOLTIP_EXAMPLE_LIMIT = 4
+local REQUIREMENT_INFO_TEXTURE = getTexture("media/textures/requirement_info_12x12.png") --[[@as Texture]]
+
+local function isVirtualRequirement(itemType)
+    return type(itemType) == "string" and itemType:find("^Base%.SRU_") ~= nil
+end
+
+local function getItemDisplayName(itemType, player)
+    local displayName = MSR.UpgradeItemCache.getItemMeta(itemType, player)
+    return tostring(displayName or itemType)
+end
+
+local function getAllowedTypes(requirement, virtual)
+    local allowed = {}
+    local seen = {}
+
+    local function add(itemType)
+        if itemType and not seen[itemType] then
+            seen[itemType] = true
+            allowed[#allowed + 1] = itemType
+        end
+    end
+
+    if not virtual then add(requirement.type) end
+    for _, itemType in ipairs(requirement.substitutes or {}) do
+        add(itemType)
+    end
+    return allowed
+end
+
+local function getExampleTextures(allowedTypes, player)
+    local textures = {}
+    local sampleCount = math.min(#allowedTypes, TOOLTIP_EXAMPLE_LIMIT)
+    for sample = 1, sampleCount do
+        local index = sampleCount == 1 and 1
+            or math.floor((sample - 1) * (#allowedTypes - 1) / (sampleCount - 1)) + 1
+        local _, texture = MSR.UpgradeItemCache.getItemMeta(allowedTypes[index], player)
+        if texture then textures[#textures + 1] = texture end
+    end
+    return textures
+end
+
+---@class SRU_RequirementTooltip : ISToolTip
+---@field exampleTextures Texture[]
+---@field exampleIconSize number
+---@field setExampleTextures fun(self: SRU_RequirementTooltip, textures: Texture[])
+local SRU_RequirementTooltip = ISToolTip:derive("SRU_RequirementTooltip")
+
+function SRU_RequirementTooltip:new()
+    local o = ISToolTip:new() --[[@as SRU_RequirementTooltip]]
+    setmetatable(o, self)
+    self.__index = self
+    o.exampleTextures = {}
+    o.exampleIconSize = math.max(24, math.floor(FONT_HGT_MEDIUM * 1.8))
+    return o
+end
+
+function SRU_RequirementTooltip:setExampleTextures(textures)
+    self.exampleTextures = textures or {}
+end
+
+function SRU_RequirementTooltip:doLayout()
+    ISToolTip.doLayout(self)
+    if #self.exampleTextures == 0 then return end
+
+    local rowWidth = #self.exampleTextures * self.exampleIconSize
+        + math.max(0, #self.exampleTextures - 1) * Config.paddingSmall
+    self:setWidth(math.max(self.width, rowWidth + Config.padding * 2))
+    self:setHeight(self.height + self.exampleIconSize + Config.padding)
+end
+
+function SRU_RequirementTooltip:renderContents()
+    ISToolTip.renderContents(self)
+    if #self.exampleTextures == 0 then return end
+
+    local rowWidth = #self.exampleTextures * self.exampleIconSize
+        + math.max(0, #self.exampleTextures - 1) * Config.paddingSmall
+    local x = (self.width - rowWidth) / 2
+    local y = self.height - self.exampleIconSize - Config.paddingSmall
+    for _, texture in ipairs(self.exampleTextures) do
+        self:drawRect(x, y, self.exampleIconSize, self.exampleIconSize, 0.8, 0.08, 0.07, 0.09)
+        self:drawRectBorder(x, y, self.exampleIconSize, self.exampleIconSize, 0.7, 0.45, 0.38, 0.50)
+        self:drawTextureScaledAspect(texture, x + 2, y + 2,
+            self.exampleIconSize - 4, self.exampleIconSize - 4, 1, 1, 1, 1)
+        x = x + self.exampleIconSize + Config.paddingSmall
+    end
+end
 
 -----------------------------------------------------------
 -- Constructor
@@ -72,6 +160,7 @@ end
 function SRU_RequiredItems:createSlots()
     -- Clear existing slots
     for _, slot in ipairs(self.slots) do
+        slot:hideTooltip()
         self:removeChild(slot)
     end
     self.slots = {}
@@ -86,8 +175,8 @@ function SRU_RequiredItems:createSlots()
         local row = math.floor((i - 1) / slotsPerRow)
         local col = (i - 1) % slotsPerRow
         
-        local x = self.padding + col * (self.slotWidth + self.slotSpacing)
-        local y = self.padding + FONT_HGT_SMALL + self.padding + row * (self.slotHeight + self.slotSpacing)
+        local x = col * (self.slotWidth + self.slotSpacing)
+        local y = row * (self.slotHeight + self.slotSpacing)
         
         ---@type SRU_ItemSlot
         local slot = SRU_ItemSlot:new(x, y, self.slotWidth, self.slotHeight, self, i)
@@ -98,9 +187,8 @@ function SRU_RequiredItems:createSlots()
     end
     
     -- Calculate required height to fit all rows
-    local headerHeight = self.padding + FONT_HGT_SMALL + self.padding
     local slotsHeight = numRows * (self.slotHeight + self.slotSpacing)
-    local requiredHeight = headerHeight + slotsHeight + self.padding
+    local requiredHeight = slotsHeight + self.padding
     
     -- Update panel height if needed
     if requiredHeight ~= self.height then
@@ -159,16 +247,9 @@ end
 -- Rendering
 -----------------------------------------------------------
 
-function SRU_RequiredItems:prerender()
-    -- Background
-    self:drawRect(0, 0, self.width, self.height, 0.7, 0.06, 0.05, 0.08)
-    
-    -- Border
-    self:drawRectBorder(0, 0, self.width, self.height, 0.5, 0.20, 0.18, 0.25)
-    
-    -- Header
-    local header = getText("UI_RefugeUpgrade_RequiredItems") or "Required Items"
-    self:drawText(header, self.padding, self.padding, 0.7, 0.68, 0.72, 1, UIFont.Small)
+function SRU_RequiredItems.prerender(_self)
+    -- Item rows only: the details pane above draws the section header and the
+    -- Echo cost row, so this panel blends into the same cost block.
 end
 
 function SRU_RequiredItems:render()
@@ -195,6 +276,10 @@ end
 ---@field hasEnough boolean
 ---@field isSelected boolean
 ---@field isHovered boolean
+---@field tooltipTitle string?
+---@field tooltipText string?
+---@field tooltipExamples Texture[]
+---@field tooltipUI SRU_RequirementTooltip?
 ---@field setRequirement fun(self: SRU_ItemSlot, requirement: table?)
 SRU_ItemSlot = ISPanel:derive("SRU_ItemSlot")
 
@@ -216,6 +301,10 @@ function SRU_ItemSlot:new(x, y, width, height, parent, index)
     
     o.isSelected = false
     o.isHovered = false
+    o.tooltipTitle = nil
+    o.tooltipText = nil
+    o.tooltipExamples = {}
+    o.tooltipUI = nil
     
     return o
 end
@@ -233,6 +322,10 @@ function SRU_ItemSlot:setRequirement(req)
         self.needCount = 0
         self.haveCount = 0
         self.hasEnough = false
+        self.tooltipTitle = nil
+        self.tooltipText = nil
+        self.tooltipExamples = {}
+        self:hideTooltip()
     end
 end
 
@@ -247,6 +340,66 @@ function SRU_ItemSlot:updateItemCount()
     MSR.UpgradeItemCache.setPlayer(self.player)
     self.haveCount = MSR.UpgradeItemCache.getCountForRequirement(self.requirement)
     self.hasEnough = self.haveCount >= self.needCount
+    self:refreshTooltip()
+end
+
+function SRU_ItemSlot:refreshTooltip()
+    local requirement = self.requirement
+    if not requirement or not requirement.type then
+        self.tooltipTitle = nil
+        self.tooltipText = nil
+        self.tooltipExamples = {}
+        return
+    end
+
+    local itemType = requirement.type
+    local virtual = isVirtualRequirement(itemType)
+    local allowedTypes = getAllowedTypes(requirement, virtual)
+
+    self.tooltipTitle = getItemDisplayName(itemType, self.player)
+    self.tooltipText = not virtual and #allowedTypes > 1
+        and getText("UI_RefugeUpgrade_RequirementAnyVariant") or ""
+    self.tooltipExamples = #allowedTypes > 1
+        and getExampleTextures(allowedTypes, self.player) or {}
+    if self.tooltipUI then
+        self.tooltipUI:setTitle(self.tooltipTitle)
+        self.tooltipUI:setDescription(self.tooltipText)
+        SRU_RequirementTooltip.setExampleTextures(self.tooltipUI, self.tooltipExamples)
+    end
+end
+
+function SRU_ItemSlot:showTooltip()
+    if not self.tooltipTitle then return end
+    if not self.tooltipUI then
+        self.tooltipUI = SRU_RequirementTooltip:new()
+        self.tooltipUI:setOwner(self)
+        self.tooltipUI:setVisible(false)
+        self.tooltipUI:setAlwaysOnTop(true)
+        self.tooltipUI.maxLineWidth = 300
+    end
+    self.tooltipUI:setTitle(self.tooltipTitle)
+    self.tooltipUI:setDescription(self.tooltipText or "")
+    SRU_RequirementTooltip.setExampleTextures(self.tooltipUI, self.tooltipExamples)
+    if not self.tooltipUI:getIsVisible() then
+        self.tooltipUI:addToUIManager()
+        self.tooltipUI:setVisible(true)
+    end
+    self.tooltipUI:setDesiredPosition(getMouseX(), self:getAbsoluteY() + self:getHeight() + 8)
+end
+
+function SRU_ItemSlot:hideTooltip()
+    if self.tooltipUI and self.tooltipUI:getIsVisible() then
+        self.tooltipUI:setVisible(false)
+        self.tooltipUI:removeFromUIManager()
+    end
+end
+
+function SRU_ItemSlot:updateTooltip()
+    if self:isMouseOver() then
+        self:showTooltip()
+    else
+        self:hideTooltip()
+    end
 end
 
 function SRU_ItemSlot:setSelected(selected)
@@ -256,6 +409,7 @@ end
 function SRU_ItemSlot:onMouseDown(_x, _y)
     if self.requirement then
         self.parentPanel:selectSlot(self.index)
+        self:showTooltip()
     end
     return true
 end
@@ -320,8 +474,9 @@ function SRU_ItemSlot:render()
     -- Draw substitution indicator if has substitutes
     if self.requirement.substitutes and #self.requirement.substitutes > 0 then
         local indSize = 12
-        self:drawRect(self.width - indSize - 2, 2, indSize, indSize, 0.8, 0.4, 0.4, 0.6)
-        self:drawText("?", self.width - indSize + 1, 1, 1, 1, 1, 1, UIFont.Small)
+        local indX = self.width - indSize - 2
+        self:drawTextureScaledAspect(
+            REQUIREMENT_INFO_TEXTURE, indX, 2, indSize, indSize, 1, 1, 1, 1)
     end
     
     -- Draw count
@@ -332,7 +487,7 @@ function SRU_ItemSlot:render()
     local countY = self.height - FONT_HGT_SMALL - padding
     
     self:drawText(countText, countX, countY, countColor.r, countColor.g, countColor.b, 1, UIFont.Small)
-    
+    self:updateTooltip()
 end
 
 return SRU_RequiredItems

@@ -5,6 +5,8 @@ require "helpers/World"
 require "MSR_RefugeGeometry"
 require "MSR_PlayerMessage"
 require "MSR_Transaction"
+require "MSR_InventoryAuthority"
+require "MSR_Echo"
 
 local SpatialWell = MSR.register("SpatialWell")
 if not SpatialWell then return MSR.SpatialWell end
@@ -100,13 +102,15 @@ function SpatialWell.GetRequirements()
     local requirements = {}
     local configuredCost = Config.SPATIAL_WELL and Config.SPATIAL_WELL.COST or {}
     for itemType, count in pairs(configuredCost) do
-        if itemType == Config.CORE_ITEM then
-            requirements[itemType] = D.core(count)
-        else
-            requirements[itemType] = D.material(count)
-        end
+        requirements[itemType] = D.material(count)
     end
     return requirements
+end
+
+function SpatialWell.GetEchoCost()
+    local baseCost = math.floor(tonumber(Config.SPATIAL_WELL.ECHO_COST) or 0)
+    if baseCost <= 0 then return 0 end
+    return math.max(1, math.ceil(baseCost * MSR.GetDifficultyMultiplier("coreCost")))
 end
 
 function SpatialWell.GetTransactionRequirements()
@@ -387,12 +391,22 @@ end
 
 local function tagWell(well, refugeData, spriteName)
     local md = well:getModData()
-    md.isSpatialWell = true
-    md.isProtectedRefugeObject = true
-    md.canBeDisassembled = false
-    md.refugeId = refugeData.refugeId
-    md.refugeUsername = refugeData.username
-    md.spatialWellSprite = spriteName
+    local values = {
+        isSpatialWell = true,
+        isProtectedRefugeObject = true,
+        canBeDisassembled = false,
+        refugeId = refugeData.refugeId,
+        refugeUsername = refugeData.username,
+        spatialWellSprite = spriteName,
+    }
+    local changed = false
+    for key, value in pairs(values) do
+        if md[key] ~= value then
+            md[key] = value
+            changed = true
+        end
+    end
+    return changed
 end
 
 local function ensureInitialWater(well)
@@ -469,24 +483,42 @@ function SpatialWell.RollbackPlacement(refugeData, well)
     if refugeData and Env.hasServerAuthority() then Data.SaveRefugeData(refugeData) end
 end
 
-local function copyLockedAllocation(transaction)
-    local allocation = {}
-    for itemType, data in pairs(transaction.lockedItems or {}) do
-        allocation[itemType] = {}
-        for _, itemId in ipairs(data.itemIds or {}) do
-            table.insert(allocation[itemType], itemId)
-        end
-    end
-    return allocation
-end
-
 function SpatialWell.ValidateLockedAllocation(allocation, requirements)
     if type(allocation) ~= "table" or type(requirements) ~= "table" then return false end
+
+    local seenIds = {}
+    local function validateItemIds(itemIds, maximumCount)
+        if itemIds == nil then return true end
+        if type(itemIds) ~= "table" or #itemIds > maximumCount then return false end
+        local visited = 0
+        for index, itemId in pairs(itemIds) do
+            visited = visited + 1
+            if visited > maximumCount
+                or type(index) ~= "number"
+                or index < 1
+                or index > #itemIds
+                or index ~= math.floor(index)
+                or type(itemId) ~= "number"
+                or itemId ~= math.floor(itemId)
+                or seenIds[itemId]
+            then
+                return false
+            end
+            seenIds[itemId] = true
+        end
+        return visited == #itemIds
+    end
 
     if K.isArrayLike(requirements) then
         local allowedTypes = {}
         for _, requirement in ipairs(requirements) do
-            if not requirement.type or allowedTypes[requirement.type] then return false end
+            if not requirement.type or allowedTypes[requirement.type]
+                or type(requirement.count) ~= "number"
+                or requirement.count < 0
+                or requirement.count ~= math.floor(requirement.count)
+            then
+                return false
+            end
 
             local groupCount = 0
             local groupTypes = { requirement.type }
@@ -498,7 +530,7 @@ function SpatialWell.ValidateLockedAllocation(allocation, requirements)
                 if allowedTypes[itemType] then return false end
                 allowedTypes[itemType] = true
                 local itemIds = allocation[itemType]
-                if itemIds ~= nil and type(itemIds) ~= "table" then return false end
+                if not validateItemIds(itemIds, requirement.count) then return false end
                 groupCount = groupCount + (itemIds and #itemIds or 0)
             end
             if groupCount ~= requirement.count then return false end
@@ -513,15 +545,97 @@ function SpatialWell.ValidateLockedAllocation(allocation, requirements)
     local expectedTypes = 0
     local actualTypes = 0
     for itemType, requiredCount in pairs(requirements) do
+        if type(itemType) ~= "string"
+            or type(requiredCount) ~= "number"
+            or requiredCount < 0
+            or requiredCount ~= math.floor(requiredCount)
+        then
+            return false
+        end
         expectedTypes = expectedTypes + 1
         local itemIds = allocation[itemType]
-        if type(itemIds) ~= "table" or #itemIds ~= requiredCount then return false end
+        if type(itemIds) ~= "table"
+            or not validateItemIds(itemIds, requiredCount)
+            or #itemIds ~= requiredCount
+        then
+            return false
+        end
     end
     for itemType, itemIds in pairs(allocation) do
         actualTypes = actualTypes + 1
         if requirements[itemType] == nil or type(itemIds) ~= "table" then return false end
     end
     return expectedTypes == actualTypes
+end
+
+function SpatialWell.IsBuildItemAvailable(item, container)
+    if not Transaction.IsItemAvailable(item, container) then return false end
+    if SpatialWell.IsSupportedBucketType(item:getFullType()) then
+        return SpatialWell.IsEmptyBucket(item)
+    end
+    return true
+end
+
+--- Consume building materials and Echo, create the well, or restore both resources.
+function SpatialWell.ExecutePlacement(player, x, y, z, allocation, operationId)
+    if not Env.hasServerAuthority() then return false, PM.SPATIAL_WELL_BUILD_FAILED, nil, false end
+    if type(operationId) ~= "string" or operationId == "" or #operationId > 128 then
+        return false, PM.SPATIAL_WELL_BUILD_FAILED, nil, false
+    end
+
+    local refugeData = Data.GetRefugeData(player)
+    if not refugeData then return false, PM.SPATIAL_WELL_NOT_IN_REFUGE, nil, false end
+    local existing = MSR.Echo.FindHistoryEntry(refugeData, operationId)
+    if existing then
+        if existing.type == "spatial_well" then return true, nil, nil, true end
+        return false, PM.SPATIAL_WELL_BUILD_FAILED, nil, false
+    end
+
+    local cell = getCell()
+    local square = cell and cell:getGridSquare(x, y, z) or nil
+    local canPlace, placeError = SpatialWell.CanPlaceAt(player, square, refugeData)
+    if not canPlace then return false, placeError, nil, false end
+
+    local requirements = SpatialWell.GetTransactionRequirements()
+    if not SpatialWell.ValidateLockedAllocation(allocation, requirements) then
+        return false, PM.SPATIAL_WELL_MISSING_RESOURCES, nil, false
+    end
+
+    local sources = Transaction.GetItemRoots(player, true)
+    local itemReceipt, itemError = MSR.InventoryAuthority.consumeWithReceipt(
+        player,
+        sources,
+        allocation,
+        SpatialWell.IsBuildItemAvailable
+    )
+    if not itemReceipt then
+        LOG.debug("Spatial Well material consumption failed: %s", tostring(itemError))
+        return false, PM.SPATIAL_WELL_MISSING_RESOURCES, nil, false
+    end
+
+    local echoReceipt, echoError = MSR.Echo.BeginSpend(
+        refugeData,
+        SpatialWell.GetEchoCost(),
+        operationId,
+        "spatial_well",
+        tostring(x) .. ":" .. tostring(y) .. ":" .. tostring(z)
+    )
+    if not echoReceipt then
+        MSR.InventoryAuthority.refundReceipt(player, itemReceipt)
+        LOG.debug("Spatial Well Echo spend failed: %s", tostring(echoError))
+        return false, PM.SPATIAL_WELL_MISSING_RESOURCES, nil, false
+    end
+
+    local well, createError = SpatialWell.CreateAt(player, x, y, z)
+    if not well then
+        MSR.Echo.RollbackReceipt(echoReceipt, true)
+        MSR.InventoryAuthority.refundReceipt(player, itemReceipt)
+        return false, createError or PM.SPATIAL_WELL_BUILD_FAILED, nil, false
+    end
+
+    MSR.Echo.FinalizeReceipt(echoReceipt)
+    MSR.InventoryAuthority.finalizeReceipt(itemReceipt)
+    return true, nil, well, false
 end
 
 function SpatialWell.RequestPlacement(player, x, y, z)
@@ -531,6 +645,11 @@ function SpatialWell.RequestPlacement(player, x, y, z)
     local square = cell and cell:getGridSquare(x, y, z) or nil
     local canPlace, reason = SpatialWell.CanPlaceAt(player, square)
     if not canPlace then return false, reason end
+
+    local refugeData = Data.GetRefugeData(player)
+    if not MSR.Echo.CanSpend(refugeData, SpatialWell.GetEchoCost()) then
+        return false, PM.SPATIAL_WELL_MISSING_RESOURCES
+    end
 
     local transaction, transactionError = Transaction.Begin(
         player,
@@ -548,23 +667,26 @@ function SpatialWell.RequestPlacement(player, x, y, z)
             y = y,
             z = z,
             transactionId = transaction.id,
-            lockedItemIds = copyLockedAllocation(transaction),
+            lockedItemIds = Transaction.CopyAllocation(transaction),
         })
         PM.Say(player, PM.SPATIAL_WELL_BUILDING)
         return true, nil
     end
 
-    local well, createError = SpatialWell.CreateAt(player, x, y, z)
-    if not well then
+    local success, createError = SpatialWell.ExecutePlacement(
+        player,
+        x,
+        y,
+        z,
+        Transaction.CopyAllocation(transaction),
+        transaction.id
+    )
+    if not success then
         Transaction.Rollback(player, transaction.id)
         return false, createError or PM.SPATIAL_WELL_BUILD_FAILED
     end
 
-    if not Transaction.Commit(player, transaction.id) then
-        SpatialWell.RollbackPlacement(Data.GetRefugeData(player), well)
-        Transaction.Rollback(player, transaction.id)
-        return false, PM.SPATIAL_WELL_BUILD_FAILED
-    end
+    Transaction.Finalize(player, transaction.id)
 
     PM.Say(player, PM.SPATIAL_WELL_BUILT)
     return true, nil
@@ -675,6 +797,7 @@ function SpatialWell.EnsureForRefuge(refugeData)
     local well, square = findAtState(refugeData)
     if not square then return nil end
 
+    local modDataChanged = false
     if not well then
         local state = SpatialWell.GetState(refugeData)
         local spriteName = SpatialWell.ResolveSprite()
@@ -690,11 +813,13 @@ function SpatialWell.EnsureForRefuge(refugeData)
             refugeData.username, state.x, state.y, state.z or 0)
     else
         applyProtectedProperties(well)
-        tagWell(well, refugeData, SpatialWell.ResolveSprite())
+        local spriteName = SpatialWell.ResolveSprite()
+        if not spriteName then return nil end
+        modDataChanged = tagWell(well, refugeData, spriteName)
         attachEntity(well)
     end
 
-    World.transmitModData(well)
+    if modDataChanged then World.transmitModData(well) end
     return well
 end
 
@@ -733,7 +858,6 @@ function SpatialWell.ProcessRefill(refugeData)
     if inputWasLocked then fluidContainer:setInputLocked(false) end
     fluidContainer:addFluid(FluidType.Water, refill)
     if inputWasLocked then fluidContainer:setInputLocked(true) end
-    if well.sync then well:sync() end
     local newAmount = fluidContainer:getAmount()
     if newAmount <= previousAmount then
         LOG.warning("Spatial Well refill failed for %s (amount %.2f, requested %.2f)",
@@ -741,8 +865,8 @@ function SpatialWell.ProcessRefill(refugeData)
         return false
     end
 
+    if well.sync then well:sync() end
     refillLastProcessedHours[trackingKey] = now
-    World.transmitModData(well)
     LOG.debug("Refilled Spatial Well for %s after %.2f hours: %.2f -> %.2f",
         tostring(refugeData.username), elapsedHours, previousAmount, newAmount)
     return true

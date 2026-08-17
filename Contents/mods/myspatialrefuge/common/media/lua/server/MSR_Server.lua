@@ -23,6 +23,7 @@ require "MSR_InventoryAuthority"
 require "MSR_SpatialWellServer"
 require "MSR_RefugeGeometry"
 require "MSR_BasementGeneration"
+require "MSR_Echo"
 
 MSR_Server = MSR_Server or {}
 
@@ -88,6 +89,13 @@ end
 
 local lastRequestTime = {}
 local REQUEST_COOLDOWN = 2
+local economicRequestTimes = {}
+local ECONOMIC_REQUEST_COOLDOWN = 1
+local ECONOMIC_COMMANDS = {
+    [MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE] = true,
+    [MSR.Config.COMMANDS.REQUEST_ECHO_ABSORB] = true,
+    [MSR.Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL] = true,
+}
 
 local serverCooldowns = {
     teleport = {},
@@ -181,35 +189,54 @@ local function canProcessRequest(player)
     return true
 end
 
+local function canProcessEconomicRequest(player, command)
+    if not player or not ECONOMIC_COMMANDS[command] then return false end
+    local username = player:getUsername()
+    if not username then return false end
+
+    local now = K.time()
+    local playerRequests = economicRequestTimes[username]
+    if not playerRequests then
+        playerRequests = {}
+        economicRequestTimes[username] = playerRequests
+    end
+    local previous = playerRequests[command]
+    if previous and now - previous < ECONOMIC_REQUEST_COOLDOWN then return false end
+    playerRequests[command] = now
+    return true
+end
+
+local function rejectRateLimitedEconomicRequest(player, command, args)
+    if not player then return end
+    args = type(args) == "table" and args or {}
+    if command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = args.transactionId,
+            operationId = args.operationId,
+            reason = MSR.PlayerMessage.UPGRADE_ALREADY_PROCESSING,
+            rateLimited = true,
+        })
+    elseif command == MSR.Config.COMMANDS.REQUEST_ECHO_ABSORB then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ECHO_ABSORB_ERROR, {
+            transactionId = args.operationId,
+            reason = "Echo request rate limited",
+            rateLimited = true,
+        })
+    elseif command == MSR.Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.SPATIAL_WELL_ERROR, {
+            transactionId = args.transactionId,
+            reason = MSR.PlayerMessage.SPATIAL_WELL_BUILD_FAILED,
+            rateLimited = true,
+        })
+    end
+end
+
+MSR_Server.CanProcessEconomicRequest = canProcessEconomicRequest
+MSR_Server.RejectRateLimitedEconomicRequest = rejectRateLimitedEconomicRequest
+
 -----------------------------------------------------------
 -- Upgrade item sources and authoritative consumption
 -----------------------------------------------------------
-
-local function getUpgradeItemRoots(player)
-    local sources = {}
-    local inv = MSR.safePlayerCall(player, "getInventory")
-    if inv then table.insert(sources, inv) end
-
-    -- Sacred Relic container (if available)
-    local getRelicContainer = MSR.GetRelicContainer or (MSR_Server and MSR_Server.GetRelicContainer)
-    if getRelicContainer then
-        local rc = getRelicContainer(player, true)
-        if rc then table.insert(sources, rc) end
-    end
-    return sources
-end
-
-local function areLockedItemsAvailable(player, lockedItemIds)
-    if not player or not lockedItemIds then return false end
-    local sources = getUpgradeItemRoots(player)
-    if #sources == 0 then return false end
-
-    return MSR.InventoryAuthority.validateAllocation(
-        sources,
-        lockedItemIds,
-        MSR.Transaction.IsItemAvailable
-    )
-end
 
 function MSR_Server.HandleModDataRequest(player, _args)
     if not player then return end
@@ -246,8 +273,6 @@ function MSR_Server.HandleModDataRequest(player, _args)
         refugeData = MSR.Data.SerializeRefugeData(refugeData),
         returnPosition = returnPos
     })
-    
-    MSR.Data.TransmitModData()
 end
 
 function MSR_Server.HandleEnterRequest(player, args)
@@ -352,6 +377,8 @@ function MSR_Server.HandleChunksReady(player, _args)
         })
         return
     end
+
+    MSR.RefugeGeometry.WarnIfTierConfigurationChanged("multiplayer refuge entry")
     
     LOG.debug( "Phase 2: Waiting for server chunks to load for " .. username)
     
@@ -362,6 +389,7 @@ function MSR_Server.HandleChunksReady(player, _args)
     local tickCount = 0
     local maxTicks = 300  -- 5 seconds max
     local generated = false
+    local loadBounds = MSR.RefugeGeometry.GetLoadBounds(refugeDataRef)
     
     local function waitForServerChunks()
         tickCount = tickCount + 1
@@ -372,12 +400,12 @@ function MSR_Server.HandleChunksReady(player, _args)
             return
         end
         
-        local slotExtent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
-        local allChunksLoaded = MSR.World.areAreaChunksLoaded(
-            refugeDataRef.centerX,
-            refugeDataRef.centerY,
-            centerZ,
-            slotExtent
+        local allChunksLoaded = loadBounds and MSR.World.areBoundsChunksLoaded(
+            loadBounds.minX,
+            loadBounds.minY,
+            loadBounds.maxX,
+            loadBounds.maxY,
+            centerZ
         )
         
         if allChunksLoaded and not generated then
@@ -427,6 +455,13 @@ function MSR_Server.HandleChunksReady(player, _args)
                 local basementOk, basementError = MSR.BasementGeneration.Generate(refugeDataRef, playerRef)
                 if not basementOk then
                     LOG.warning("Basement roll-forward remains incomplete on entry: %s", tostring(basementError))
+                end
+            end
+
+            if refugeDataRef.pendingExpansionRepair then
+                local repairOk, repairError = MSR.RefugeExpansion.RepairPending(playerRef, refugeDataRef)
+                if not repairOk then
+                    LOG.warning("Pending expansion repair remains incomplete: %s", tostring(repairError))
                 end
             end
             
@@ -645,6 +680,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     local upgradeId = args and args.upgradeId
     local targetLevel = args and args.targetLevel
     local transactionId = args and args.transactionId
+    local operationId = args and args.operationId
     local lockedItemIds = args and args.lockedItemIds
 
     if type(upgradeId) ~= "string"
@@ -653,12 +689,60 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         or targetLevel < 0
         or targetLevel > 1000
         or targetLevel ~= math.floor(targetLevel)
+        or type(operationId) ~= "string"
+        or operationId == ""
+        or #operationId > 128
+        or type(transactionId) ~= "string"
+        or transactionId ~= operationId
         or (lockedItemIds ~= nil and type(lockedItemIds) ~= "table")
     then
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Invalid upgrade request"
         })
+        return
+    end
+
+    local refugeData = MSR.Data.GetRefugeData(player)
+    if not refugeData then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+            transactionId = transactionId,
+            operationId = operationId,
+            reason = "Refuge data unavailable"
+        })
+        return
+    end
+    local existingOperation = refugeData and MSR.Echo.FindHistoryEntry(refugeData, operationId) or nil
+    if existingOperation then
+        if existingOperation.type == "upgrade"
+            and existingOperation.reason == upgradeId .. ":" .. tostring(targetLevel)
+            and MSR.UpgradeData.getPlayerUpgradeLevel(player, upgradeId) >= targetLevel
+        then
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE, {
+                transactionId = transactionId,
+                operationId = operationId,
+                upgradeId = upgradeId,
+                newLevel = targetLevel,
+                refugeData = MSR.Data.SerializeRefugeData(refugeData),
+                duplicate = true,
+            })
+        else
+            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
+                transactionId = transactionId,
+                operationId = operationId,
+                reason = "Duplicate Echo operation"
+            })
+        end
+        return
+    end
+
+    if not canProcessEconomicRequest(player, MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE) then
+        rejectRateLimitedEconomicRequest(
+            player,
+            MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE,
+            args
+        )
         return
     end
     
@@ -683,6 +767,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
                 LOG.debug( "Rejecting duplicate upgrade request for " .. lockKey .. " (elapsed: " .. elapsed .. "s)")
                 sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
+                    operationId = operationId,
                     reason = "UPGRADE_ALREADY_PROCESSING"
                 })
                 return
@@ -698,6 +783,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
                 LOG.debug( "Rejecting upgrade request for " .. lockKey .. " (cooldown: " .. string.format("%.1f", timeSinceComplete) .. "s)")
                 sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
                     transactionId = transactionId,
+                    operationId = operationId,
                     reason = "UPGRADE_COOLDOWN"
                 })
                 return
@@ -724,6 +810,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Unknown upgrade: " .. tostring(upgradeId)
         })
         return
@@ -732,6 +819,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Debug-only upgrade"
         })
         return
@@ -741,26 +829,19 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Dependencies not met"
         })
         return
     end
 
-    if not MSR.Data.GetRefugeData(player) then
-        clearPendingLock()
-        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
-            transactionId = transactionId,
-            reason = "Refuge data unavailable"
-        })
-        return
-    end
-    
     local currentLevel = MSR.UpgradeData.getPlayerUpgradeLevel(player, upgradeId)
     
     if targetLevel <= currentLevel then
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Already at this level"
         })
         return
@@ -770,6 +851,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Must upgrade one level at a time"
         })
         return
@@ -779,6 +861,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Exceeds max level"
         })
         return
@@ -797,6 +880,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = preValidateErr or "Upgrade validation failed"
         })
         return
@@ -810,29 +894,18 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = allocationError or "Invalid item allocation"
         })
         return
     end
 
-    if lockedItemIds and not K.isEmpty(lockedItemIds) then
-        local available = areLockedItemsAvailable(player, lockedItemIds)
-        if not available then
-            LOG.debug( "HandleFeatureUpgradeRequest: Locked items missing before apply for " .. username)
-            clearPendingLock()
-            sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
-                transactionId = transactionId,
-                reason = "Required items unavailable"
-            })
-            return
-        end
-    end
-    
     local handler = MSR.UpgradeLogic.getHandler(upgradeId)
     if #requirements > 0 and (not lockedItemIds or K.isEmpty(lockedItemIds)) then
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = "Exact item allocation is required"
         })
         return
@@ -843,7 +916,8 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         upgradeId,
         targetLevel,
         requirements,
-        lockedItemIds or {}
+        lockedItemIds or {},
+        operationId
     )
 
     if not success then
@@ -851,6 +925,7 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
         clearPendingLock()
         sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR, {
             transactionId = transactionId,
+            operationId = operationId,
             reason = errorMsg or "Upgrade failed"
         })
         return
@@ -859,9 +934,10 @@ function MSR_Server.HandleFeatureUpgradeRequest(player, args)
     LOG.debug( "Feature upgrade: " .. username .. " upgraded " .. upgradeId .. " to level " .. targetLevel)
     
     -- Build response with common fields
-    local refugeData = MSR.Data.GetRefugeData(player)
+    refugeData = MSR.Data.GetRefugeData(player)
     local response = {
         transactionId = transactionId,
+        operationId = operationId,
         upgradeId = upgradeId,
         newLevel = targetLevel,
         refugeData = MSR.Data.SerializeRefugeData(refugeData)
@@ -921,6 +997,56 @@ function MSR_Server.HandleXPEssenceAbsorb(player, args)
     LOG.debug( string.format("XPEssenceAbsorb: applied %.0f XP for %s", appliedTotal, username))
 end
 
+function MSR_Server.HandleEchoAbsorbRequest(player, args)
+    if not player then return end
+    local operationId = args and args.operationId
+    local allocation = args and args.allocation
+    if type(operationId) ~= "string" or operationId == "" or #operationId > 128
+        or type(allocation) ~= "table"
+    then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ECHO_ABSORB_ERROR, {
+            transactionId = operationId,
+            reason = "Invalid Echo absorption request",
+        })
+        return
+    end
+
+    local refugeData = MSR.Data.GetRefugeData(player)
+    local existingOperation = refugeData and MSR.Echo.FindHistoryEntry(refugeData, operationId) or nil
+    if not existingOperation
+        and not canProcessEconomicRequest(player, MSR.Config.COMMANDS.REQUEST_ECHO_ABSORB)
+    then
+        rejectRateLimitedEconomicRequest(
+            player,
+            MSR.Config.COMMANDS.REQUEST_ECHO_ABSORB,
+            args
+        )
+        return
+    end
+
+    local success, errorMessage, entry, duplicate = MSR.Echo.AbsorbAllocation(
+        player,
+        allocation,
+        operationId
+    )
+    refugeData = MSR.Data.GetRefugeData(player)
+    if not success then
+        sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ECHO_ABSORB_ERROR, {
+            transactionId = operationId,
+            reason = errorMessage or "Echo absorption failed",
+            refugeData = MSR.Data.SerializeRefugeData(refugeData),
+        })
+        return
+    end
+
+    sendServerCommand(player, MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.ECHO_ABSORB_COMPLETE, {
+        transactionId = operationId,
+        operation = entry,
+        duplicate = duplicate == true,
+        refugeData = MSR.Data.SerializeRefugeData(refugeData),
+    })
+end
+
 -----------------------------------------------------------
 -- Client Command Handler
 -----------------------------------------------------------
@@ -929,13 +1055,15 @@ end
 local function OnClientCommand(module, command, player, args)
     -- Only handle our namespace
     if module ~= MSR.Config.COMMAND_NAMESPACE then return end
-    
+
     -- Some commands are exempt from rate limiting
-    -- Feature upgrades use transaction IDs and level validation for protection
+    -- Economic commands use a dedicated per-command limiter in their handlers,
+    -- after the cheap idempotency check but before any allocation traversal.
     local isExemptFromRateLimit = (
         command == MSR.Config.COMMANDS.CHUNKS_READY or
         command == MSR.Config.COMMANDS.REQUEST_MODDATA or
         command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE or
+        command == MSR.Config.COMMANDS.REQUEST_ECHO_ABSORB or
         command == MSR.Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL or
         command == MSR.Config.COMMANDS.REQUEST_MOVE_SPATIAL_WELL or
         command == MSR.Config.COMMANDS.ADMIN_COMMAND
@@ -959,6 +1087,8 @@ local function OnClientCommand(module, command, player, args)
         MSR_Server.HandleMoveRelicRequest(player, args)
     elseif command == MSR.Config.COMMANDS.REQUEST_FEATURE_UPGRADE then
         MSR_Server.HandleFeatureUpgradeRequest(player, args)
+    elseif command == MSR.Config.COMMANDS.REQUEST_ECHO_ABSORB then
+        MSR_Server.HandleEchoAbsorbRequest(player, args)
     elseif command == MSR.Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL then
         MSR.SpatialWellServer.HandlePlaceRequest(player, args)
     elseif command == MSR.Config.COMMANDS.REQUEST_MOVE_SPATIAL_WELL then
@@ -993,12 +1123,13 @@ end
 
 local function areRefugeChunksLoaded(refugeData)
     if not refugeData then return false end
-    local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
-    return MSR.World.areAreaChunksLoaded(
-        refugeData.centerX,
-        refugeData.centerY,
-        refugeData.centerZ,
-        extent
+    local bounds = MSR.RefugeGeometry.GetLoadBounds(refugeData)
+    return bounds ~= nil and MSR.World.areBoundsChunksLoaded(
+        bounds.minX,
+        bounds.minY,
+        bounds.maxX,
+        bounds.maxY,
+        refugeData.centerZ
     )
 end
 
@@ -1089,6 +1220,8 @@ local function onPlayerDeathCleanup(args)
     -- Clean up server-specific cooldowns
     serverCooldowns.teleport[username] = nil
     serverCooldowns.relicMove[username] = nil
+    economicRequestTimes[username] = nil
+    lastRequestTime[username] = nil
     
     LOG.debug( "Cleaned up server cooldowns for " .. username)
 end
@@ -1104,46 +1237,19 @@ local function OnServerStart()
     LOG.debug( "Server initialized")
     
     MSR.Data.InitializeModData()
-    MSR.Data.TransmitModData()
-end
-
-local function OnPlayerFullyConnected(player)
-    if not player then return end
-    if not MSR or not MSR.Data then return end
-    
-    local playerUsername = player:getUsername() or "unknown"
-    
-    LOG.debug( "OnPlayerFullyConnected called for: " .. playerUsername)
-    
-    MSR.delay(30, function()
-        MSR.Data.TransmitModData()
-
-        if L.isDebug() then
-            LOG.debug( "Transmitted ModData to " .. playerUsername)
-            local registry = MSR.Data.GetRefugeRegistry()
-            if registry then
-                local count = 0
-                for _ in pairs(registry) do
-                    count = count + 1
-                end
-                LOG.debug( "ModData has " .. count .. " refuge entries")
-            else
-                LOG.warning("Registry is nil!")
-            end
-        end
-    end)
 end
 
 local function OnPlayerConnect(player)
     if not player then return end
     
     local username = player:getUsername() or "unknown"
+    economicRequestTimes[username] = nil
+    lastRequestTime[username] = nil
     
     if MSR.Migration.NeedsMigration(player) then
         local success, message = MSR.Migration.MigratePlayer(player)
         if success then
             print("[MSR_Server] " .. username .. ": " .. message)
-            MSR.Data.TransmitModData()
         end
     end
 
@@ -1163,14 +1269,12 @@ MSR.Events.Custom.Add("MSR_PlayerDeath", onPlayerDeathCleanup)
 
 if Events.OnPlayerConnect then
     Events.OnPlayerConnect.Add(OnPlayerConnect)
-    Events.OnPlayerConnect.Add(OnPlayerFullyConnected)
 end
 
 if Events.OnCreatePlayer then
     Events.OnCreatePlayer.Add(function(_playerIndex, player)
         if MSR.Env.isServer() then
             OnPlayerConnect(player)
-            OnPlayerFullyConnected(player)
         end
     end)
 end

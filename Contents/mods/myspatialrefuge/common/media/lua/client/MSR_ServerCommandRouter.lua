@@ -9,6 +9,7 @@ require "MSR_VehicleTeleport"
 require "MSR_SpatialWell"
 require "MSR_Transaction"
 require "MSR_UpgradeItemCache"
+require "MSR_Echo"
 
 require "helpers/TeleportCooldown"
 require "helpers/TeleportFlow"
@@ -32,8 +33,58 @@ end
 
 local CommandHandlers = {}
 
+local function getUpgradeWindow()
+    return MSR_UpgradeWindow and MSR_UpgradeWindow.instance or nil
+end
+
+local function hasPendingTransaction(player, transactionType, transactionId)
+    if not player or type(transactionId) ~= "string" then return false end
+    local pending = MSR.Transaction.GetPending(player, transactionType)
+    return pending ~= nil and pending.id == transactionId
+end
+
+local function shouldAcceptUpgradeResponse(args, player)
+    if not args
+        or type(args.operationId) ~= "string"
+        or args.operationId ~= args.transactionId
+        or not hasPendingTransaction(
+            player,
+            MSR.UpgradeLogic.TRANSACTION_TYPE,
+            args.transactionId
+        )
+    then
+        return false
+    end
+    local window = getUpgradeWindow()
+    return not window
+        or not window.isUpgradeResponseCurrent
+        or window:isUpgradeResponseCurrent(args.operationId)
+end
+
+local function shouldAcceptEchoResponse(args, player)
+    if not args
+        or not hasPendingTransaction(player, "ECHO_ABSORB", args.transactionId)
+    then
+        return false
+    end
+    local window = getUpgradeWindow()
+    local panel = window and window.echoPanel or nil
+    return not panel
+        or not panel.isResponseCurrent
+        or panel:isResponseCurrent(args.transactionId)
+end
+
 local function handleModDataResponse(args, player)
     MSR.Data.HandleModDataResponse(args, player)
+    local window = getUpgradeWindow()
+    if not window then return end
+    window:refreshUpgradeList()
+    window:refreshCurrentUpgrade()
+    if window.echoPanel and not window.echoPanel.pending then window.echoPanel:refresh() end
+end
+
+local function requestAuthoritativeRefresh()
+    MSR.Data.RequestModDataFromServer(true)
 end
 
 local function handleTeleportTo(args, player)
@@ -218,6 +269,11 @@ end
 
 local function handleFeatureUpgradeComplete(args, player)
     if not args then return end
+    if not shouldAcceptUpgradeResponse(args, player) then
+        LOG.debug("Ignoring stale upgrade completion: %s", tostring(args.operationId))
+        requestAuthoritativeRefresh()
+        return
+    end
 
     if args.refugeData then
         local username = player:getUsername()
@@ -231,16 +287,25 @@ local function handleFeatureUpgradeComplete(args, player)
     end
 
     -- onUpgradeComplete handles cache invalidation based on handler config
-    MSR.UpgradeLogic.onUpgradeComplete(player, args.upgradeId, args.newLevel, args.transactionId)
+    MSR.UpgradeLogic.onUpgradeComplete(
+        player,
+        args.upgradeId,
+        args.newLevel,
+        args.transactionId,
+        args.operationId
+    )
 
     -- Boundary objects are authoritative server state. The client only accepts
     -- the refuge snapshot and invalidates derived caches in onUpgradeComplete.
 end
 
 local function handleFeatureUpgradeError(args, player)
-    if args then
-        MSR.UpgradeLogic.onUpgradeError(player, args.transactionId, args.reason)
+    if not args or not shouldAcceptUpgradeResponse(args, player) then
+        LOG.debug("Ignoring stale upgrade error: %s", tostring(args and args.operationId))
+        requestAuthoritativeRefresh()
+        return
     end
+    MSR.UpgradeLogic.onUpgradeError(player, args.transactionId, args.reason, args.operationId)
 end
 
 local function updateClientRefugeData(player, refugeData)
@@ -253,8 +318,72 @@ local function updateClientRefugeData(player, refugeData)
     modData[MSR.Config.REFUGES_KEY][username] = refugeData
 end
 
+local function refreshEchoPanel(success, operationId)
+    local window = getUpgradeWindow()
+    local panel = window and window.echoPanel or nil
+    if not panel then return end
+    if success then panel:onServerComplete(operationId) else panel:onServerError(operationId) end
+end
+
+local function handleEchoAbsorbComplete(args, player)
+    if not args or not shouldAcceptEchoResponse(args, player) then
+        LOG.debug("Ignoring stale Echo completion: %s", tostring(args and args.transactionId))
+        requestAuthoritativeRefresh()
+        return
+    end
+    updateClientRefugeData(player, args.refugeData)
+    if args.transactionId then MSR.Transaction.Finalize(player, args.transactionId) end
+    MSR.UpgradeItemCache.invalidate(player)
+    refreshEchoPanel(true, args.transactionId)
+    if not args.duplicate then
+        PM.SayRaw(player, getText("UI_Echo_AbsorbSuccess"))
+    end
+end
+
+local function handleEchoAbsorbError(args, player)
+    if not args or not shouldAcceptEchoResponse(args, player) then
+        LOG.debug("Ignoring stale Echo error: %s", tostring(args and args.transactionId))
+        requestAuthoritativeRefresh()
+        return
+    end
+    updateClientRefugeData(player, args.refugeData)
+    if args.transactionId then MSR.Transaction.Rollback(player, args.transactionId) end
+    MSR.UpgradeItemCache.invalidate(player)
+    refreshEchoPanel(false, args.transactionId)
+    local reason = args.rateLimited and getText("UI_Echo_Error")
+        or args.reason
+        or getText("UI_Echo_Error")
+    PM.SayRaw(player, tostring(reason))
+end
+
+local function handleTransactionTimeout(player, transaction)
+    if not player or not transaction then return end
+    requestAuthoritativeRefresh()
+    local window = getUpgradeWindow()
+    if not window then return end
+
+    if transaction.type == MSR.UpgradeLogic.TRANSACTION_TYPE
+        and window.onUpgradeTransactionTimeout
+    then
+        window:onUpgradeTransactionTimeout(transaction.id)
+    elseif transaction.type == "ECHO_ABSORB" then
+        local panel = window.echoPanel
+        if panel and panel.onTransactionTimeout then panel:onTransactionTimeout(transaction.id) end
+    end
+end
+
+EventsBus.Custom.Add(MSR.Transaction.EVENT_TIMEOUT, handleTransactionTimeout)
+
 local function handleSpatialWellComplete(args, player)
-    if not args then return end
+    if not args or not hasPendingTransaction(
+        player,
+        MSR.SpatialWell.TRANSACTION_TYPE,
+        args.transactionId
+    ) then
+        LOG.debug("Ignoring stale Spatial Well completion: %s", tostring(args and args.transactionId))
+        requestAuthoritativeRefresh()
+        return
+    end
     updateClientRefugeData(player, args.refugeData)
     if args.transactionId then
         MSR.Transaction.Finalize(player, args.transactionId)
@@ -264,6 +393,15 @@ local function handleSpatialWellComplete(args, player)
 end
 
 local function handleSpatialWellError(args, player)
+    if not args or not hasPendingTransaction(
+        player,
+        MSR.SpatialWell.TRANSACTION_TYPE,
+        args.transactionId
+    ) then
+        LOG.debug("Ignoring stale Spatial Well error: %s", tostring(args and args.transactionId))
+        requestAuthoritativeRefresh()
+        return
+    end
     if args and args.transactionId then
         MSR.Transaction.Rollback(player, args.transactionId)
     end
@@ -311,6 +449,8 @@ CommandHandlers[MSR.Config.COMMANDS.MOVE_RELIC_COMPLETE] = handleMoveRelicComple
 CommandHandlers[MSR.Config.COMMANDS.CLEAR_ZOMBIES] = handleClearZombies
 CommandHandlers[MSR.Config.COMMANDS.FEATURE_UPGRADE_COMPLETE] = handleFeatureUpgradeComplete
 CommandHandlers[MSR.Config.COMMANDS.FEATURE_UPGRADE_ERROR] = handleFeatureUpgradeError
+CommandHandlers[MSR.Config.COMMANDS.ECHO_ABSORB_COMPLETE] = handleEchoAbsorbComplete
+CommandHandlers[MSR.Config.COMMANDS.ECHO_ABSORB_ERROR] = handleEchoAbsorbError
 CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_COMPLETE] = handleSpatialWellComplete
 CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_ERROR] = handleSpatialWellError
 CommandHandlers[MSR.Config.COMMANDS.SPATIAL_WELL_MOVE_COMPLETE] = handleSpatialWellMoveComplete

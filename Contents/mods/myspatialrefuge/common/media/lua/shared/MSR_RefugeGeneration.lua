@@ -410,6 +410,7 @@ end
 ---@param player IsoPlayer
 ---@return table
 function RG.CreateEnterContext(refugeData, player)
+    MSR.RefugeGeometry.WarnIfTierConfigurationChanged("single-player refuge entry")
     local radius = refugeData.radius or 1
     local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
     return {

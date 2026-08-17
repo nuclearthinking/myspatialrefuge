@@ -4,7 +4,7 @@
 
 Instead of being limited to the unsafe world outside, each player gains access to a separate refuge where they can rest, organize supplies, build, decorate, and prepare for the next trip into the Knox Event.
 
-Progression is built around **Zombie Cores**, special resources obtained from killing zombies. These cores can be spent to expand the refuge, unlock upgrades, and improve the usefulness of the space.
+Progression is built around **Echo**, a persistent energy held by the refuge. Zombie Cores obtained from killing zombies can be absorbed by the Sacred Relic and converted into Echo, which powers expansions, upgrades, and special structures.
 
 The mod supports **singleplayer, co-op, and multiplayer**. In multiplayer, every player has their own private refuge, separate from everyone else.
 

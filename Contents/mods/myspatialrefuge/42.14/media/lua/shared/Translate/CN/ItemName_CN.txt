@@ -1,4 +1,18 @@
 ItemName_CN = {
     Base.MSR_ExperienceEssence = "经验精粹",
+    Base.MSR_EchoDisplay = "回响",
+    Base.SRU_SkillBookTier1 = "任意技能书（第1卷）",
+    Base.SRU_SkillBookTier2 = "任意技能书（第2卷）",
+    Base.SRU_SkillBookTier3 = "任意技能书（第3卷）",
+    Base.SRU_SkillBookTier4 = "任意技能书（第4卷）",
+    Base.SRU_SkillBookTier5 = "任意技能书（第5卷）",
+    Base.SRU_MedicalTier1 = "基础医疗用品",
+    Base.SRU_MedicalTier2 = "高级医疗用品",
+    Base.SRU_BeddingTier1 = "基础寝具",
+    Base.SRU_BeddingTier2 = "舒适寝具",
+    Base.SRU_EntertainmentTier1 = "书籍与期刊",
+    Base.SRU_EntertainmentTier2 = "收音机与乐器",
+    Base.SRU_PainReliefTier1 = "止痛药或安眠药",
+    Base.SRU_PainReliefTier2 = "β受体阻滞剂或维生素",
     Base.MagicalCore = "奇异核心",
 }

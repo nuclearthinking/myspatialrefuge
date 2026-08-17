@@ -6,6 +6,7 @@ module Base
 		ItemType = base:normal,
 		Weight = 0.02,
 		Icon = ZombieCore,
+		Tooltip = Tooltip_MagicalCore,
 		StaticModel = Clay,
 		WorldStaticModel = Clay,
 	}

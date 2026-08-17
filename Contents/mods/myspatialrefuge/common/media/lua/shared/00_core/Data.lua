@@ -53,6 +53,7 @@ function Data.SerializeRefugeData(refugeData)
         relicZ = refugeData.relicZ,
         upgrades = refugeData.upgrades,
         customizations = refugeData.customizations,
+        echo = refugeData.echo,
         createdTime = refugeData.createdTime,
         lastActiveTime = refugeData.lastActiveTime,
         lastExpanded = refugeData.lastExpanded,
@@ -84,6 +85,8 @@ end
 -- CRITICAL: Do NOT create new refuges until this is true!
 local _modDataReady = false
 local _modDataRequested = false
+local _lastModDataRequestTime = nil
+local MODDATA_REQUEST_COOLDOWN = 2
 local MODDATA_READY_EVENT = MSR.Config.EVENTS.MODDATA_READY
 
 function Data.GetModData()
@@ -127,18 +130,26 @@ function Data.HandleModDataResponse(args, player)
     end
 
     -- Mark data as ready on client after receiving valid data from server
+    _modDataRequested = false
     Data.SetModDataReady(true)
 
     LOG.debug("Received ModData: refuge at %s,%s", tostring(args.refugeData.centerX), tostring(args.refugeData.centerY))
 end
 
-function Data.RequestModDataFromServer()
-    if not MSR.Env.isMultiplayerClient() or _modDataRequested then return false end
+function Data.RequestModDataFromServer(force)
+    if not MSR.Env.isMultiplayerClient() then return false end
+    if _modDataRequested and force ~= true then return false end
 
     local player = getPlayer()
     if not player or not player:getUsername() then return false end
 
+    local now = K.time()
+    if _lastModDataRequestTime and now - _lastModDataRequestTime < MODDATA_REQUEST_COOLDOWN then
+        return false
+    end
+
     _modDataRequested = true
+    _lastModDataRequestTime = now
     LOG.debug("Requesting ModData from server")
     sendClientCommand(Config.COMMAND_NAMESPACE, Config.COMMANDS.REQUEST_MODDATA, {})
     return true
@@ -148,6 +159,7 @@ local function setupClientModDataSync()
     if not MSR.Env.isMultiplayerClient() then return end
 
     _modDataRequested = false
+    _lastModDataRequestTime = nil
 
     MSR.delay(60, function()
         Data.RequestModDataFromServer()
@@ -362,6 +374,7 @@ function Data.GetOrCreateRefugeData(player)
                     orphanData.dataVersion = Config.CURRENT_DATA_VERSION
                     orphanData.areaOffsetX, orphanData.areaOffsetY = MSR.RefugeGeometry.GetAreaOffset(orphanData)
                     orphanData.customizations = orphanData.customizations or {}
+                    orphanData.echo = orphanData.echo or { balance = 0, history = {} }
                     
                     registry[oldUsername] = nil
                     registry[username] = orphanData
@@ -405,7 +418,8 @@ function Data.GetOrCreateRefugeData(player)
             lastExpanded = K.time(),
             dataVersion = Config.CURRENT_DATA_VERSION,
             upgrades = {},
-            customizations = {}
+            customizations = {},
+            echo = { balance = 0, history = {} }
         }
         
         Data.SaveRefugeData(refugeData)
@@ -455,8 +469,12 @@ function Data.DeleteRefugeDataByUsername(username)
     return true, existing
 end
 
--- Only server/singleplayer can save refuge data
-function Data.SaveRefugeData(refugeData)
+--- Save authoritative refuge state. Network delivery is deliberately separate:
+--- economic commands send a targeted serialized snapshot to their initiator,
+--- while structural registry changes may explicitly request a full broadcast.
+--- @param refugeData table
+--- @param broadcast boolean? Transmit the full GlobalModData registry when true
+function Data.SaveRefugeData(refugeData, broadcast)
     if not refugeData or not refugeData.username then 
         LOG.error("SaveRefugeData: FAILED - no refugeData or username")
         return false 
@@ -484,7 +502,7 @@ function Data.SaveRefugeData(refugeData)
         refugeData.username, formatUpgradesTable(refugeData.upgrades))
     
     registry[refugeData.username] = refugeData
-    Data.TransmitModData()
+    if broadcast == true then Data.TransmitModData() end
     
     local verify = registry[refugeData.username]
     if verify and verify.upgrades then
@@ -571,6 +589,7 @@ function Data.ClaimOrphanRefuge(player)
     orphanData.dataVersion = Config.CURRENT_DATA_VERSION
     orphanData.areaOffsetX, orphanData.areaOffsetY = MSR.RefugeGeometry.GetAreaOffset(orphanData)
     orphanData.customizations = orphanData.customizations or {}
+    orphanData.echo = orphanData.echo or { balance = 0, history = {} }
     
     registry[oldUsername] = nil
     registry[newUsername] = orphanData

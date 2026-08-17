@@ -291,6 +291,31 @@ local function migrate_7_to_8(player)
     return true, "Migrated v7 -> v8 (effective refuge geometry)"
 end
 
+-----------------------------------------------------------
+-- Migration: v8 -> v9
+-- Add persistent Echo balance and bounded transaction history.
+-----------------------------------------------------------
+
+local function migrate_8_to_9(player)
+    local username = player:getUsername()
+    local refugeData = Data.GetRefugeDataByUsername(username)
+
+    if not refugeData then
+        return true, "No refuge data - nothing to migrate"
+    end
+
+    local previousEcho = refugeData.echo
+    refugeData.echo = { balance = 0, history = {} }
+    refugeData.dataVersion = 9
+    if not Data.SaveRefugeData(refugeData) then
+        refugeData.echo = previousEcho
+        refugeData.dataVersion = 8
+        return false, "Failed to persist v9 Echo data"
+    end
+
+    return true, "Migrated v8 -> v9 (Echo balance)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
     [2] = migrate_2_to_3,
@@ -298,7 +323,8 @@ local MIGRATIONS = {
     [4] = migrate_4_to_5,
     [5] = migrate_5_to_6,
     [6] = migrate_6_to_7,
-    [7] = migrate_7_to_8
+    [7] = migrate_7_to_8,
+    [8] = migrate_8_to_9
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)

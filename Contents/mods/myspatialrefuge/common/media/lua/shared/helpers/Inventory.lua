@@ -20,39 +20,48 @@ local Inventory = MSR.Inventory
 -- Container Collection
 -----------------------------------------------------------
 
---- Collect all nested container inventories (bags inside bags, etc.)
+--- Collect all nested container inventories (bags inside bags, etc.).
+--- Cycles are prevented by container identity, so the default traversal has no
+--- arbitrary depth limit. Callers may still provide an explicit limit.
 --- @param rootContainer ItemContainer The root container to start from
---- @param maxDepth number? Maximum recursion depth (default 3, prevents infinite loops)
+--- @param maxDepth number? Optional maximum nesting depth
 --- @return ItemContainer[] Array of all containers including the root
 function Inventory.collectNestedContainers(rootContainer, maxDepth)
     if not rootContainer then return {} end
-    
-    maxDepth = maxDepth or 3
-    local allContainers = {rootContainer}
-    local currentLevel = {rootContainer}
-    local depth = 0
-    
-    while #currentLevel > 0 and depth < maxDepth do
-        local nextLevel = {}
-        for _, container in ipairs(currentLevel) do
-            if container and container.getItemsFromCategory then
-                local containerItems = container:getItemsFromCategory("Container")
-                if containerItems and containerItems:size() > 0 then
-                    for j = 0, containerItems:size() - 1 do
-                        local containerItem = containerItems:get(j)
-                        local nestedInv = containerItem:getInventory()
-                        if nestedInv then
-                            table.insert(allContainers, nestedInv)
-                            table.insert(nextLevel, nestedInv)
-                        end
+
+    local depthLimit = tonumber(maxDepth)
+    if depthLimit then depthLimit = math.max(0, math.floor(depthLimit)) end
+
+    local allContainers = { rootContainer }
+    local queue = { { container = rootContainer, depth = 0 } }
+    local visited = { [rootContainer] = true }
+    local head = 1
+
+    while head <= #queue do
+        local entry = queue[head]
+        head = head + 1
+        if not entry then break end
+        local container = entry.container
+        local entryDepth = entry.depth or 0
+        if (not depthLimit or entryDepth < depthLimit)
+            and container
+            and container.getItemsFromCategory
+        then
+            local containerItems = container:getItemsFromCategory("Container")
+            if containerItems and containerItems:size() > 0 then
+                for index = 0, containerItems:size() - 1 do
+                    local containerItem = containerItems:get(index)
+                    local nestedInventory = containerItem and containerItem:getInventory() or nil
+                    if nestedInventory and not visited[nestedInventory] then
+                        visited[nestedInventory] = true
+                        table.insert(allContainers, nestedInventory)
+                        table.insert(queue, { container = nestedInventory, depth = entryDepth + 1 })
                     end
                 end
             end
         end
-        currentLevel = nextLevel
-        depth = depth + 1
     end
-    
+
     return allContainers
 end
 

@@ -16,6 +16,7 @@
 
 require "00_core/00_MSR"
 require "00_core/Env"
+require "00_core/Events"
 require "helpers/Inventory"
 require "00_core/Config"
 require "MSR_PlayerMessage"
@@ -30,6 +31,7 @@ MSR.Transaction._loaded = true
 
 local Transaction = MSR.Transaction
 local LOG = L.logger("Transaction")
+Transaction.EVENT_TIMEOUT = "MSR_TransactionTimedOut"
 
 Transaction.STATE = {
     PENDING = "PENDING",
@@ -74,6 +76,14 @@ local function generateTransactionId(player, transactionType)
     return string.format("%s_%s_%d_%d", username, transactionType, timestamp, transactionCounter)
 end
 
+--- Generate an operation ID for authoritative requests that do not lock physical items.
+function Transaction.GenerateId(player, transactionType)
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return nil end
+    if type(transactionType) ~= "string" or transactionType == "" then return nil end
+    return generateTransactionId(playerObj, transactionType)
+end
+
 -----------------------------------------------------------
 -- Item Locking
 -- Locked items are stored in player ModData to survive reconnects
@@ -91,17 +101,32 @@ local function getLockedItemsStorage(player)
     return pmd._lockedTransactionItems
 end
 
--- Get all item sources for a player (inventory + nested containers + Sacred Relic storage)
-local function getItemSources(player, bypassCache)
+-- Get the two authoritative roots. Recursive ID lookup must use these roots
+-- directly instead of retrying the same Java search from every nested bag.
+local function getItemRoots(player, bypassCache)
+    local roots = {}
     local inv = safePlayerCall(player, "getInventory")
-    local sources = inv and MSR.Inventory.collectNestedContainers(inv) or {}
+    if inv then table.insert(roots, inv) end
     
     -- Sacred Relic container (separate storage)
     local getRelicContainer = (MSR and MSR.GetRelicContainer) or (MSR_Server and MSR_Server.GetRelicContainer)
     if getRelicContainer then
         local rc = getRelicContainer(player, bypassCache)
-        if rc then
-            table.insert(sources, rc)
+        if rc and rc ~= inv then table.insert(roots, rc) end
+    end
+    return roots
+end
+
+-- Get every direct container exactly once for count/selection scans.
+local function getItemSources(player, bypassCache)
+    local sources = {}
+    local seen = {}
+    for _, root in ipairs(getItemRoots(player, bypassCache)) do
+        for _, container in ipairs(MSR.Inventory.collectNestedContainers(root)) do
+            if not seen[container] then
+                seen[container] = true
+                table.insert(sources, container)
+            end
         end
     end
     return sources
@@ -293,6 +318,17 @@ end
 -- Public API
 -----------------------------------------------------------
 
+--- Roll back one expired transaction and notify client observers so they can
+--- request an authoritative snapshot. Used by both lazy and periodic expiry.
+local function expireTransaction(player, transaction)
+    if not player or not transaction then return false end
+    local rolledBack = Transaction.Rollback(player, transaction.id)
+    if rolledBack then
+        MSR.Events.Custom.Fire(Transaction.EVENT_TIMEOUT, player, transaction)
+    end
+    return rolledBack
+end
+
 -- Begin a new transaction
 -- Begin a transaction with optional substitution support
 -- @param player: The player starting the transaction
@@ -339,7 +375,7 @@ function Transaction.Begin(player, transactionType, itemRequirements)
         local now = K.time()
         if existing.createdAt and (now - existing.createdAt) > TIMEOUT_SECONDS then
             LOG.debug("Found expired pending transaction, cleaning up: " .. tostring(existing.id))
-            Transaction.Rollback(playerObj, existing.id)
+            expireTransaction(playerObj, existing)
         else
             return nil, "Transaction already in progress"
         end
@@ -378,6 +414,49 @@ function Transaction.Begin(player, transactionType, itemRequirements)
     
     LOG.debug("BEGIN: " .. transactionId .. " for " .. username)
     
+    return transaction, nil
+end
+
+--- Begin a tracked operation that does not lock physical items.
+--- It participates in the same one-pending-operation and timeout rules as an
+--- item transaction, which lets network responses be correlated after UI
+--- windows close or reopen.
+--- @param player IsoPlayer|number
+--- @param transactionType string
+--- @return table|nil transaction
+--- @return string|nil errorMessage
+function Transaction.BeginOperation(player, transactionType)
+    if not player then error("Transaction.BeginOperation: player is required") end
+    if type(transactionType) ~= "string" or transactionType == "" then
+        error("Transaction.BeginOperation: transactionType is required")
+    end
+
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return nil, "Invalid player" end
+    local username = safePlayerCall(playerObj, "getUsername")
+    if not username then return nil, "Player not connected" end
+
+    local existing = Transaction.GetPending(playerObj, transactionType)
+    if existing then
+        local now = K.time()
+        if existing.createdAt and now - existing.createdAt > TIMEOUT_SECONDS then
+            expireTransaction(playerObj, existing)
+        else
+            return nil, "Transaction already in progress"
+        end
+    end
+
+    local transaction = {
+        id = generateTransactionId(playerObj, transactionType),
+        type = transactionType,
+        lockedItems = {},
+        createdAt = K.time(),
+        status = Transaction.STATE.PENDING,
+        username = username,
+    }
+    activeTransactions[username] = activeTransactions[username] or {}
+    activeTransactions[username][transactionType] = transaction
+    LOG.debug("BEGIN OPERATION: " .. transaction.id .. " for " .. username)
     return transaction, nil
 end
 
@@ -591,6 +670,18 @@ function Transaction.GetPending(player, transactionType)
     return nil
 end
 
+--- Return a detached copy of a transaction's exact item allocation.
+function Transaction.CopyAllocation(transaction)
+    local allocation = {}
+    if not transaction or type(transaction.lockedItems) ~= "table" then return allocation end
+    for itemType, lockedData in pairs(transaction.lockedItems) do
+        local itemIds = lockedData and lockedData.itemIds or {}
+        allocation[itemType] = {}
+        for index, itemId in ipairs(itemIds) do allocation[itemType][index] = itemId end
+    end
+    return allocation
+end
+
 -----------------------------------------------------------
 -- Timeout Handler
 -- Auto-rollback transactions that don't complete in time
@@ -636,7 +727,7 @@ function Transaction._checkAllTransactionTimeouts()
                 " (age=" .. (now - expired.transaction.createdAt) .. "s)")
         
         -- Auto-rollback
-        Transaction.Rollback(player, expired.transaction.id)
+        expireTransaction(player, expired.transaction)
         
         -- Notify player
         local PM = MSR.PlayerMessage
@@ -798,6 +889,14 @@ function Transaction.GetItemSources(player, bypassCache)
     return getItemSources(playerObj, bypassCache)
 end
 
+--- Return only inventory roots for recursive authoritative item-ID lookup.
+function Transaction.GetItemRoots(player, bypassCache)
+    if not player then error("Transaction.GetItemRoots: player is required") end
+    local playerObj = resolvePlayer(player)
+    if not playerObj then return {} end
+    return getItemRoots(playerObj, bypassCache)
+end
+
 -- Count items across all sources
 -- @param player: The player
 -- @param itemType: The item type to count
@@ -887,6 +986,41 @@ function Transaction.GetLockedItemCounts(player)
     return counts
 end
 
+local function countAvailableTypes(playerObj, requestedTypes, predicatesByType, filtered)
+    local counts = {}
+    local lockedByType = {}
+    local lockedStorage = getLockedItemsStorage(playerObj)
+
+    for itemType in pairs(requestedTypes) do
+        counts[itemType] = 0
+        local lockedIds = {}
+        local storedIds = lockedStorage and lockedStorage[itemType] or nil
+        for _, itemId in ipairs(storedIds or {}) do lockedIds[itemId] = true end
+        lockedByType[itemType] = lockedIds
+    end
+
+    for _, container in ipairs(Transaction.GetItemSources(playerObj)) do
+        local items = container and container.getItems and container:getItems() or nil
+        if K.isIterable(items) then
+            for _, item in K.iter(items) do
+                local itemType = item and item:getFullType() or nil
+                if itemType and requestedTypes[itemType] then
+                    local predicate = predicatesByType and predicatesByType[itemType] or nil
+                    local itemId = item:getID()
+                    local available = not lockedByType[itemType][itemId]
+                        and (not predicate or predicate(item, container))
+                    if available and filtered then
+                        available = isItemAvailableForLock(item, container)
+                    end
+                    if available then counts[itemType] = counts[itemType] + 1 end
+                end
+            end
+        end
+    end
+
+    return counts
+end
+
 
 -- Count items with substitutions across all sources
 -- @param player: The player
@@ -901,38 +1035,16 @@ function Transaction.GetSubstitutionCount(player, requirement, filtered)
     local playerObj = resolvePlayer(player)
     if not playerObj then return 0, {} end
     
-    local counts = {}
-    local total = 0
-    
-    -- Primary type
-    local primaryCount = Transaction.GetMultiSourceCount(
-        playerObj,
-        requirement.type,
-        filtered,
-        requirement.predicate
-    )
-    if primaryCount > 0 then
-        counts[requirement.type] = primaryCount
-        total = total + primaryCount
+    local requestedTypes = { [requirement.type] = true }
+    local predicatesByType = { [requirement.type] = requirement.predicate }
+    for _, subType in ipairs(requirement.substitutes or {}) do
+        requestedTypes[subType] = true
+        predicatesByType[subType] = requirement.predicate
     end
-    
-    -- Substitutes (dedupe: skip types already counted)
-    if requirement.substitutes then
-        for _, subType in ipairs(requirement.substitutes) do
-            if not counts[subType] then
-                local subCount = Transaction.GetMultiSourceCount(
-                    playerObj,
-                    subType,
-                    filtered,
-                    requirement.predicate
-                )
-                if subCount > 0 then
-                    counts[subType] = subCount
-                    total = total + subCount
-                end
-            end
-        end
-    end
+
+    local counts = countAvailableTypes(playerObj, requestedTypes, predicatesByType, filtered)
+    local total = 0.0
+    for _, count in pairs(counts) do total = total + count end
 
     return total, counts
 end
@@ -952,7 +1064,7 @@ function Transaction.ResolveSubstitutions(player, requirements)
     -- First pass: gather all unique item types and their initial available counts
     -- This ensures we don't double-count items when multiple requirements share types
     -- Use filtered=true to only count items that pass availability checks (not equipped, etc.)
-    local initialCounts = {}
+    local requestedTypes = {}
     local predicatesByType = {}
 
     local function registerType(req, itemType)
@@ -961,14 +1073,7 @@ function Transaction.ResolveSubstitutions(player, requirements)
             return false, "Conflicting item filters for " .. itemType
         end
         if req.predicate then predicatesByType[itemType] = req.predicate end
-        if initialCounts[itemType] == nil then
-            initialCounts[itemType] = Transaction.GetMultiSourceCount(
-                playerObj,
-                itemType,
-                true,
-                req.predicate
-            )
-        end
+        requestedTypes[itemType] = true
         return true, nil
     end
     
@@ -986,6 +1091,13 @@ function Transaction.ResolveSubstitutions(player, requirements)
             end
         end
     end
+
+    local initialCounts = countAvailableTypes(
+        playerObj,
+        requestedTypes,
+        predicatesByType,
+        true
+    )
     
     -- Second pass: allocate items to requirements, tracking what's been resolved
     local resolved = {}

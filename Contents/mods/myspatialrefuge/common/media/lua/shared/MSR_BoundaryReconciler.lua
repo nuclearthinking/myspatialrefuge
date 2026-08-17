@@ -102,14 +102,23 @@ local function createBoundary(refugeData, spec)
     return wall
 end
 
-local function reconcileLevel(refugeData, z, level, sprites)
+local function reconcileLevel(refugeData, z, level, sprites, cleanupRefugeData)
     if not refugeData or not MSR.Env.hasServerAuthority() then return false, nil end
     local slotKey = MSR.RefugeGeometry.GetSlotKey(refugeData)
-    local extent = MSR.RefugeGeometry.GetMaximumDirectionalExtent()
+    local scanBounds = MSR.RefugeGeometry.UnionBounds(
+        MSR.RefugeGeometry.GetWallBounds(refugeData),
+        cleanupRefugeData and MSR.RefugeGeometry.GetWallBounds(cleanupRefugeData) or nil
+    )
     -- Chunks are addressed by X/Y. Sparse generated levels (notably the
     -- basement at z - 1) must not be required to contain every square before
     -- reconciliation can create their boundaries.
-    if not MSR.World.areAreaChunksLoaded(refugeData.centerX, refugeData.centerY, refugeData.centerZ, extent) then
+    if not scanBounds or not MSR.World.areBoundsChunksLoaded(
+        scanBounds.minX,
+        scanBounds.minY,
+        scanBounds.maxX,
+        scanBounds.maxY,
+        refugeData.centerZ
+    ) then
         return false, { deferred = true, created = 0, removed = 0, adopted = 0 }
     end
 
@@ -117,32 +126,38 @@ local function reconcileLevel(refugeData, z, level, sprites)
     local retained = {}
     local report = { deferred = false, created = 0, removed = 0, adopted = 0 }
 
-    MSR.World.iterateArea(refugeData.centerX, refugeData.centerY, z, extent, function(square)
-        local boundaries = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
-        for _, obj in ipairs(boundaries) do
-            local md = MSR.World.getModData(obj)
-            local owner = md and md.refugeSlotKey or nil
-            if owner == nil or owner == slotKey then
-                local key = getObjectKey(obj, square)
-                local spec = key and expectedMap[key] or nil
-                if spec and not retained[key] then
-                    retained[key] = obj
-                    configureBoundary(obj)
-                    stampBoundary(obj, refugeData, spec, true)
-                    if owner == nil then report.adopted = report.adopted + 1 end
-                    if not MSR.World.hasCanonicalSprite(obj, spec.spriteName) then
-                        MSR.World.bindSpriteByName(obj, spec.spriteName)
-                        ---@diagnostic disable-next-line: undefined-field
-                        if obj.transmitUpdatedSpriteToClients and MSR.Env.needsClientSync() then
+    MSR.World.iterateBounds(
+        scanBounds.minX,
+        scanBounds.minY,
+        scanBounds.maxX,
+        scanBounds.maxY,
+        z,
+        function(square)
+            local boundaries = MSR.World.findObjectsByModData(square, "isRefugeBoundary")
+            for _, obj in ipairs(boundaries) do
+                local md = MSR.World.getModData(obj)
+                local owner = md and md.refugeSlotKey or nil
+                if owner == nil or owner == slotKey then
+                    local key = getObjectKey(obj, square)
+                    local spec = key and expectedMap[key] or nil
+                    if spec and not retained[key] then
+                        retained[key] = obj
+                        configureBoundary(obj)
+                        stampBoundary(obj, refugeData, spec, true)
+                        if owner == nil then report.adopted = report.adopted + 1 end
+                        if not MSR.World.hasCanonicalSprite(obj, spec.spriteName) then
+                            MSR.World.bindSpriteByName(obj, spec.spriteName)
                             ---@diagnostic disable-next-line: undefined-field
-                            obj:transmitUpdatedSpriteToClients()
+                            if obj.transmitUpdatedSpriteToClients and MSR.Env.needsClientSync() then
+                                ---@diagnostic disable-next-line: undefined-field
+                                obj:transmitUpdatedSpriteToClients()
+                            end
                         end
+                    elseif MSR.World.removeObject(square, obj, true) then
+                        report.removed = report.removed + 1
                     end
-                elseif MSR.World.removeObject(square, obj, true) then
-                    report.removed = report.removed + 1
                 end
             end
-        end
     end)
 
     for _, spec in ipairs(expectedList) do
@@ -160,7 +175,7 @@ local function reconcileLevel(refugeData, z, level, sprites)
     return true, report
 end
 
-function Reconciler.ReconcileUpper(refugeData)
+function Reconciler.ReconcileUpper(refugeData, cleanupRefugeData)
     local sprites = {
         north = MSR.Config.SPRITES.WALL_NORTH,
         west = MSR.Config.SPRITES.WALL_WEST,
@@ -170,7 +185,13 @@ function Reconciler.ReconcileUpper(refugeData)
     local wallHeight = MSR.Config.WALL_HEIGHT or 1
     local combined = { deferred = false, created = 0, removed = 0, adopted = 0 }
     for level = 0, wallHeight - 1 do
-        local success, report = reconcileLevel(refugeData, refugeData.centerZ + level, "upper", sprites)
+        local success, report = reconcileLevel(
+            refugeData,
+            refugeData.centerZ + level,
+            "upper",
+            sprites,
+            cleanupRefugeData
+        )
         report = report or {}
         combined.deferred = combined.deferred or report.deferred == true
         combined.created = combined.created + (report.created or 0)
@@ -181,14 +202,14 @@ function Reconciler.ReconcileUpper(refugeData)
     return true, combined
 end
 
-function Reconciler.ReconcileBasement(refugeData)
+function Reconciler.ReconcileBasement(refugeData, cleanupRefugeData)
     local sprites = {
         north = MSR.Config.BASEMENT.WALL_NORTH,
         west = MSR.Config.BASEMENT.WALL_WEST,
         cornerNW = MSR.Config.BASEMENT.WALL_CORNER_NW,
         cornerSE = MSR.Config.BASEMENT.WALL_CORNER_SE,
     }
-    return reconcileLevel(refugeData, refugeData.centerZ - 1, "basement", sprites)
+    return reconcileLevel(refugeData, refugeData.centerZ - 1, "basement", sprites, cleanupRefugeData)
 end
 
 function Reconciler.RemoveSlotBoundaries(refugeData)

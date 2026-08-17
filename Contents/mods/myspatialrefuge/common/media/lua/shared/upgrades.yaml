@@ -410,9 +410,8 @@ upgrades:
         description: UI_Upgrade_FasterReading_L1
         effects:
           readingSpeedMultiplier: 0.85  # 15% faster (0.85x time)
+        echoCost: 1000
         requirements:
-          - type: Base.MagicalCore
-            count: 10
           - type: Base.SRU_SkillBookTier1
             count: 5
             substitutes:
@@ -421,9 +420,8 @@ upgrades:
         description: UI_Upgrade_FasterReading_L2
         effects:
           readingSpeedMultiplier: 0.70  # 30% faster (0.70x time)
+        echoCost: 2000
         requirements:
-          - type: Base.MagicalCore
-            count: 20
           - type: Base.SRU_SkillBookTier2
             count: 5
             substitutes:
@@ -432,9 +430,8 @@ upgrades:
         description: UI_Upgrade_FasterReading_L3
         effects:
           readingSpeedMultiplier: 0.55  # 45% faster (0.55x time)
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.SRU_SkillBookTier3
             count: 5
             substitutes:
@@ -443,9 +440,8 @@ upgrades:
         description: UI_Upgrade_FasterReading_L4
         effects:
           readingSpeedMultiplier: 0.40  # 60% faster (0.40x time)
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.SRU_SkillBookTier4
             count: 5
             substitutes:
@@ -454,9 +450,8 @@ upgrades:
         description: UI_Upgrade_FasterReading_L5
         effects:
           readingSpeedMultiplier: 0.25  # 75% faster (0.25x time)
+        echoCost: 7500
         requirements:
-          - type: Base.MagicalCore
-            count: 75
           - type: Base.SRU_SkillBookTier5
             count: 5
             substitutes:
@@ -474,9 +469,8 @@ upgrades:
         description: UI_Upgrade_FasterRefugeCast_L1
         effects:
           refugeCastTimeMultiplier: 0.90 # 10% faster (0.90x time)
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.WristWatch_Right_DigitalBlack
             count: 3
             substitutes:
@@ -485,9 +479,8 @@ upgrades:
         description: UI_Upgrade_FasterRefugeCast_L2
         effects:
           refugeCastTimeMultiplier: 0.80 # 20% faster (0.80x time)
+        echoCost: 1200
         requirements:
-          - type: Base.MagicalCore
-            count: 12
           - type: Base.WristWatch_Right_DigitalBlack
             count: 5
             substitutes:
@@ -496,9 +489,8 @@ upgrades:
         description: UI_Upgrade_FasterRefugeCast_L3
         effects:
           refugeCastTimeMultiplier: 0.70 # 30% faster (0.70x time)
+        echoCost: 2500
         requirements:
-          - type: Base.MagicalCore
-            count: 25
           - type: Base.WristWatch_Right_DigitalBlack
             count: 8
             substitutes:
@@ -511,9 +503,8 @@ upgrades:
         description: UI_Upgrade_FasterRefugeCast_L4
         effects:
           refugeCastTimeMultiplier: 0.60 # 40% faster (0.60x time)
+        echoCost: 4000
         requirements:
-          - type: Base.MagicalCore
-            count: 40
           - type: Base.WristWatch_Right_DigitalBlack
             count: 10
             substitutes:
@@ -526,9 +517,8 @@ upgrades:
         description: UI_Upgrade_FasterRefugeCast_L5
         effects:
           refugeCastTimeMultiplier: 0.50 # 50% faster (0.50x time)
+        echoCost: 6000
         requirements:
-          - type: Base.MagicalCore
-            count: 60
           - type: Base.WristWatch_Right_DigitalBlack
             count: 15
             substitutes:
@@ -550,9 +540,8 @@ upgrades:
         description: UI_Upgrade_RefugeCoreStorage_L1
         effects:
           relicStorageCapacity: 30
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.Plank
             count: 2
           - type: Base.Nails
@@ -561,9 +550,8 @@ upgrades:
         description: UI_Upgrade_RefugeCoreStorage_L2
         effects:
           relicStorageCapacity: 45
+        echoCost: 1000
         requirements:
-          - type: Base.MagicalCore
-            count: 10
           - type: Base.Plank
             count: 4
           - type: Base.Nails
@@ -572,9 +560,8 @@ upgrades:
         description: UI_Upgrade_RefugeCoreStorage_L3
         effects:
           relicStorageCapacity: 60
+        echoCost: 2000
         requirements:
-          - type: Base.MagicalCore
-            count: 20
           - type: Base.Plank
             count: 8
           - type: Base.Nails
@@ -583,9 +570,8 @@ upgrades:
         description: UI_Upgrade_RefugeCoreStorage_L4
         effects:
           relicStorageCapacity: 80
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.Plank
             count: 10
           - type: Base.Nails
@@ -594,9 +580,8 @@ upgrades:
         description: UI_Upgrade_RefugeCoreStorage_L5
         effects:
           relicStorageCapacity: 100
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.Plank
             count: 15
           - type: Base.Nails
@@ -615,9 +600,8 @@ upgrades:
     levels:
       1:
         description: UI_Upgrade_RefugeBasement_L1
+        echoCost: 10000
         requirements:
-          - type: Base.MagicalCore
-            count: 100
 
   vehicle_teleport:
     id: vehicle_teleport
@@ -631,9 +615,8 @@ upgrades:
         description: UI_Upgrade_VehicleTeleport_L1
         effects:
           vehicleTeleportEnabled: 1
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.NormalTire1
             count: 4
             substitutes:
@@ -651,27 +634,24 @@ upgrades:
         description: UI_Upgrade_AutomaticCorePickup_L1
         effects:
           corePickupRadius: 1.0
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.ElectronicsScrap
             count: 2
       2:
         description: UI_Upgrade_AutomaticCorePickup_L2
         effects:
           corePickupRadius: 1.5
+        echoCost: 1200
         requirements:
-          - type: Base.MagicalCore
-            count: 12
           - type: Base.ElectronicsScrap
             count: 5
       3:
         description: UI_Upgrade_AutomaticCorePickup_L3
         effects:
           corePickupRadius: 2.0
+        echoCost: 3600
         requirements:
-          - type: Base.MagicalCore
-            count: 36
           - type: Base.Speaker
             count: 3
 
@@ -687,9 +667,8 @@ upgrades:
         description: UI_Upgrade_SanctuaryHealing_L1
         effects:
           refugeWoundRecoveryMultiplier: 1.2
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.SRU_MedicalTier1
             count: 5
             substitutes:
@@ -698,9 +677,8 @@ upgrades:
         description: UI_Upgrade_SanctuaryHealing_L2
         effects:
           refugeWoundRecoveryMultiplier: 1.4
+        echoCost: 1200
         requirements:
-          - type: Base.MagicalCore
-            count: 12
           - type: Base.SRU_MedicalTier1
             count: 8
             substitutes:
@@ -709,9 +687,8 @@ upgrades:
         description: UI_Upgrade_SanctuaryHealing_L3
         effects:
           refugeWoundRecoveryMultiplier: 1.6
+        echoCost: 2500
         requirements:
-          - type: Base.MagicalCore
-            count: 25
           - type: Base.SRU_MedicalTier1
             count: 12
             substitutes:
@@ -720,9 +697,8 @@ upgrades:
         description: UI_Upgrade_SanctuaryHealing_L4
         effects:
           refugeWoundRecoveryMultiplier: 1.8
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.SRU_MedicalTier1
             count: 14
             substitutes:
@@ -735,9 +711,8 @@ upgrades:
         description: UI_Upgrade_SanctuaryHealing_L5
         effects:
           refugeWoundRecoveryMultiplier: 2.0
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.SRU_MedicalTier1
             count: 18
             substitutes:
@@ -759,9 +734,8 @@ upgrades:
         description: UI_Upgrade_RestfulSlumber_L1
         effects:
           refugeSleepFatigueMultiplier: 1.2
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.SRU_BeddingTier1
             count: 4
             substitutes:
@@ -770,9 +744,8 @@ upgrades:
         description: UI_Upgrade_RestfulSlumber_L2
         effects:
           refugeSleepFatigueMultiplier: 1.4
+        echoCost: 1200
         requirements:
-          - type: Base.MagicalCore
-            count: 12
           - type: Base.SRU_BeddingTier1
             count: 6
             substitutes:
@@ -781,9 +754,8 @@ upgrades:
         description: UI_Upgrade_RestfulSlumber_L3
         effects:
           refugeSleepFatigueMultiplier: 1.6
+        echoCost: 2500
         requirements:
-          - type: Base.MagicalCore
-            count: 25
           - type: Base.SRU_BeddingTier1
             count: 8
             substitutes:
@@ -792,9 +764,8 @@ upgrades:
         description: UI_Upgrade_RestfulSlumber_L4
         effects:
           refugeSleepFatigueMultiplier: 1.8
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.SRU_BeddingTier1
             count: 10
             substitutes:
@@ -807,9 +778,8 @@ upgrades:
         description: UI_Upgrade_RestfulSlumber_L5
         effects:
           refugeSleepFatigueMultiplier: 2.0
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.SRU_BeddingTier1
             count: 12
             substitutes:
@@ -831,9 +801,8 @@ upgrades:
         description: UI_Upgrade_InnerPeace_L1
         effects:
           refugeMentalRecoveryMultiplier: 1.5
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.SRU_EntertainmentTier1
             count: 4
             substitutes:
@@ -842,9 +811,8 @@ upgrades:
         description: UI_Upgrade_InnerPeace_L2
         effects:
           refugeMentalRecoveryMultiplier: 2.0
+        echoCost: 1200
         requirements:
-          - type: Base.MagicalCore
-            count: 12
           - type: Base.SRU_EntertainmentTier1
             count: 6
             substitutes:
@@ -853,9 +821,8 @@ upgrades:
         description: UI_Upgrade_InnerPeace_L3
         effects:
           refugeMentalRecoveryMultiplier: 3.0
+        echoCost: 2500
         requirements:
-          - type: Base.MagicalCore
-            count: 25
           - type: Base.SRU_EntertainmentTier1
             count: 8
             substitutes:
@@ -864,9 +831,8 @@ upgrades:
         description: UI_Upgrade_InnerPeace_L4
         effects:
           refugeMentalRecoveryMultiplier: 3.5
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.SRU_EntertainmentTier1
             count: 10
             substitutes:
@@ -879,9 +845,8 @@ upgrades:
         description: UI_Upgrade_InnerPeace_L5
         effects:
           refugeMentalRecoveryMultiplier: 4.0
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.SRU_EntertainmentTier1
             count: 12
             substitutes:
@@ -903,9 +868,8 @@ upgrades:
         description: UI_Upgrade_MuscleRecovery_L1
         effects:
           refugeStiffnessRecoveryMultiplier: 1.25
+        echoCost: 500
         requirements:
-          - type: Base.MagicalCore
-            count: 5
           - type: Base.SRU_PainReliefTier1
             count: 4
             substitutes:
@@ -914,9 +878,8 @@ upgrades:
         description: UI_Upgrade_MuscleRecovery_L2
         effects:
           refugeStiffnessRecoveryMultiplier: 1.5
+        echoCost: 1200
         requirements:
-          - type: Base.MagicalCore
-            count: 12
           - type: Base.SRU_PainReliefTier1
             count: 6
             substitutes:
@@ -925,9 +888,8 @@ upgrades:
         description: UI_Upgrade_MuscleRecovery_L3
         effects:
           refugeStiffnessRecoveryMultiplier: 2.0
+        echoCost: 2500
         requirements:
-          - type: Base.MagicalCore
-            count: 25
           - type: Base.SRU_PainReliefTier1
             count: 8
             substitutes:
@@ -936,9 +898,8 @@ upgrades:
         description: UI_Upgrade_MuscleRecovery_L4
         effects:
           refugeStiffnessRecoveryMultiplier: 2.25
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.SRU_PainReliefTier1
             count: 10
             substitutes:
@@ -951,9 +912,8 @@ upgrades:
         description: UI_Upgrade_MuscleRecovery_L5
         effects:
           refugeStiffnessRecoveryMultiplier: 2.5
+        echoCost: 5000
         requirements:
-          - type: Base.MagicalCore
-            count: 50
           - type: Base.SRU_PainReliefTier1
             count: 12
             substitutes:
@@ -975,27 +935,24 @@ upgrades:
         description: UI_Upgrade_FertileResonance_L1
         effects:
           refugeCropGrowthTimeMultiplier: 0.85
+        echoCost: 1500
         requirements:
-          - type: Base.MagicalCore
-            count: 15
           - type: Base.CompostBag
             count: 2
       2:
         description: UI_Upgrade_FertileResonance_L2
         effects:
           refugeCropGrowthTimeMultiplier: 0.70
+        echoCost: 3500
         requirements:
-          - type: Base.MagicalCore
-            count: 35
           - type: Base.Fertilizer
             count: 4
       3:
         description: UI_Upgrade_FertileResonance_L3
         effects:
           refugeCropGrowthTimeMultiplier: 0.55
+        echoCost: 7500
         requirements:
-          - type: Base.MagicalCore
-            count: 75
           - type: Base.Fertilizer
             count: 8
           - type: Base.BookFarming5
@@ -1017,20 +974,17 @@ upgrades:
 #        description: UI_Upgrade_Example_L1
 #        effects:
 #          exampleBonus: 0.5
+#        echoCost: 500
 #        requirements:
-#          - type: Base.MagicalCore
-#            count: 5
 #      2:
 #        description: UI_Upgrade_Example_L2
 #        effects:
 #          exampleBonus: 1.0
+#        echoCost: 1000
 #        requirements:
-#          - type: Base.MagicalCore
-#            count: 10
 #      3:
 #        description: UI_Upgrade_Example_L3
 #        effects:
 #          exampleBonus: 1.5
+#        echoCost: 2000
 #        requirements:
-#          - type: Base.MagicalCore
-#            count: 20

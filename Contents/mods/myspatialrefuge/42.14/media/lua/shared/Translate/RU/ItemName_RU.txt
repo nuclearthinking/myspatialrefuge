@@ -1,4 +1,18 @@
 ItemName_RU = {
     Base.MSR_ExperienceEssence = "Эссенция Опыта",
+    Base.MSR_EchoDisplay = "Эхо",
+    Base.SRU_SkillBookTier1 = "Любая книга навыка, том 1",
+    Base.SRU_SkillBookTier2 = "Любая книга навыка, том 2",
+    Base.SRU_SkillBookTier3 = "Любая книга навыка, том 3",
+    Base.SRU_SkillBookTier4 = "Любая книга навыка, том 4",
+    Base.SRU_SkillBookTier5 = "Любая книга навыка, том 5",
+    Base.SRU_MedicalTier1 = "Базовые медикаменты",
+    Base.SRU_MedicalTier2 = "Редкие медикаменты",
+    Base.SRU_BeddingTier1 = "Простые постельные принадлежности",
+    Base.SRU_BeddingTier2 = "Удобные постельные принадлежности",
+    Base.SRU_EntertainmentTier1 = "Книги и периодика",
+    Base.SRU_EntertainmentTier2 = "Радио и музыкальные инструменты",
+    Base.SRU_PainReliefTier1 = "Обезболивающее или снотворное",
+    Base.SRU_PainReliefTier2 = "Бета-блокаторы или витамины",
     Base.MagicalCore = "Странное Ядро Зомби",
 }

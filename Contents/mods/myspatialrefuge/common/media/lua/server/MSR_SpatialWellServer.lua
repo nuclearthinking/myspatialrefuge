@@ -2,17 +2,13 @@
 
 require "00_core/00_MSR"
 require "MSR_SpatialWell"
-require "MSR_InventoryAuthority"
-require "MSR_Transaction"
 
 local SpatialWellServer = MSR.register("SpatialWellServer")
 if not SpatialWellServer then return MSR.SpatialWellServer end
 
 local Config = MSR.Config
 local Data = MSR.Data
-local InventoryAuthority = MSR.InventoryAuthority
 local SpatialWell = MSR.SpatialWell
-local Transaction = MSR.Transaction
 local LOG = L.logger("SpatialWellServer")
 local moveCooldowns = {}
 
@@ -42,25 +38,6 @@ local function updateMoveCooldown(username)
     moveCooldowns[username] = K.time()
 end
 
-local function hasUniqueItemIds(allocation)
-    local seen = {}
-    for _, itemIds in pairs(allocation) do
-        for _, itemId in ipairs(itemIds) do
-            if seen[itemId] then return false end
-            seen[itemId] = true
-        end
-    end
-    return true
-end
-
-local function isWellItemAvailable(item, container)
-    if not Transaction.IsItemAvailable(item, container) then return false end
-    if SpatialWell.IsSupportedBucketType(item:getFullType()) then
-        return SpatialWell.IsEmptyBucket(item)
-    end
-    return true
-end
-
 function SpatialWellServer.HandlePlaceRequest(player, args)
     if not player or type(args) ~= "table" then return end
 
@@ -69,7 +46,8 @@ function SpatialWellServer.HandlePlaceRequest(player, args)
     local y = tonumber(args.y)
     local z = tonumber(args.z)
     local allocation = args.lockedItemIds
-    if type(transactionId) ~= "string" or not x or not y or not z or
+    if type(transactionId) ~= "string" or transactionId == "" or #transactionId > 128
+        or not x or not y or not z or
             x ~= math.floor(x) or y ~= math.floor(y) or z ~= math.floor(z) then
         sendError(player, transactionId, MSR.PlayerMessage.SPATIAL_WELL_INVALID_LOCATION)
         return
@@ -78,37 +56,49 @@ function SpatialWellServer.HandlePlaceRequest(player, args)
     local cell = getCell()
     local square = cell and cell:getGridSquare(x, y, z) or nil
     local refugeData = Data.GetRefugeData(player)
+    local existing = refugeData and MSR.Echo.FindHistoryEntry(refugeData, transactionId) or nil
+    if existing and existing.type == "spatial_well" then
+        sendServerCommand(player, Config.COMMAND_NAMESPACE, Config.COMMANDS.SPATIAL_WELL_COMPLETE, {
+            transactionId = transactionId,
+            refugeData = Data.SerializeRefugeData(refugeData),
+            x = x,
+            y = y,
+            z = z,
+            duplicate = true,
+        })
+        return
+    end
+    if existing then
+        sendError(player, transactionId, "Duplicate Echo operation")
+        return
+    end
+    if not MSR_Server.CanProcessEconomicRequest(
+        player,
+        Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL
+    ) then
+        MSR_Server.RejectRateLimitedEconomicRequest(
+            player,
+            Config.COMMANDS.REQUEST_PLACE_SPATIAL_WELL,
+            args
+        )
+        return
+    end
     local canPlace, reason = SpatialWell.CanPlaceAt(player, square, refugeData)
     if not canPlace then
         sendError(player, transactionId, reason)
         return
     end
 
-    local requirements = SpatialWell.GetTransactionRequirements()
-    if not SpatialWell.ValidateLockedAllocation(allocation, requirements) or
-            not hasUniqueItemIds(allocation) then
-        sendError(player, transactionId, MSR.PlayerMessage.SPATIAL_WELL_MISSING_RESOURCES)
-        return
-    end
-
-    local sources = Transaction.GetItemSources(player, true)
-    if not InventoryAuthority.validateAllocation(sources, allocation, isWellItemAvailable) then
-        sendError(player, transactionId, MSR.PlayerMessage.SPATIAL_WELL_MISSING_RESOURCES)
-        return
-    end
-
-    local well, createError = SpatialWell.CreateAt(player, x, y, z)
-    if not well then
+    local success, createError = SpatialWell.ExecutePlacement(
+        player,
+        x,
+        y,
+        z,
+        allocation,
+        transactionId
+    )
+    if not success then
         sendError(player, transactionId, createError)
-        return
-    end
-
-    -- Validation immediately precedes consumption; the server command handler is
-    -- single-threaded, so these selected IDs cannot change between the two calls.
-    local consumed = InventoryAuthority.consumeByIds(sources, allocation, isWellItemAvailable)
-    if not consumed then
-        SpatialWell.RollbackPlacement(refugeData, well)
-        sendError(player, transactionId, MSR.PlayerMessage.SPATIAL_WELL_BUILD_FAILED)
         return
     end
 
