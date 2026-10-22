@@ -40,7 +40,11 @@ function Inventory.collectNestedContainers(rootContainer, maxDepth)
                 if containerItems and containerItems:size() > 0 then
                     for j = 0, containerItems:size() - 1 do
                         local containerItem = containerItems:get(j)
-                        local nestedInv = containerItem:getInventory()
+                        local nestedInv
+                        if instanceof(containerItem, "InventoryContainer") then
+                            ---@cast containerItem InventoryContainer
+                            nestedInv = containerItem:getInventory()
+                        end
                         if nestedInv then
                             table.insert(allContainers, nestedInv)
                             table.insert(nextLevel, nestedInv)
@@ -94,8 +98,8 @@ end
 --- @return InventoryItem|nil, ItemContainer|nil The item and its actual container
 function Inventory.findItemById(containers, itemId)
     for _, container in ipairs(containers) do
-        if container and container.getItemById then
-            local item = container:getItemById(itemId)
+        if container and container.getItemWithIDRecursiv then
+            local item = container:getItemWithIDRecursiv(itemId)
             if item then
                 local actualContainer = item:getContainer() -- May differ from search container
                 return item, actualContainer

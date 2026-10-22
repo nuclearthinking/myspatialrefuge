@@ -14,7 +14,7 @@ require "MSR_Transaction"
 require "MSR_Integrity"
 require "MSR_UpgradeLogic"
 require "MSR_ReadingSpeed"
-require "MSR_RoomPersistence"
+require "MSR_Rooms"
 require "MSR_RefugeExpansion"
 require "MSR_ZombieClear"
 require "MSR_Death"
@@ -22,7 +22,7 @@ require "MSR_XPRetention"
 require "MSR_InventoryAuthority"
 require "MSR_SpatialWellServer"
 require "MSR_RefugeGeometry"
-require "MSR_BasementGeneration"
+require "MSR_Basement"
 
 MSR_Server = MSR_Server or {}
 
@@ -386,15 +386,6 @@ function MSR_Server.HandleChunksReady(player, _args)
             
             LOG.debug( "All refuge chunks loaded after " .. tickCount .. " ticks for " .. usernameRef)
             
-            -- Server-side: Restore room IDs from saved ModData
-            -- This must happen on server for multiplayer to work correctly
-            if MSR.RoomPersistence and MSR.RoomPersistence.RestoreServer then
-                local restored = MSR.RoomPersistence.RestoreServer(refugeDataRef)
-                if restored > 0 then
-                    LOG.debug( string.format("Restored %d room IDs from ModData (server-side)", restored))
-                end
-            end
-            
             -- Quick check: if relic exists, refuge is already generated - skip full integrity check
             -- Only do full check if relic is missing (recovery scenario) or first generation
             local quickRelicCheck = MSR.Integrity.FindRelic(refugeDataRef)
@@ -422,16 +413,17 @@ function MSR_Server.HandleChunksReady(player, _args)
 
             local refugeUpgrades = refugeDataRef.upgrades or {}
             if (refugeUpgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0) > 0
-                and not MSR.BasementGeneration.IsBasementPresent(refugeDataRef)
+                and not MSR.Basement.IsBasementPresent(refugeDataRef)
             then
-                local basementOk, basementError = MSR.BasementGeneration.Generate(refugeDataRef, playerRef)
+                local basementOk, basementError = MSR.Basement.Generate(refugeDataRef, playerRef)
                 if not basementOk then
                     LOG.warning("Basement roll-forward remains incomplete on entry: %s", tostring(basementError))
                 end
             end
             
+            MSR.Rooms.Refresh(refugeDataRef)
+
             -- Simple square recalculation for visibility/lighting updates
-            -- Room IDs were already restored by RoomPersistence.RestoreServer() above
             -- We only need a single RecalcAllWithNeighbours pass for proper rendering
             local RECALC_DELAY_TICKS = 60  -- 1 second delay for chunks to fully initialize
             MSR.delay(RECALC_DELAY_TICKS, function()
@@ -442,9 +434,6 @@ function MSR_Server.HandleChunksReady(player, _args)
 
                 LOG.debug( "Recalculated " .. recalculated .. " squares for visibility")
             end)
-            
-            -- Room IDs are saved by client on exit, synced to server for persistence
-            -- No periodic save needed - game handles room discovery properly
             
             MSR.Data.TransmitModData()
             
@@ -466,8 +455,7 @@ function MSR_Server.HandleChunksReady(player, _args)
                 centerY = responseCenterY,
                 centerZ = refugeDataRef.centerZ,
                 tier = refugeDataRef.tier,
-                radius = refugeDataRef.radius,
-                roomIds = refugeDataRef.roomIds  -- Include roomIds for cutaway fix in MP
+                radius = refugeDataRef.radius
             })
             
             LOG.debug( "Phase 2 complete: Sent GenerationComplete to " .. usernameRef)
@@ -526,9 +514,9 @@ function MSR_Server.HandleExitRequest(player, _args)
         end
     end
 
-    -- Server-side: Save room IDs before player exits
-    if refugeData and MSR.RoomPersistence and MSR.RoomPersistence.SaveServerOnExit then
-        MSR.RoomPersistence.SaveServerOnExit(refugeData)
+    -- Capture authoritative geometry before the client unloads its refuge.
+    if refugeData then
+        MSR.Rooms.Refresh(refugeData)
     end
     
     -- Don't update cooldown on exit - preserve the penalty from enter.
@@ -963,12 +951,8 @@ local function OnClientCommand(module, command, player, args)
         MSR.SpatialWellServer.HandlePlaceRequest(player, args)
     elseif command == MSR.Config.COMMANDS.REQUEST_MOVE_SPATIAL_WELL then
         MSR.SpatialWellServer.HandleMoveRequest(player, args)
-    elseif command == MSR.Config.COMMANDS.SYNC_CLIENT_DATA then
-        -- Handle client data sync (roomIds, etc.)
-        -- In MP, clients can't write to ModData - server acts as data store
-        if MSR.RoomPersistence and MSR.RoomPersistence.HandleSyncFromClient then
-            MSR.RoomPersistence.HandleSyncFromClient(player, args)
-        end
+    elseif command == MSR.Config.COMMANDS.ROOMS_CHANGED then
+        MSR.Rooms.HandleRefreshRequest(player)
     elseif command == MSR.Config.COMMANDS.XP_ESSENCE_ABSORB then
         MSR_Server.HandleXPEssenceAbsorb(player, args)
     elseif command == MSR.Config.COMMANDS.DEBUG_ADD_CORES then

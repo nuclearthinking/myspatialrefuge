@@ -6,7 +6,7 @@ require "00_core/Config"
 require "MSR_Shared"
 require "00_core/Data"
 require "MSR_RefugeExpansion"
-require "MSR_BasementGeneration"
+require "MSR_Basement"
 require "helpers/World"
 require "MSR_PlayerMessage"
 require "MSR_InventoryAuthority"
@@ -571,7 +571,7 @@ local function registerBuiltinHandlers()
                 return false, "Refuge area not fully loaded. Move around and try again."
             end
 
-            local stairsOk, available = MSR.BasementGeneration.CheckStairwellAvailability(refugeData)
+            local stairsOk, available = MSR.Basement.CheckStairwellAvailability(refugeData)
             if not stairsOk then
                 LOG.debug("Basement validate failed: no clear stairwell (available=%s)", tostring(available))
                 return false, PM.BASEMENT_STAIRS_BLOCKED
@@ -594,12 +594,9 @@ local function registerBuiltinHandlers()
             return true, operation
         end,
         reconcile = function(player, _level, operation)
-            local success, errorMsg = MSR.BasementGeneration.Generate(operation.refugeData, player)
+            local success, errorMsg = MSR.Basement.Generate(operation.refugeData, player)
             if not success then return false, errorMsg or "Basement generation failed" end
-            if MSR.RoomPersistence then
-                MSR.RoomPersistence.Save(operation.refugeData)
-                MSR.RoomPersistence.Restore(operation.refugeData)
-            end
+            MSR.Rooms.Schedule(operation.refugeData, true)
             return true, nil
         end,
         invalidatesCache = true

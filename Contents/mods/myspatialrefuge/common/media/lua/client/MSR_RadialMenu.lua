@@ -75,10 +75,20 @@ end
 
 local function openDebugRadial(player)
     if not player then return end
+    ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
     local menu = getPlayerRadialMenu(player:getPlayerNum())
     if not menu then return end
     menu:undisplay()
     menu:clear()
+
+    menu:addSlice("MSR: Log room verification", DEBUG_ICON, function()
+        local refuge = MSR.Data.GetRefugeData(player)
+        if refuge then
+            local report = MSR.Rooms.Verify(refuge)
+            PM.SayRaw(player, "Rooms: " .. (report.ready and "PASS" or "FAIL")
+                .. " (" .. report.matched .. "/" .. report.expected .. "). Details: console.txt")
+        end
+    end)
 
     menu:addSlice(
         getTextOrDefault("IGUI_SpatialRefuge_Debug_ToBasement", "Teleport to Basement"),
@@ -114,6 +124,7 @@ end
 local function tryEnterRefuge(player)
     if not player or not MSR.CanEnterRefuge then return end
 
+    ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
     local rm = getPlayerRadialMenu(player:getPlayerNum())
     if rm then rm:undisplay() end
 
@@ -134,6 +145,7 @@ end
 local function tryExitRefuge(player)
     if not player then return end
 
+    ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
     local rm = getPlayerRadialMenu(player:getPlayerNum())
     if rm then rm:undisplay() end
 
@@ -208,6 +220,7 @@ function ISVehicleMenu.showRadialMenu(playerObj, ...)
         and MSR.Validation.HasVehicleTeleportUpgrade(playerObj)
     if not hasUpgrade then return end
     
+    ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
     local menu = getPlayerRadialMenu(playerObj:getPlayerNum())
     if not menu then return end
     

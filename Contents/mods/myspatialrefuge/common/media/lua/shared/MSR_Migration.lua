@@ -8,6 +8,7 @@
 -- Version 6: Added lastActiveTime for refuge decay and reclamation
 -- Version 7: Added customizations table for refuge-built objects
 -- Version 8: Added effective refuge area offsets
+-- Version 9: Replaced runtime room IDs with exact multi-floor geometry
 
 require "00_core/00_MSR"
 require "helpers/World"
@@ -291,6 +292,22 @@ local function migrate_7_to_8(player)
     return true, "Migrated v7 -> v8 (effective refuge geometry)"
 end
 
+local function migrate_8_to_9(player)
+    local refugeData = Data.GetRefugeDataByUsername(player:getUsername())
+    if not refugeData then return true, "No refuge data - nothing to migrate" end
+    local oldIds, oldData, oldBounds = refugeData.roomIds, refugeData.roomData, refugeData.roomBounds
+    refugeData.roomIds, refugeData.roomData, refugeData.roomBounds = nil, nil, nil
+    refugeData.dataVersion = 9
+    -- Do not import lossy bounding boxes as rooms. The room service reconstructs
+    -- the physical layout when chunks load, preserving existing constructions.
+    if not Data.SaveRefugeData(refugeData) then
+        refugeData.roomIds, refugeData.roomData, refugeData.roomBounds = oldIds, oldData, oldBounds
+        refugeData.dataVersion = 8
+        return false, "Failed to persist v9 room migration"
+    end
+    return true, "Migrated v8 -> v9 (coordinate-based rooms)"
+end
+
 local MIGRATIONS = {
     [1] = migrate_1_to_2,
     [2] = migrate_2_to_3,
@@ -298,7 +315,8 @@ local MIGRATIONS = {
     [4] = migrate_4_to_5,
     [5] = migrate_5_to_6,
     [6] = migrate_6_to_7,
-    [7] = migrate_7_to_8
+    [7] = migrate_7_to_8,
+    [8] = migrate_8_to_9
 }
 
 -- Returns: 1 (legacy), 2+ (current), nil (new player)

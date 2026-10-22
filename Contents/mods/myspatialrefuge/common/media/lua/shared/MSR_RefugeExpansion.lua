@@ -6,8 +6,8 @@ require "MSR_Integrity"
 require "MSR_RefugeGeometry"
 require "MSR_BoundaryReconciler"
 require "MSR_RefugeGeneration"
-require "MSR_BasementGeneration"
-require "MSR_RoomPersistence"
+require "MSR_Basement"
+require "MSR_Rooms"
 
 local Expansion = MSR.register("RefugeExpansion")
 if not Expansion then return MSR.RefugeExpansion end
@@ -105,11 +105,12 @@ local function reconcileWorld(player, operation)
 
     local upgrades = refugeData.upgrades or {}
     if (upgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0) > 0 then
-        local basementOk, basementError = MSR.BasementGeneration.Generate(refugeData, player)
+        local basementOk, basementError = MSR.Basement.Generate(refugeData, player)
         if not basementOk then return false, basementError end
     end
 
-    MSR.RoomPersistence.ApplyCutaway(refugeData)
+    MSR.Rooms.Schedule(refugeData, true)
+    MSR.Rooms.UpdateCutaway(refugeData)
     MSR.Integrity.ValidateAndRepair(refugeData, { source = "expansion", player = player })
     return true, nil
 end

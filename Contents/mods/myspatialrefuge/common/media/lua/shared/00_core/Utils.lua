@@ -27,7 +27,9 @@ function Utils.resolvePlayer(player)
     -- Re-resolve to avoid stale references in MP
     if type(player) == "userdata" or type(player) == "table" then
         local playerRef = player --[[@as IsoPlayer]]
+        ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
         if not playerRef.getPlayerNum then return nil end
+        ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
         local ok, num = pcall(function() return playerRef:getPlayerNum() end)
         if ok and num ~= nil and getSpecificPlayer then
             ---@type IsoPlayer?

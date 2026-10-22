@@ -58,7 +58,7 @@ MSR.Config = {
     MODDATA_KEY = "MySpatialRefuge",
     REFUGES_KEY = "Refuges",
     
-    CURRENT_DATA_VERSION = 8, -- v8: relic-anchored effective refuge geometry
+    CURRENT_DATA_VERSION = 9, -- v9: coordinate-based room geometry on every floor
     
     CORE_ITEM = "Base.MagicalCore",
 
@@ -136,7 +136,7 @@ MSR.Config = {
         SPATIAL_WELL_ERROR = "SpatialWellError",
         SPATIAL_WELL_MOVE_COMPLETE = "SpatialWellMoveComplete",
         SPATIAL_WELL_MOVE_ERROR = "SpatialWellMoveError",
-        SYNC_CLIENT_DATA = "SyncClientData", -- client→server for roomIds (client can't write ModData in MP)
+        ROOMS_CHANGED = "RoomsChanged", -- client hint; server derives all geometry
         ADMIN_COMMAND = "AdminCommand",
         ADMIN_RESPONSE = "AdminResponse",
 

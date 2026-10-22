@@ -283,31 +283,17 @@ function PM.GetFormattedText(messageKey, ...)
         return messageKey
     end
     
-    local template = getText and getText(translationKey) or translationKey
-    local args = {...}
-    
-    -- If no args, return as-is
-    local hasArgs = false
-    for _ in pairs(args) do
-        hasArgs = true
-        break
-    end
-    if not hasArgs then
-        return template
-    end
-
-    -- Let the game translator apply placeholders from JSON translations.
+    -- PZ 42.21 formats even a lookup without arguments and logs missing
+    -- placeholders internally. Translate once, with the original arguments.
     if getText then
-        local ok, result = pcall(function()
-            return getTextFormatted(translationKey, unpack(args))
-        end)
+        local ok, result = pcall(getTextFormatted, translationKey, ...)
         if ok and result then
             return result
         end
     end
 
-    -- Fallback on translation error
-    return template
+    -- A second lookup without arguments would repeat the formatting warning.
+    return translationKey
 end
 
 --- Translate a canonical direction name to localized text

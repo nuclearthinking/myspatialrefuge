@@ -2,12 +2,13 @@ require "00_core/00_MSR"
 require "helpers/World"
 require "MSR_RefugeGeometry"
 require "MSR_BoundaryReconciler"
+require "MSR_Rooms"
 
-local Basement = MSR.register("BasementGeneration")
+local Basement = MSR.register("Basement")
 if not Basement then
-    return MSR.BasementGeneration
+    return MSR.Basement
 end
-local LOG = L.logger("BasementGeneration")
+local LOG = L.logger("Basement")
 
 local FLOOR_SPRITE = MSR.Config.BASEMENT.FLOOR_SPRITE
 local function isSquareClear(square)
@@ -141,13 +142,6 @@ local function placeFixtureStairsAt(x, y, z, north, sprites)
     return true
 end
 
-local function placeStairsAt(x, y, z, north, sprites)
-    if not sprites or #sprites < 3 then return false end
-    return placeFixtureStairsAt(x, y, z, north, sprites)
-end
-
--- stairs markers removed (no teleportation)
-
 local function getConfiguredStairwells(refugeData)
     if not MSR.Config then return nil end
 
@@ -255,7 +249,7 @@ local function ensureFloor(square)
     local floor = square:getFloor()
     if floor and floor.getSprite then
         local sprite = floor:getSprite()
-        if sprite and sprite:getName() == FLOOR_SPRITE then
+        if sprite and string.sub(sprite:getName() or "", 1, 12) ~= "underground_" then
             return true
         end
     end
@@ -271,22 +265,10 @@ local function ensureFloor(square)
     return floor ~= nil
 end
 
-local function isBlockingUndergroundObject(obj, objType, spriteName, props)
-    if not obj then return false end
-    if spriteName and luautils and luautils.stringStarts(spriteName, "underground_") then
-        return true
-    end
-
-    local isFloor = (objType == IsoObjectType.FloorTile) or (props and props:has(IsoFlagType.solidfloor))
-    local isWall = (objType == IsoObjectType.wall)
-    local isStairs = (objType == IsoObjectType.stairsTW or objType == IsoObjectType.stairsMW or
-        objType == IsoObjectType.stairsNW or objType == IsoObjectType.stairsBN)
-
-    if props and (props:has(IsoFlagType.solid) or props:has(IsoFlagType.solidtrans)) then
-        return not (isFloor or isWall or isStairs)
-    end
-
-    return false
+-- Excavation may remove geological terrain only. Never remove player walls,
+-- furniture, containers or custom floors while reconciling an existing basement.
+local function isBlockingUndergroundObject(spriteName)
+    return spriteName ~= nil and string.sub(spriteName, 1, 12) == "underground_"
 end
 
 local function clearBasementSquare(square)
@@ -301,15 +283,12 @@ local function clearBasementSquare(square)
             if md and md.isRefugeBasementStairsMarker then
                 MSR.World.removeObject(square, obj, false)
             elseif not (md and md.isRefugeBasementObject) then
-                local objType = obj.getType and obj:getType() or nil
                 local spriteName = (obj.getSpriteName and obj:getSpriteName()) or nil
                 if not spriteName and obj.getSprite and obj:getSprite() then
                     local sprite = obj:getSprite()
                     spriteName = sprite and sprite:getName() or nil
                 end
-                local props = obj.getProperties and obj:getProperties() or nil
-
-                if isBlockingUndergroundObject(obj, objType, spriteName, props) then
+                if isBlockingUndergroundObject(spriteName) then
                     MSR.World.removeObject(square, obj, false)
                 end
             end
@@ -431,33 +410,6 @@ function Basement.IsBasementPresent(refugeData)
     return false
 end
 
--- NOTE: stairs marker teleport removed; stairs should behave naturally
-
-function Basement.GetBasementZ(refugeData)
-    return refugeData and (refugeData.centerZ or 0) - 1 or -1
-end
-
-local function debugTeleportToBasement(key)
-    if key ~= Keyboard.KEY_F9 then return end
-    local player = getPlayer()
-    if not player then return end
-    if not MSR.Data or not MSR.Data.IsPlayerInRefugeCoords or not MSR.Data.IsPlayerInRefugeCoords(player) then
-        return
-    end
-    local refugeData = MSR.Data.GetRefugeData(player)
-    if not refugeData then return end
-
-    local basementZ = Basement.GetBasementZ(refugeData)
-    local targetZ = (player:getZ() == basementZ) and refugeData.centerZ or basementZ
-    local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
-    player:teleportTo(centerX, centerY, targetZ)
-end
-
-if not MSR._basementDebugTeleportRegistered then
-    Events.OnKeyPressed.Add(debugTeleportToBasement)
-    MSR._basementDebugTeleportRegistered = true
-end
-
 function Basement.Generate(refugeData, player)
     if not refugeData then return false, "Refuge data not found" end
     if MSR.Env.isMultiplayerClient() then
@@ -532,7 +484,7 @@ function Basement.Generate(refugeData, player)
             if not topBlocked then
                 -- Check basement footprint, place stairs first, then cut opening.
                 if isStairsFootprintClear(anchor.x, anchor.y, anchor.zBottom, north) then
-                    placedStairs = placeStairsAt(anchor.x, anchor.y, anchor.zBottom, north, anchor.sprites)
+                    placedStairs = placeFixtureStairsAt(anchor.x, anchor.y, anchor.zBottom, north, anchor.sprites)
                     stairsNorth = north
                 end
                 if placedStairs then
@@ -550,6 +502,7 @@ function Basement.Generate(refugeData, player)
     end
 
     if placedAny then
+        MSR.Rooms.Schedule(refugeData, true)
         LOG.debug("Basement generated at z=%d with stairs", basementZ)
         return true, nil
     end
@@ -557,4 +510,4 @@ function Basement.Generate(refugeData, player)
     return false, "Stairs placement failed"
 end
 
-return MSR.BasementGeneration
+return MSR.Basement

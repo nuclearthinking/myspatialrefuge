@@ -1,12 +1,13 @@
 -- MSR_RefugeGeneration - Refuge structures/generation utilities
 
 require "00_core/00_MSR"
+require "MSR_Rooms"
 require "00_core/Env"
 require "helpers/World"
 require "MSR_Shared"
 require "MSR_Integrity"
 require "MSR_ZombieClear"
-require "MSR_BasementGeneration"
+require "MSR_Basement"
 require "MSR_UpgradeData"
 require "MSR_RefugeGeometry"
 require "MSR_BoundaryReconciler"
@@ -513,15 +514,16 @@ function RG.StepEnterPreparation(ctx)
     if not ctx.buildingsRecalculated and ctx.floorPrepared and ctx.relicCreated and ctx.wallsCreated then
         if MSR.World.areAreaChunksLoaded(ctx.centerX, ctx.centerY, ctx.centerZ, ctx.radius) then
             ctx.buildingsRecalculated = true
-            MSR.RoomPersistence.ApplyCutaway(ctx.refugeData)
+            MSR.Rooms.Schedule(ctx.refugeData, true)
+            MSR.Rooms.UpdateCutaway(ctx.refugeData)
         end
     end
 
     if ctx.buildingsRecalculated and not ctx.basementChecked and not MSR.Env.isClientProcess() then
         ctx.basementChecked = true
         local basementLevel = MSR.UpgradeData.getPlayerUpgradeLevel(ctx.player, MSR.Config.UPGRADES.REFUGE_BASEMENT)
-        if basementLevel > 0 and not MSR.BasementGeneration.IsBasementPresent(ctx.refugeData) then
-            local success, errorMsg = MSR.BasementGeneration.Generate(ctx.refugeData, ctx.player)
+        if basementLevel > 0 and not MSR.Basement.IsBasementPresent(ctx.refugeData) then
+            local success, errorMsg = MSR.Basement.Generate(ctx.refugeData, ctx.player)
             if not success then
                 LOG.debug("Basement generation failed during entry: %s", tostring(errorMsg))
             end

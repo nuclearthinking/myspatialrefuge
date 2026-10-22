@@ -3,7 +3,7 @@ require "00_core/Events"
 
 require "MSR_PlayerMessage"
 require "MSR_Integrity"
-require "MSR_RoomPersistence"
+require "MSR_Rooms"
 require "MSR_UpgradeLogic"
 require "MSR_VehicleTeleport"
 require "MSR_SpatialWell"
@@ -79,12 +79,6 @@ local function handleGenerationComplete(args, player)
     if MSR.Env.isMultiplayerClient() then
         local refugeData = MSR.GetRefugeData(player)
         if refugeData then
-            -- Merge roomIds from server (server stores what client synced earlier)
-            if args.roomIds then
-                refugeData.roomIds = args.roomIds
-                LOG.debug( string.format("Received %d roomIds from server", K.count(args.roomIds)))
-            end
-
             local repairTicks = 0
             local function delayedIntegrityCheck()
                 repairTicks = repairTicks + 1
@@ -102,7 +96,8 @@ local function handleGenerationComplete(args, player)
                     if recalcTicks < 60 then return end  -- Wait 1 second after integrity check
 
                     Events.OnTick.Remove(delayedBuildingRecalc)
-                    MSR.RoomPersistence.ApplyCutaway(refugeData)
+                    MSR.Rooms.Schedule(refugeData, false)
+                    MSR.Rooms.UpdateCutaway(refugeData, player:getPlayerNum())
                 end
                 Events.OnTick.Add(delayedBuildingRecalc)
             end
@@ -115,18 +110,6 @@ end
 
 local function handleExitReady(args, player)
     if not args or not args.returnX or not args.returnY or args.returnZ == nil then return end
-
-    -- Save room IDs BEFORE teleport out (will restore after teleport in)
-    local refugeData = MSR.GetRefugeData(player)
-    if refugeData then
-        local saved = MSR.RoomPersistence.Save(refugeData)
-        if saved > 0 then
-            LOG.debug( string.format("Saved %d room IDs before exit", saved))
-        end
-        if MSR.Env.isMultiplayerClient() and refugeData.roomIds then
-            MSR.RoomPersistence.SyncToServer(refugeData)
-        end
-    end
 
     player:teleportTo(args.returnX, args.returnY, args.returnZ)
     player:setLastX(args.returnX)
