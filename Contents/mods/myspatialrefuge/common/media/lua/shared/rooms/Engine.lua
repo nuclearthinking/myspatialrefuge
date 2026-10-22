@@ -165,7 +165,7 @@ function Engine.repair(bounds, minZ, maxZ, relight)
                 local sq = cell:getGridSquare(x, y, z)
                 local def = sq and sq:getChunk() and grid:getRoomAt(x, y, z)
                 local room = def and def:getIsoRoom()
-                if sq and room then
+                if sq and def and room then
                     local rebound = sq:getRoom() ~= room or sq:isOutside()
                         or sq:getRoomIDString() ~= def:getIDString()
                     if rebound then
