@@ -228,6 +228,4 @@ function Shared.RemoveDuplicateRelics(_centerX, _centerY, _centerZ, _radius, _re
     return report.relic.duplicatesRemoved
 end
 
--- Room persistence moved to MSR_RoomPersistence.lua
-
 return MSR.Shared

@@ -56,7 +56,8 @@ function Data.SerializeRefugeData(refugeData)
         createdTime = refugeData.createdTime,
         lastActiveTime = refugeData.lastActiveTime,
         lastExpanded = refugeData.lastExpanded,
-        dataVersion = refugeData.dataVersion
+        dataVersion = refugeData.dataVersion,
+        rooms = refugeData.rooms
     }
 end
 
@@ -444,6 +445,7 @@ function Data.DeleteRefugeDataByUsername(username)
     local existing = registry[username]
     if not existing then return false, nil end
 
+    if MSR.Rooms then MSR.Rooms.Forget(existing) end
     registry[username] = nil
 
     local modData = Data.InitializeModData()

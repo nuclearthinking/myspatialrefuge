@@ -116,10 +116,16 @@ end
 function ZombieClear.ClearRefuge(refugeData, player)
     if not refugeData then return 0 end
     local centerX, centerY = MSR.RefugeGeometry.GetAreaCenter(refugeData)
-    return ZombieClear.ClearZombiesFromArea(
+    local cleared = ZombieClear.ClearZombiesFromArea(
         centerX, centerY, refugeData.centerZ,
         refugeData.radius or 1, true, player
     )
+    if refugeData.upgrades and (refugeData.upgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0) > 0 then
+        cleared = cleared + ZombieClear.ClearZombiesFromArea(
+            centerX, centerY, refugeData.centerZ - 1, refugeData.radius or 1, true, player
+        )
+    end
+    return cleared
 end
 
 --- Clear for single player (SP/Coop host)
@@ -193,6 +199,47 @@ end
 -----------------------------------------------------------
 -- Event Registration
 -----------------------------------------------------------
+
+local function isUnwantedRefugeZombie(zombie)
+    if not MSR.Env.hasServerAuthority() or ZombieClear.IsPaused() then return end
+    local sq = zombie and zombie:getCurrentSquare()
+    if not sq then return end
+    local r = MSR.Data.GetRefugeDataAtPosition(sq:getX(), sq:getY(), sq:getZ())
+    if not r then return end
+    local z = sq:getZ()
+    local basement = r.upgrades and (r.upgrades[MSR.Config.UPGRADES.REFUGE_BASEMENT] or 0) > 0
+    if z < r.centerZ and not (basement and z == r.centerZ - 1) then return end
+    return not zombie:getModData().MSR_ProtectedCorpse
+end
+
+-- Java finishes registering the zombie and assigning its online ID AFTER the
+-- OnZombieCreate callback. Defer targeted removal until the next tick instead
+-- of removing an unfinished object that Java would then add back to the world.
+local pendingSpawns = {}
+local function removePendingSpawns()
+    Events.OnTick.Remove(removePendingSpawns)
+    local batch = pendingSpawns
+    pendingSpawns = {}
+    local ids = {}
+    for zombie in pairs(batch) do
+        -- Player corpse protection/death pauses can change after creation.
+        if isUnwantedRefugeZombie(zombie) then
+            local onlineID = zombie:getOnlineID()
+            zombie:removeFromWorld()
+            zombie:removeFromSquare()
+            if isServer() and onlineID >= 0 then ids[#ids + 1] = onlineID end
+        end
+    end
+    if #ids > 0 then
+        sendServerCommand(MSR.Config.COMMAND_NAMESPACE, MSR.Config.COMMANDS.CLEAR_ZOMBIES, { zombieIDs = ids })
+    end
+end
+
+Events.OnZombieCreate.Add(function(zombie)
+    if not isUnwantedRefugeZombie(zombie) then return end
+    if K.isEmpty(pendingSpawns) then Events.OnTick.Add(removePendingSpawns) end
+    pendingSpawns[zombie] = true
+end)
 
 -- Subscribe to death event (decoupled from MSR_Death module)
 MSR.Events.Custom.Add("MSR_PlayerDiedInRefuge", onPlayerDiedInRefuge)

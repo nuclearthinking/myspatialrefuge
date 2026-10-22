@@ -94,6 +94,7 @@ function getWorld() end
 IsoWorld = {}
 
 ---@class IsoGridSquare
+---@field setRoom fun(self: IsoGridSquare, room: IsoRoom|nil) Java setter accepts null when a room is removed.
 ---@field getChunk fun(self: IsoGridSquare): IsoChunk|nil
 ---@field getX fun(self: IsoGridSquare): integer
 ---@field getY fun(self: IsoGridSquare): integer
@@ -148,6 +149,7 @@ function getGameTime() end
 function getClimateManager() end
 
 ---@class IsoMetaGrid
+---@field getRoomAt fun(self: IsoMetaGrid, x: number, y: number, z: number): RoomDef|nil Room lookup returns Java null outside registered rectangles.
 ---@field getRoomByID fun(self: IsoMetaGrid, roomId: number): IsoRoom|nil
 IsoMetaGrid = {}
 
@@ -619,6 +621,9 @@ function writeLog(loggerName, text) end
 DebugType = {}
 
 ---@class IsoFlagType
+---@field cutN IsoFlagType
+---@field cutW IsoFlagType
+---@field WallSE IsoFlagType
 ---@field solid IsoFlagType
 ---@field solidtrans IsoFlagType
 ---@field solidfloor IsoFlagType
@@ -637,6 +642,7 @@ LogSeverity = {}
 
 -- ModData (persistent data storage)
 ---@class ModData
+---@field add fun(key: string, data: table)
 ---@field getOrCreate fun(key: string): table
 ---@field get fun(key: string): table|nil
 ---@field transmit fun(key: string)

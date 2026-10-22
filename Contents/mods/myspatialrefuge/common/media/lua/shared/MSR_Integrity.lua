@@ -1,6 +1,6 @@
 require "00_core/00_MSR"
 require "helpers/World"
-require "MSR_BasementGeneration"
+require "MSR_Basement"
 require "MSR_RefugeGeometry"
 require "MSR_BoundaryReconciler"
 

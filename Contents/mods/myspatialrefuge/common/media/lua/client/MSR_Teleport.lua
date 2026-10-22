@@ -8,7 +8,7 @@
 -- Internal orchestration:
 -- 4) SP enter flow: teleport into refuge, prepare area (zombie clear, trees/walls),
 --    create relic, apply cutaway, and apply encumbrance penalty.
--- 5) SP exit flow: save room IDs, clear return position, teleport out, re-enter
+-- 5) SP exit flow: capture room geometry, clear return position, teleport out, re-enter
 --    vehicle if applicable, and fire local teleport events.
 -- 6) MP client enter/exit: send request commands to server (responses handled
 --    by MSR_ServerCommandRouter).
@@ -22,6 +22,7 @@
 -- - One-time post-join integrity sync: MSR.Data (via Events)
 
 require "00_core/00_MSR"
+require "MSR_Rooms"
 require "00_core/Events"
 
 require "MSR_PlayerMessage"
@@ -121,11 +122,10 @@ end
 doSingleplayerExit = function(player, returnPos)
     local targetX, targetY, targetZ = returnPos.x, returnPos.y, returnPos.z
     
-    -- Save room IDs BEFORE teleport out (will restore after teleport in)
+    -- Capture geometry while construction squares are still loaded.
     local refugeData = MSR.GetRefugeData(player)
     if refugeData then
-        local saved = MSR.RoomPersistence.Save(refugeData)
-        LOG.debug( string.format("doSingleplayerExit: Saved %d room IDs before exit", saved))
+        MSR.Rooms.Refresh(refugeData)
     end
     
     fireTeleportEvent("MSR_TeleportExitStarted", { player = player, returnPos = returnPos })

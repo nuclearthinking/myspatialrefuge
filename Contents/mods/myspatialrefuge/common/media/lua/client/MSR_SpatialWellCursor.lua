@@ -42,6 +42,7 @@ local function getCursorClass()
         o:setEastSprite(spriteName)
         o:setSouthSprite(spriteName)
         o:setDragNilAfterPlace(true)
+        ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
         o.player = playerObj:getPlayerNum()
         o.moveExisting = moveExisting == true
         o.sourceWell = sourceWell
@@ -110,6 +111,7 @@ function MSR_SpatialWellCursor.Start(playerObj)
 
     ---@diagnostic disable-next-line: redundant-parameter
     local cursor = cursorClass:new(playerObj, false, nil)
+    ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
     getCell():setDrag(cursor, playerObj:getPlayerNum())
     return true
 end
@@ -130,6 +132,7 @@ function MSR_SpatialWellCursor.StartMove(playerObj, well)
 
     ---@diagnostic disable-next-line: redundant-parameter
     local cursor = cursorClass:new(playerObj, true, well)
+    ---@diagnostic disable-next-line: deprecated -- Required by the older supported B42 layouts; still a public Java method.
     getCell():setDrag(cursor, playerObj:getPlayerNum())
     return true
 end
