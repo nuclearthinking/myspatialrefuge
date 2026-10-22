@@ -1,4 +1,17 @@
 versions:
+- version: '1.28'
+  date: October 2026
+  added:
+  - Enclosed, roofed player-built rooms inside the refuge can now be recognized as indoors, including rooms on upper floors.
+  fixed:
+  - Fixed refuge basements losing indoor room recognition after leaving and returning or reloading a save.
+  - Fixed room recognition after refuge expansion and changes to walls, roofs, and stair openings.
+  - Fixed refuge zombie cleanup missing basement levels and improved removal of newly spawned zombies. Protected player corpses
+    remain excluded.
+  - Fixed repeated translation warnings for upgrade and other player messages on Project Zomboid 42.21.
+  changed:
+  - Basement repairs now preserve player-built floors, walls, furniture, and stored items.
+  removed: []
 - version: 1.27.1
   date: August 2026
   added: []
